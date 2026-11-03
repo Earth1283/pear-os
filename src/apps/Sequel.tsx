@@ -4,6 +4,7 @@ import { os, type Win } from '../store'
 import { passwordStrength } from '../kernel'
 import { AppIcon, PearLogo } from '../components/icons'
 import { menu } from '../lib/menu'
+import { proxyUrl, useBackend } from '../lib/backend'
 
 type Msg = { from: 'me' | 'ai'; text: string; tool?: string }
 
@@ -333,10 +334,25 @@ export function Mirroring() {
   )
 }
 
-type Page = { url: string; title: string; body: React.ReactNode }
+type Page = { url: string; title: string; body: React.ReactNode; real?: boolean }
 
-function pageFor(url: string, nav: (u: string) => void): Page {
-  const u = url.replace(/^https?:\/\//, '').replace(/\/$/, '')
+const stripUrl = (url: string) => url.replace(/^https?:\/\//, '').replace(/\/$/, '')
+const isFakeUrl = (url: string) => {
+  const u = stripUrl(url)
+  return u === '' || u === 'favorites' || u.startsWith('pear.com') || u.startsWith('gargle.com') || u.startsWith('localhost:9091')
+}
+
+const REAL_FAVS: [string, string, string][] = [
+  ['Wikipedia', 'https://en.m.wikipedia.org/wiki/Pear', '#636366'],
+  ['Hacker News', 'https://news.ycombinator.com', '#ff6600'],
+  ['DuckDuckGo', 'https://html.duckduckgo.com/html/', '#de5833'],
+  ['NPR Text', 'https://text.npr.org', '#1a1a1a'],
+  ['Old Reddit', 'https://old.reddit.com', '#ff4500'],
+  ['example.com', 'https://example.com', '#0a84ff'],
+]
+
+function pageFor(url: string, nav: (u: string) => void, authed = false): Page {
+  const u = stripUrl(url)
   if (u === '' || u === 'favorites') {
     return {
       url: '',
@@ -359,6 +375,19 @@ function pageFor(url: string, nav: (u: string) => void): Page {
               </button>
             ))}
           </div>
+          {authed && (
+            <>
+              <h2>From the Real Internet</h2>
+              <div className="sf-favs">
+                {REAL_FAVS.map(([name, href, c]) => (
+                  <button key={href} onClick={() => nav(href)}>
+                    <span style={{ background: c }}>{name[0]}</span>
+                    <small>{name}</small>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
           <h2>Privacy Report</h2>
           <div className="sf-card">In the last seven days, Sapphari has prevented 0 trackers from profiling you, because the internet in here is fake.</div>
           <h2>Highlights</h2>
@@ -452,6 +481,7 @@ function pageFor(url: string, nav: (u: string) => void): Page {
   }
   return {
     url: u,
+    real: true,
     title: 'Failed to open page',
     body: (
       <div className="sf-error">
@@ -460,6 +490,7 @@ function pageFor(url: string, nav: (u: string) => void): Page {
         <p>
           Sapphari can't open the page “{u}” because this internet is fake. Every page outside pear.com and gargle.com was removed for Distraction Control.
         </p>
+        <p>Run pearosd and log in to browse the real internet through PearOS.</p>
       </div>
     ),
   }
@@ -473,21 +504,57 @@ export function Safari({ win }: { win: Win }) {
   const [loading, setLoading] = useState(false)
   const [reader, setReader] = useState(false)
   const url = hist[i]
+  const authed = useBackend((s) => s.authed)
+  const frameEl = useRef<HTMLIFrameElement>(null)
+  const [frame, setFrame] = useState<{ src: string; key: number } | null>(null)
+  const [frameTitle, setFrameTitle] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
+  const fromFrame = useRef(false)
   const nav = (u: string) => {
     setHist([...hist.slice(0, i + 1), u])
     setI(i + 1)
     setAddr(u)
     setLoading(true)
-    setTimeout(() => setLoading(false), 450)
+    if (!authed || isFakeUrl(u)) setTimeout(() => setLoading(false), 450)
   }
+  const realMode = authed && !isFakeUrl(url)
+  useEffect(() => {
+    if (!realMode) return setFrame(null)
+    if (fromFrame.current) {
+      fromFrame.current = false
+      return
+    }
+    const src = proxyUrl(url)
+    setFrame(src ? { src, key: Date.now() } : null)
+    setFrameTitle(null)
+    setLoading(true)
+  }, [url, realMode, reloadKey])
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (e.source !== frameEl.current?.contentWindow || e.data?.pearos !== 'nav') return
+      const u = String(e.data.url)
+      setFrameTitle(e.data.title ? String(e.data.title) : null)
+      setLoading(false)
+      if (stripUrl(u) !== stripUrl(hist[i])) {
+        fromFrame.current = true
+        setHist((h) => [...h.slice(0, i + 1), u])
+        setI(i + 1)
+        setAddr(u)
+      }
+    }
+    window.addEventListener('message', onMsg)
+    return () => window.removeEventListener('message', onMsg)
+  }, [hist, i])
+  const reload = () => (realMode ? setReloadKey((k) => k + 1) : nav(url))
   useEffect(() => {
     const u = win.props.url as string | undefined
     if (u !== undefined && u !== url) nav(u)
   }, [win.props.url])
-  const page = pageFor(url, nav)
+  const page = pageFor(url, nav, authed)
+  const title = realMode ? frameTitle || stripUrl(url).split('/')[0] : page.title
   useEffect(() => {
-    os().setTitle(win.id, page.title)
-  }, [page.title])
+    os().setTitle(win.id, title)
+  }, [title])
   return (
     <div className="safari">
       <div className="sf-toolbar" data-drag>
@@ -504,7 +571,8 @@ export function Safari({ win }: { win: Win }) {
           onSubmit={(e) => {
             e.preventDefault()
             const v = addr.trim()
-            nav(/\s/.test(v) || !v.includes('.') ? `gargle.com/search?q=${encodeURIComponent(v)}` : v)
+            const search = authed ? `https://html.duckduckgo.com/html/?q=${encodeURIComponent(v)}` : `gargle.com/search?q=${encodeURIComponent(v)}`
+            nav(/\s/.test(v) || !v.includes('.') ? search : v)
           }}
         >
           {url && <Lock size={11} className="lock" />}
@@ -512,7 +580,7 @@ export function Safari({ win }: { win: Win }) {
           <button type="button" className={`reader ${reader ? 'on' : ''}`} onClick={() => setReader(!reader)} aria-label="Distraction Control">
             <BookOpen size={13} />
           </button>
-          <button type="button" onClick={() => nav(url)} aria-label="Reload">
+          <button type="button" onClick={reload} aria-label="Reload">
             <RotateCw size={12} />
           </button>
           {loading && <span className="sf-progress" />}
@@ -531,7 +599,7 @@ export function Safari({ win }: { win: Win }) {
         onContextMenu={menu([
           { label: 'Back', disabled: i === 0, run: () => (setI(i - 1), setAddr(hist[i - 1])) },
           { label: 'Forward', disabled: i === hist.length - 1, run: () => (setI(i + 1), setAddr(hist[i + 1])) },
-          { label: 'Reload Page', shortcut: '⌘R', run: () => nav(url) },
+          { label: 'Reload Page', shortcut: '⌘R', run: reload },
           'sep',
           { label: reader ? 'Show Distractions' : 'Hide Distracting Items', run: () => setReader(!reader) },
           { label: 'Summarize Page', run: () => os().openApp('intelligence', { props: { ask: `Summarize ${page.title}` } }) },
@@ -549,6 +617,17 @@ export function Safari({ win }: { win: Win }) {
             <h2>Distraction Control</h2>
             <p>We hid every distracting element on this page. That turned out to be all of them.</p>
           </div>
+        ) : realMode && frame ? (
+          <iframe
+            ref={frameEl}
+            key={frame.key}
+            className="sf-frame"
+            src={frame.src}
+            title={title}
+            sandbox="allow-scripts allow-forms allow-popups allow-modals allow-downloads"
+            referrerPolicy="no-referrer"
+            onLoad={() => setLoading(false)}
+          />
         ) : (
           page.body
         )}

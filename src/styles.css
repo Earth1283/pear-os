@@ -3275,3 +3275,142 @@ input[type='range']::-moz-range-progress {
   font-size: 22px;
   font-weight: 700;
 }
+
+.real-terminal {
+  position: relative;
+  display: flex;
+  padding: 4px 0 2px 6px;
+  background: #fff;
+}
+:root[data-theme='dark'] .real-terminal {
+  background: #1e1e1e;
+}
+.xterm-host {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.xterm-host .xterm {
+  height: 100%;
+}
+.xterm-host .xterm-viewport {
+  background: transparent !important;
+}
+.real-terminal .reconnect {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+}
+
+.drive {
+  position: relative;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.drive > .icon-grid,
+.drive > .list-view {
+  flex: none;
+}
+.drive.drag::after {
+  content: 'Drop to upload to PearDrive';
+  position: absolute;
+  inset: 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  background: rgba(10, 132, 255, 0.08);
+  box-shadow: inset 0 0 0 2px var(--accent);
+  pointer-events: none;
+}
+.drive .finder-empty {
+  flex: 1;
+}
+.drop-hint {
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.drive-status {
+  position: sticky;
+  bottom: -10px;
+  margin: auto -10px -10px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--fg2);
+  border-top: 0.5px solid var(--line);
+  background: var(--bg2);
+}
+.rename-field {
+  width: 100%;
+  max-width: 120px;
+  font-size: 12px;
+  padding: 0 3px;
+  border: 0;
+  border-radius: 3px;
+  outline: 3px solid rgba(10, 132, 255, 0.5);
+  background: var(--field);
+  color: var(--fg);
+  text-align: center;
+}
+.list-view .rename-field {
+  text-align: left;
+  max-width: 260px;
+}
+.spinner.dark {
+  border-color: var(--line);
+  border-top-color: var(--fg2);
+}
+
+.preview {
+  display: grid;
+  place-items: center;
+  background: var(--bg2);
+  overflow: hidden;
+}
+.preview img,
+.preview video {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.preview iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.sf-page {
+  position: relative;
+}
+.sf-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+
+.about-real {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: -6px 0 14px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--fg2);
+  background: var(--sel);
+}
+.about-real b {
+  color: var(--fg);
+  font-size: 11px;
+}

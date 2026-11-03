@@ -3,15 +3,21 @@
   "private": true,
   "version": "15.0.0",
   "type": "module",
-  "description": "PearOS Sequel — a parody of macOS 15, built with React and a Rust/WebAssembly kernel.",
+  "description": "PearOS Sequel \u2014 a parody of macOS 15, built with React and a Rust/WebAssembly kernel.",
   "scripts": {
     "kernel": "cargo build --manifest-path kernel/Cargo.toml --release --target wasm32-unknown-unknown && cp kernel/target/wasm32-unknown-unknown/release/pearnel.wasm src/kernel/pearnel.wasm",
     "dev": "vite",
     "build": "tsc -p . && vite build",
     "preview": "vite preview",
-    "test:kernel": "cargo test --manifest-path kernel/Cargo.toml"
+    "test:kernel": "cargo test --manifest-path kernel/Cargo.toml",
+    "server": "npm run build && cargo build --release --manifest-path server/Cargo.toml",
+    "server:static": "npm run build && cd server && cargo zigbuild --release --target x86_64-unknown-linux-musl",
+    "server:dev": "cargo run --manifest-path server/Cargo.toml -- --api-only --no-tls --bind 127.0.0.1:9092",
+    "test:server": "cargo test --manifest-path server/Cargo.toml"
   },
   "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "lucide-react": "^1.67.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

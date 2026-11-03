@@ -6,6 +6,7 @@ import { Terminal } from './Terminal'
 import { Calculator, Notes, TextEdit } from './Productivity'
 import { Intelligence, Mirroring, Passwords, Safari } from './Sequel'
 import { About, ActivityMonitor, Fractals, Settings } from './System'
+import { Preview } from './Drive'
 
 const Nothing = () => null
 
@@ -23,7 +24,8 @@ export const APPS: Record<AppId, AppDef> = {
   activity: { name: 'Activity Monitor', component: ActivityMonitor, w: 820, h: 560, minW: 560, singleton: true, chrome: 'overlay' },
   fractals: { name: 'Fractals', component: Fractals, w: 820, h: 560, minW: 400, chrome: 'overlay' },
   settings: { name: 'System Settings', component: Settings, w: 780, h: 580, minW: 640, minH: 400, singleton: true, chrome: 'overlay' },
-  about: { name: 'About This Pear', component: About, w: 300, h: 500, singleton: true, resizable: false, chrome: 'overlay' },
+  preview: { name: 'Preview', component: Preview, w: 760, h: 540, minW: 240, minH: 180 },
+  about: { name: 'About This Pear', component: About, w: 300, h: 580, singleton: true, resizable: false, chrome: 'overlay' },
   trash: { name: 'Trash', component: Nothing, w: 0, h: 0, hidden: true },
 }
 

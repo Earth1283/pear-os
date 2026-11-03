@@ -6,6 +6,8 @@ import { APPS } from './registry'
 import type { AppId } from './ids'
 import { menu } from '../lib/menu'
 import { gpuInfo } from '../lib/gpu'
+import { useBackend } from '../lib/backend'
+import { RealTerminal } from './RealTerminal'
 
 type Line = { text: string; cls?: string }
 
@@ -41,7 +43,7 @@ function pearsay(msg: string) {
   return out.join('\n')
 }
 
-export function Terminal({ win }: { win: Win }) {
+function FakeTerminal({ win }: { win: Win }) {
   const [cwd, setCwd] = useState(HOME)
   const [lines, setLines] = useState<Line[]>(() => [{ text: `Last login: ${new Date(Date.now() - 3_600_000).toString().slice(0, 24)} on ttys000`, cls: 'dim' }])
   const [input, setInput] = useState('')
@@ -395,4 +397,9 @@ export function Terminal({ win }: { win: Win }) {
       )}
     </div>
   )
+}
+
+export function Terminal({ win }: { win: Win }) {
+  const authed = useBackend((s) => s.authed)
+  return authed && !win.props.fake ? <RealTerminal win={win} /> : <FakeTerminal win={win} />
 }

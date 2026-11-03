@@ -6,8 +6,10 @@ import { GPU_MIN_SCALE, MandelbrotGL, gpuInfo } from '../lib/gpu'
 import { APPS } from './registry'
 import { LaptopArt, PearLogo, AppIcon } from '../components/icons'
 import { menu } from '../lib/menu'
+import { procs as realProcs, useBackend, formatBytes as fmtBytes, type RealProc } from '../lib/backend'
 
 export function About() {
+  const sys = useBackend((s) => s.sys)
   return (
     <div className="about" data-drag>
       <LaptopArt size={150} />
@@ -29,6 +31,17 @@ export function About() {
         <dt>Kernel</dt>
         <dd className="mono small">pearnel.wasm (Rust)</dd>
       </dl>
+      {sys && (
+        <div className="about-real">
+          <b>Actually running on</b>
+          <span>
+            {sys.hostname} · {sys.os}
+          </span>
+          <span>
+            {sys.cpu} · {sys.cores} cores · {fmtBytes(sys.memTotal)} RAM (no multiplier)
+          </span>
+        </div>
+      )}
       <button className="btn" onClick={() => os().openApp('settings', { props: { pane: 'about' } })}>
         More Info…
       </button>
@@ -37,7 +50,7 @@ export function About() {
   )
 }
 
-type Proc = { name: string; icon?: keyof typeof APPS; cpu: number; mem: number; threads: number; pid: number; user: string; winId?: string; nr?: boolean }
+type Proc = { name: string; icon?: keyof typeof APPS; cpu: number; mem: number; threads: number; pid: number; user: string; winId?: string; nr?: boolean; real?: boolean; mine?: boolean }
 
 const STATIC_PROCS: Omit<Proc, 'cpu'>[] = [
   { name: 'WindowServer', mem: 812, threads: 24, pid: 151, user: '_windowserver' },
@@ -61,10 +74,24 @@ export function ActivityMonitor() {
   const [sel, setSel] = useState<number | null>(null)
   const [tab, setTab] = useState('CPU')
   const hist = useRef<number[]>([])
+  const authed = useBackend((s) => s.authed)
+  const hostname = useBackend((s) => s.sys?.hostname)
+  const [real, setReal] = useState<RealProc[] | null>(null)
   useEffect(() => {
     const t = setInterval(() => setTick((x) => x + 1), 1200)
     return () => clearInterval(t)
   }, [])
+  useEffect(() => {
+    if (!authed) return setReal(null)
+    let live = true
+    const load = () => realProcs.list().then((r) => live && setReal(r), () => live && setReal(null))
+    load()
+    const t = setInterval(load, 2000)
+    return () => {
+      live = false
+      clearInterval(t)
+    }
+  }, [authed])
 
   const procs: Proc[] = useMemo(() => {
     const t = tick * 1.2
@@ -80,10 +107,23 @@ export function ActivityMonitor() {
         return acc
       }, {}),
     )
+    if (real) {
+      const host: Proc[] = real.map((p) => ({ name: p.name, cpu: p.cpu, mem: p.mem / 1048576, threads: p.threads, pid: p.pid, user: p.mine ? 'you' : 'other', real: true, mine: p.mine }))
+      const jokes = statics.filter((p) => p.nr)
+      return [{ ...kt, pid: -1 }, ...apps.map((a) => ({ ...a, pid: -1000 - a.pid })), ...jokes.map((j) => ({ ...j, pid: -j.pid })), ...host].sort((a, b) => b.cpu - a.cpu)
+    }
     return [kt, ...apps, ...statics].sort((a, b) => b.cpu - a.cpu)
-  }, [tick, windows])
+  }, [tick, windows, real])
 
   const forceQuit = (p: Proc, gentle = false) => {
+    if (p.real) {
+      if (!p.mine) return os().notify({ app: 'activity', title: 'Activity Monitor', body: `“${p.name}” belongs to another user. pearosd only kills its own kind.` })
+      realProcs
+        .kill(p.pid, !gentle)
+        .then(() => os().notify({ app: 'activity', title: 'Activity Monitor', body: `Sent ${gentle ? 'SIGTERM' : 'SIGKILL'} to “${p.name}” (PID ${p.pid}) on ${hostname ?? 'the host'}. That one was real.` }))
+        .catch((e) => os().notify({ app: 'activity', title: 'Activity Monitor', body: `Couldn't quit “${p.name}”: ${e.message}` }))
+      return setSel(null)
+    }
     if (p.winId) os().closeApp(windows.find((w) => w.id === p.winId)!.app)
     else if (p.name === 'kernel_task') os().panic(`${gentle ? 'Quit' : 'Force quit'} kernel_task (bold move)`)
     else if (p.nr && gentle) os().notify({ app: 'activity', title: 'Activity Monitor', body: `"${p.name}" is not responding to your request to stop not responding.` })
@@ -122,7 +162,7 @@ export function ActivityMonitor() {
         </button>
         <div className="toolbar-title left">
           Activity Monitor
-          <small>All Processes</small>
+          <small>{real ? `All Processes, actually on ${hostname ?? 'the host'}` : 'All Processes'}</small>
         </div>
         <div className="seg tabs">
           {['CPU', 'Memory', 'Energy', 'Disk', 'Network'].map((t) => (
@@ -154,7 +194,7 @@ export function ActivityMonitor() {
                 </td>
                 <td className="num">{tab === 'Memory' ? `${(p.mem / 1024).toFixed(2)} GB` : tab === 'Energy' ? (p.cpu / 3).toFixed(1) : p.cpu.toFixed(1)}</td>
                 <td className="num">{p.threads}</td>
-                <td className="num">{p.pid}</td>
+                <td className="num">{p.pid < 0 ? '—' : p.pid}</td>
                 <td>{p.user}</td>
               </tr>
             ))}

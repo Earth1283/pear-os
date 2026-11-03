@@ -7,6 +7,9 @@ import { TAG_COLORS } from '../components/ContextMenu'
 import { menu } from '../lib/menu'
 import { fileMenu, folderMenu } from '../lib/menus'
 import { openPath } from './open'
+import { DriveView } from './Drive'
+import { useBackend } from '../lib/backend'
+import { Server } from 'lucide-react'
 
 const SIDEBAR = [
   {
@@ -76,7 +79,23 @@ export function Finder({ win }: { win: Win }) {
   const [q, setQ] = useState('')
   const [sort, setSort] = useState('')
   const path = history[idx]
-  const special = !path.startsWith('/') && path !== 'recents'
+  const authed = useBackend((s) => s.authed)
+  const host = useBackend((s) => s.sys?.hostname)
+  const isDrive = path.startsWith('drive:')
+  const driveRel = isDrive ? path.slice(6) || '/' : ''
+  const special = !path.startsWith('/') && path !== 'recents' && !isDrive
+  const groups = authed
+    ? [
+        ...SIDEBAR,
+        {
+          head: host ? `On ${host}` : 'pearosd',
+          items: [
+            { label: 'PearDrive', icon: Server, path: 'drive:/' },
+            { label: 'PearDrive Trash', icon: Trash2, path: 'drive:/.Trash' },
+          ],
+        },
+      ]
+    : SIDEBAR
   const setTitle = useOS((s) => s.setTitle)
 
   useEffect(() => {
@@ -85,7 +104,7 @@ export function Finder({ win }: { win: Win }) {
   }, [win.props.path])
 
   useEffect(() => {
-    setTitle(win.id, path === 'recents' ? 'Recents' : special ? (path === 'icloud' ? 'iCloud Drive' : 'AirDrop') : prettyName(path))
+    setTitle(win.id, isDrive ? (driveRel === '/' ? 'PearDrive' : driveRel === '/.Trash' ? 'PearDrive Trash' : driveRel.split('/').pop()!) : path === 'recents' ? 'Recents' : special ? (path === 'icloud' ? 'iCloud Drive' : 'AirDrop') : prettyName(path))
   }, [path])
 
   const go = (p: string) => {
@@ -135,7 +154,7 @@ export function Finder({ win }: { win: Win }) {
     <div className="finder" onPointerDown={() => setSel(null)}>
       <aside className="sidebar" data-drag>
         <div className="sidebar-spacer" />
-        {SIDEBAR.map((g) => (
+        {groups.map((g) => (
           <div key={g.head} className="sb-group">
             <div className="sb-head">{g.head}</div>
             {g.items.map((it) => (
@@ -180,8 +199,10 @@ export function Finder({ win }: { win: Win }) {
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" />
           </label>
         </div>
-        <div className="finder-content" onContextMenu={special || path === 'recents' ? undefined : menu(() => folderMenu(path, { view, setView, sort, setSort }))}>
-          {special ? (
+        <div className="finder-content" onContextMenu={special || isDrive || path === 'recents' ? undefined : menu(() => folderMenu(path, { view, setView, sort, setSort }))}>
+          {isDrive ? (
+            <DriveView rel={driveRel} view={view} setView={setView} q={q} onOpenDir={(r) => go('drive:' + r)} />
+          ) : special ? (
             <Special path={path} />
           ) : entries.length === 0 ? (
             <div className="finder-empty">{q ? 'No results. Spotlight is still indexing (since 2019).' : 'This folder is empty, like the promises in the keynote.'}</div>
@@ -250,7 +271,7 @@ export function Finder({ win }: { win: Win }) {
             </table>
           )}
         </div>
-        <div className="statusbar">
+        <div className="statusbar" hidden={isDrive}>
           {entries.length} items, 0.1 GB available (of 8 GB, which is like 16 GB)
           {path === HOME + '/.Trash' && entries.length > 0 && (
             <button

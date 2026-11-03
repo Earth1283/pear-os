@@ -17,6 +17,43 @@ npm run kernel       # rebuilds and copies pearnel.wasm
 npm run test:kernel  # parser tests
 ```
 
+## CI
+
+- **`.github/workflows/pages.yml`** deploys the static parody to GitHub Pages on every push to `main`. That copy has no backend, so it runs in fake mode.
+- **`.github/workflows/release.yml`** runs the tests, then builds `pearosd` for:
+  - Linux x86_64 and arm64 (static musl)
+  - macOS arm64 and x86_64
+
+  It publishes the builds as follows:
+  - **Push to `main`:** force-moves the `nightly` tag and replaces the assets on the **nightly** pre-release.
+  - **Push a `v*` tag:** creates a normal versioned release.
+  - **Pull request:** builds without publishing.
+
+One-time setup: Settings → Pages → Source: **GitHub Actions**.
+
+## pearosd: the optional compute backend ("EC2, but worse")
+
+`pearosd` is one Rust binary that serves the UI and turns the parody into a real remote machine:
+
+- **Login:** the lock screen checks a real password (argon2). Sessions use an HttpOnly, SameSite=Strict cookie. Login is rate-limited, and cross-origin requests are refused.
+- **PearDrive:** a real folder in Finder. Upload by dragging files in, download, rename, trash, and edit text files in TextEdit. Paths can't escape the folder, including via `..` or symlinks.
+- **Terminal:** a real shell on the host (pty plus xterm.js).
+- **Activity Monitor:** the host's real processes. You can quit your own.
+- **Sapphari:** browses the real web through a rewriting proxy. Pages run in a sandboxed iframe with an opaque origin, so they can't reach the PearOS API. Private, LAN and loopback addresses are blocked unless you pass `--allow-private`.
+- **TLS:** HTTPS with a self-signed cert generated on first run (stored in `~/.config/pearosd/`). Use `--cert`/`--key` for a real one, or `--no-tls` behind your own TLS proxy.
+
+```sh
+npm run server                       # builds UI, then server/target/release/pearosd with the UI embedded
+PEAROS_PASSWORD='something long' ./server/target/release/pearosd
+# https://<host>:9091   (flags: --bind, --root, --cert/--key, --no-tls, --allow-private)
+```
+
+Anyone with the password gets a shell as the user running pearosd, so run it as an unprivileged user or in a container.
+
+`npm run server:static` builds a fully static musl binary (needs `zig` for `cargo zigbuild`).
+
+**Development:** run `npm run server:dev` (API on 127.0.0.1:9092) alongside `npm run dev`. Vite proxies `/api` and `/p/` to it.
+
 ## What the Rust kernel does
 
 | Export | Used by |

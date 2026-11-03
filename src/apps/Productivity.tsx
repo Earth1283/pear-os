@@ -4,6 +4,7 @@ import { useOS, os, type Win } from '../store'
 import { calc, formatNumber } from '../kernel'
 import { resolve, writeFile } from '../lib/fs'
 import { menu } from '../lib/menu'
+import { bumpDrive, drive } from '../lib/backend'
 
 type Op = '+' | '−' | '×' | '÷'
 
@@ -288,20 +289,41 @@ export function Notes() {
 }
 
 export function TextEdit({ win }: { win: Win }) {
-  const path = win.props.path as string | undefined
-  const node = path ? resolve(path) : null
+  const real = win.props.drive as string | undefined
+  const path = (win.props.path as string | undefined) ?? real
+  const node = !real && path ? resolve(path) : null
   const [text, setText] = useState(node && node.type === 'file' ? node.content ?? '' : '')
   const [dirty, setDirty] = useState(false)
+  const [loading, setLoading] = useState(!!real)
   const setTitle = useOS((s) => s.setTitle)
   useEffect(() => {
+    setDirty(false)
+    if (real) {
+      setLoading(true)
+      drive
+        .readText(real)
+        .then(setText)
+        .catch((e) => setText(`Couldn't open this file: ${e.message}`))
+        .finally(() => setLoading(false))
+      return
+    }
     const n = path ? resolve(path) : null
     setText(n && n.type === 'file' ? n.content ?? '' : '')
-    setDirty(false)
-  }, [path])
+  }, [path, real])
   useEffect(() => {
-    setTitle(win.id, `${path ? path.split('/').pop() : 'Untitled'}${dirty ? ' — Edited' : ''}`)
+    setTitle(win.id, `${path ? path.split('/').pop() : 'Untitled'}${real ? ' (PearDrive)' : ''}${dirty ? ' — Edited' : ''}`)
   }, [path, dirty])
-  const save = () => {
+  const save = async () => {
+    if (real) {
+      try {
+        await drive.write(real, text)
+        bumpDrive()
+        setDirty(false)
+      } catch (e) {
+        os().notify({ app: 'textedit', title: 'TextEdit', body: `Couldn't save: ${e instanceof Error ? e.message : e}` })
+      }
+      return
+    }
     writeFile(path ?? '/Users/pear/Documents/Untitled.txt', text)
     os().bumpFs()
     setDirty(false)
@@ -325,7 +347,8 @@ export function TextEdit({ win }: { win: Win }) {
         </button>
       </div>
       <textarea
-        value={text}
+        disabled={loading}
+        value={loading ? 'Loading…' : text}
         onChange={(e) => {
           setText(e.target.value)
           setDirty(true)

@@ -4,6 +4,7 @@ import { useOS, os, type Win } from '../store'
 import { MenuList } from './ContextMenu'
 import type { MenuEntry } from '../lib/menu'
 import { openPath } from '../apps/open'
+import { logout } from '../lib/backend'
 import { APPS } from '../apps/registry'
 import type { MenuDef, MenuItem } from '../apps/types'
 import { PearLogo, IntelOrb } from './icons'
@@ -96,8 +97,22 @@ const pearMenu: MenuItem[] = [
     },
   },
   'sep',
-  { label: 'Lock Screen', shortcut: '⌃⌘Q', action: () => os().setPhase('login') },
-  { label: 'Log Out Pear User…', shortcut: '⇧⌘Q', action: () => useOS.setState({ windows: [], focused: null, phase: 'login' }) },
+  {
+    label: 'Lock Screen',
+    shortcut: '⌃⌘Q',
+    action: () => {
+      logout()
+      os().setPhase('login')
+    },
+  },
+  {
+    label: 'Log Out Pear User…',
+    shortcut: '⇧⌘Q',
+    action: () => {
+      logout()
+      useOS.setState({ windows: [], focused: null, phase: 'login' })
+    },
+  },
 ]
 
 export function defaultMenus(appName: string): MenuDef[] {

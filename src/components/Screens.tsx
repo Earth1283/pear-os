@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ArrowRight, Power } from 'lucide-react'
 import { useOS, os } from '../store'
 import { bootKernel } from '../kernel'
+import { detect, login, useBackend } from '../lib/backend'
 import { PearLogo } from './icons'
 import { Wallpaper } from './Wallpaper'
 
@@ -69,7 +70,7 @@ export function BootScreen() {
   useEffect(() => {
     let done = false
     let p = 0
-    bootKernel().then(() => (done = true)).catch(() => (done = true))
+    Promise.allSettled([bootKernel(), detect()]).then(() => (done = true))
     const t = setInterval(() => {
       p = Math.min(done ? 100 : 92, p + Math.random() * (p > 68 && p < 80 ? 1.6 : 6.5))
       setProgress(p)
@@ -102,11 +103,26 @@ export function LoginScreen() {
     const t = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(t)
   }, [])
-  const submit = () => {
+  const present = useBackend((s) => s.present)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const submit = async () => {
     if (pw.length === 0) {
       setShake((s) => s + 1)
       setHint(true)
       return
+    }
+    if (present) {
+      setBusy(true)
+      try {
+        await login(pw)
+      } catch (e) {
+        setBusy(false)
+        setPw('')
+        setError(e instanceof Error ? e.message : 'Incorrect password')
+        setShake((s) => s + 1)
+        return
+      }
     }
     os().setPhase('desktop')
     if (panicReason) {
@@ -141,7 +157,9 @@ export function LoginScreen() {
             <ArrowRight size={14} />
           </button>
         </form>
-        <div className="login-hint">{hint ? 'Hint: literally anything. Security is our top priority.' : 'Touch ID or Enter Password'}</div>
+        <div className="login-hint">
+          {error ?? (present ? (busy ? 'Unlocking…' : 'Enter the pearosd password') : hint ? 'Hint: literally anything. Security is our top priority.' : 'Touch ID or Enter Password')}
+        </div>
       </div>
       <div className="login-actions">
         <button onClick={() => os().setPhase('sleep')}>Sleep</button>

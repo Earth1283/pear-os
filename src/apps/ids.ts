@@ -13,4 +13,5 @@ export type AppId =
   | 'fractals'
   | 'settings'
   | 'about'
+  | 'preview'
   | 'trash'

@@ -1,0 +1,250 @@
+import { useEffect, useRef, useState } from 'react'
+import { Upload } from 'lucide-react'
+import { os } from '../store'
+import { TEXT_EXT, bumpDrive, drive, formatBytes, useBackend, type DriveEntry } from '../lib/backend'
+import { FileIcon, FolderIcon } from '../components/icons'
+import { menu, type MenuEntry } from '../lib/menu'
+import type { FileKind } from '../lib/fs'
+
+export const join = (dir: string, name: string) => `${dir.replace(/\/$/, '')}/${name}`
+
+export function kindFor(name: string): FileKind {
+  const ext = name.split('.').pop()?.toLowerCase() ?? ''
+  if (/^(png|jpe?g|gif|webp|svg|avif|bmp|ico|heic)$/.test(ext)) return 'image'
+  if (/^(mp3|wav|flac|m4a|ogg|aac|opus)$/.test(ext)) return 'audio'
+  if (/^(mp4|mov|webm|mkv|m4v|avi)$/.test(ext)) return 'video'
+  if (/^(zip|tar|gz|tgz|xz|bz2|7z|rar|zst)$/.test(ext)) return 'archive'
+  if (/^(dmg|iso|img)$/.test(ext)) return 'disk'
+  if (TEXT_EXT.test(name) || !name.includes('.')) return 'text'
+  return 'binary'
+}
+
+export function openDriveFile(rel: string) {
+  const name = rel.split('/').pop() ?? ''
+  const kind = kindFor(name)
+  if (kind === 'text') return os().openApp('textedit', { props: { drive: rel } })
+  if (kind === 'image' || kind === 'video' || kind === 'audio') return os().openApp('preview', { props: { drive: rel }, forceNew: true })
+  window.open(drive.url(rel, true), '_blank', 'noopener')
+}
+
+const fail = (e: unknown) => os().notify({ app: 'finder', title: 'PearDrive', body: e instanceof Error ? e.message : String(e) })
+
+export function DriveView({ rel, view, q, onOpenDir, setView }: { rel: string; view: 'grid' | 'list'; q: string; onOpenDir: (rel: string) => void; setView: (v: 'grid' | 'list') => void }) {
+  const version = useBackend((s) => s.driveVersion)
+  const sys = useBackend((s) => s.sys)
+  const [entries, setEntries] = useState<DriveEntry[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [sel, setSel] = useState<string | null>(null)
+  const [renaming, setRenaming] = useState<string | null>(null)
+  const [drag, setDrag] = useState(false)
+  const [uploading, setUploading] = useState<string | null>(null)
+  const picker = useRef<HTMLInputElement>(null)
+  const inTrash = rel === '/.Trash' || rel.startsWith('/.Trash/')
+
+  useEffect(() => {
+    let live = true
+    drive
+      .list(rel)
+      .then((e) => live && (setEntries(e), setError(null)))
+      .catch((e) => live && setError(e.message))
+    return () => {
+      live = false
+    }
+  }, [rel, version])
+
+  const upload = async (files: FileList | File[]) => {
+    for (const f of Array.from(files)) {
+      setUploading(`Uploading “${f.name}” (${formatBytes(f.size)})…`)
+      try {
+        await drive.write(join(rel, f.name), f)
+      } catch (e) {
+        fail(e)
+      }
+    }
+    setUploading(null)
+    bumpDrive()
+  }
+
+  const newFolder = async () => {
+    const names = new Set(entries?.map((e) => e.name))
+    let name = 'untitled folder'
+    for (let i = 2; names.has(name); i++) name = `untitled folder ${i}`
+    try {
+      await drive.mkdir(join(rel, name))
+      bumpDrive()
+      setSel(name)
+      setRenaming(name)
+    } catch (e) {
+      fail(e)
+    }
+  }
+
+  const commitRename = async (from: string, to: string) => {
+    setRenaming(null)
+    if (!to || to === from || to.includes('/')) return
+    try {
+      await drive.rename(join(rel, from), join(rel, to))
+      setSel(to)
+      bumpDrive()
+    } catch (e) {
+      fail(e)
+    }
+  }
+
+  const itemMenu = (e: DriveEntry): MenuEntry[] => {
+    const p = join(rel, e.name)
+    return [
+      { label: 'Open', run: () => (e.dir ? onOpenDir(p) : openDriveFile(p)) },
+      { label: 'Download', disabled: e.dir, run: () => window.open(drive.url(p, true), '_blank', 'noopener') },
+      'sep',
+      inTrash
+        ? { label: 'Delete Immediately…', run: () => drive.remove(p).then(bumpDrive, fail) }
+        : { label: 'Move to Trash', shortcut: '⌘⌫', run: () => drive.trash(p).then(bumpDrive, fail) },
+      'sep',
+      { label: 'Get Info', shortcut: '⌘I', run: () => os().notify({ app: 'finder', title: `${e.name} Info`, body: `${e.dir ? 'Folder' : kindFor(e.name)} · ${formatBytes(e.size)} · Modified ${new Date(e.modified).toLocaleString()} · ${sys?.root ?? 'PearDrive'}${p}` }) },
+      { label: 'Rename', run: () => setRenaming(e.name) },
+      'sep',
+      { label: 'Copy Path', run: () => navigator.clipboard?.writeText(`${sys?.root ?? ''}${p}`) },
+    ]
+  }
+
+  const bgMenu: MenuEntry[] = [
+    { label: 'New Folder', shortcut: '⇧⌘N', run: newFolder },
+    { label: 'Upload Files…', run: () => picker.current?.click() },
+    'sep',
+    { label: 'Refresh', shortcut: '⌘R', run: bumpDrive },
+    { label: 'View', submenu: [{ label: 'as Icons', checked: view === 'grid', run: () => setView('grid') }, { label: 'as List', checked: view === 'list', run: () => setView('list') }] },
+    'sep',
+    { label: 'Open in Terminal', run: () => os().openApp('terminal', { forceNew: true }) },
+  ]
+
+  const shown = (entries ?? []).filter((e) => !e.name.startsWith('.') || inTrash).filter((e) => !q || e.name.toLowerCase().includes(q.toLowerCase()))
+  const icon = (e: DriveEntry, size: number) => (e.dir ? <FolderIcon size={size} /> : <FileIcon size={size} kind={kindFor(e.name)} ext={e.name.includes('.') ? e.name.split('.').pop()! : ''} />)
+  const label = (e: DriveEntry) =>
+    renaming === e.name ? (
+      <input
+        className="rename-field"
+        autoFocus
+        defaultValue={e.name}
+        onFocus={(ev) => ev.target.setSelectionRange(0, e.dir ? e.name.length : Math.max(0, e.name.lastIndexOf('.')) || e.name.length)}
+        onClick={(ev) => ev.stopPropagation()}
+        onPointerDown={(ev) => ev.stopPropagation()}
+        onBlur={(ev) => commitRename(e.name, ev.target.value.trim())}
+        onKeyDown={(ev) => {
+          if (ev.key === 'Enter') (ev.target as HTMLInputElement).blur()
+          if (ev.key === 'Escape') setRenaming(null)
+        }}
+      />
+    ) : (
+      e.name
+    )
+  const handlers = (e: DriveEntry) => ({
+    onPointerDown: (ev: React.PointerEvent) => {
+      ev.stopPropagation()
+      setSel(e.name)
+    },
+    onDoubleClick: () => (e.dir ? onOpenDir(join(rel, e.name)) : openDriveFile(join(rel, e.name))),
+    onContextMenu: (ev: React.MouseEvent) => {
+      setSel(e.name)
+      menu(itemMenu(e))(ev)
+    },
+    onKeyDown: (ev: React.KeyboardEvent) => {
+      if (ev.key === 'Enter' && renaming === null) setRenaming(e.name)
+    },
+  })
+
+  return (
+    <div
+      className={`drive ${drag ? 'drag' : ''}`}
+      onPointerDown={() => setSel(null)}
+      onContextMenu={menu(bgMenu)}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes('Files')) {
+          e.preventDefault()
+          setDrag(true)
+        }
+      }}
+      onDragLeave={() => setDrag(false)}
+      onDrop={(e) => {
+        e.preventDefault()
+        setDrag(false)
+        if (e.dataTransfer.files.length) upload(e.dataTransfer.files)
+      }}
+    >
+      <input ref={picker} type="file" multiple hidden onChange={(e) => e.target.files && upload(e.target.files)} />
+      {error ? (
+        <div className="finder-empty">{error}</div>
+      ) : entries === null ? (
+        <div className="finder-empty">
+          <div className="spinner dark" />
+        </div>
+      ) : shown.length === 0 ? (
+        <div className="finder-empty drop-hint">
+          <Upload size={28} strokeWidth={1.4} />
+          {q ? 'No results.' : 'Drop files from your actual computer here.'}
+        </div>
+      ) : view === 'grid' ? (
+        <div className="icon-grid">
+          {shown.map((e) => (
+            <button key={e.name} className={`grid-item ${sel === e.name ? 'sel' : ''}`} {...handlers(e)}>
+              {icon(e, 56)}
+              <span>{label(e)}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <table className="list-view">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Date Modified</th>
+              <th>Size</th>
+              <th>Kind</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((e) => (
+              <tr key={e.name} className={sel === e.name ? 'sel' : ''} tabIndex={0} {...handlers(e)}>
+                <td>
+                  <span className="lv-name">
+                    {icon(e, 18)}
+                    {label(e)}
+                  </span>
+                </td>
+                <td>{new Date(e.modified).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
+                <td>{e.dir ? '--' : formatBytes(e.size)}</td>
+                <td>{e.dir ? 'Folder' : kindFor(e.name)[0].toUpperCase() + kindFor(e.name).slice(1)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <div className="drive-status">
+        {uploading ?? `${shown.length} items${sys?.diskFree != null ? `, ${formatBytes(sys.diskFree)} available on ${sys.hostname}` : ''}`}
+      </div>
+    </div>
+  )
+}
+
+export function Preview({ win }: { win: { id: string; props: Record<string, unknown> } }) {
+  const rel = win.props.drive as string
+  const name = rel.split('/').pop() ?? ''
+  const kind = kindFor(name)
+  const src = drive.url(rel)
+  useEffect(() => {
+    os().setTitle(win.id, name)
+  }, [name])
+  return (
+    <div className="preview" data-drag>
+      {kind === 'image' ? (
+        <img src={src} alt={name} draggable={false} />
+      ) : kind === 'video' ? (
+        <video src={src} controls autoPlay />
+      ) : kind === 'audio' ? (
+        <audio src={src} controls autoPlay />
+      ) : (
+        <iframe src={src} title={name} sandbox="" />
+      )}
+    </div>
+  )
+}

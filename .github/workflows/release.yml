@@ -1,0 +1,169 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            kernel
+            server
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Kernel tests
+        run: cargo test --manifest-path kernel/Cargo.toml
+
+      - name: Check committed pearnel.wasm is fresh
+        run: |
+          npm run kernel
+          git diff --quiet src/kernel/pearnel.wasm || echo "::warning::src/kernel/pearnel.wasm differs from a fresh build (stale, or just a different rustc). Run 'npm run kernel' and commit it if you changed the kernel." 
+
+      - name: Server tests
+        run: cargo test --manifest-path server/Cargo.toml
+
+  build:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - name: linux-arm64
+            os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+          - name: macos-arm64
+            os: macos-latest
+            target: aarch64-apple-darwin
+          - name: macos-x86_64
+            os: macos-latest
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server
+          key: ${{ matrix.target }}
+
+      - name: Install musl toolchain
+        if: contains(matrix.target, 'musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Build UI
+        run: npm ci && npm run build
+
+      - name: Build pearosd
+        working-directory: server
+        run: cargo build --release --locked --target ${{ matrix.target }}
+        env:
+          CC_x86_64_unknown_linux_musl: musl-gcc
+          CC_aarch64_unknown_linux_musl: musl-gcc
+
+      - name: Smoke test
+        if: matrix.target != 'x86_64-apple-darwin'
+        run: server/target/${{ matrix.target }}/release/pearosd --version
+
+      - name: Package
+        shell: bash
+        run: |
+          mkdir -p out
+          name=pearosd-${{ matrix.name }}
+          cp server/target/${{ matrix.target }}/release/pearosd "$name"
+          tar -czf "out/$name.tar.gz" "$name"
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pearosd-${{ matrix.name }}
+          path: out/*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          pattern: pearosd-*
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: out
+        run: sha256sum *.tar.gz > SHA256SUMS && cat SHA256SUMS
+
+      - name: Update the nightly release
+        if: github.ref == 'refs/heads/main'
+        run: |
+          notes=$(cat <<EOF
+          Continuously updated build of \`pearosd\` from [\`${GITHUB_SHA::7}\`](${{ github.server_url }}/${{ github.repository }}/commit/${GITHUB_SHA}), built $(date -u +'%Y-%m-%d %H:%M UTC').
+
+          Each archive contains one binary with the PearOS UI embedded. The Linux builds are fully static (musl).
+
+          \`\`\`sh
+          tar xzf pearosd-linux-x86_64.tar.gz
+          PEAROS_PASSWORD='something long' ./pearosd-linux-x86_64
+          # then open https://<host>:9091
+          \`\`\`
+
+          Anyone with the password gets a shell as the user running pearosd. Run it as an unprivileged user.
+          EOF
+          )
+          git tag -f nightly "$GITHUB_SHA"
+          git push -f origin refs/tags/nightly
+          if ! gh release view nightly >/dev/null 2>&1; then
+            gh release create nightly --prerelease --title "pearosd nightly" --notes "$notes"
+          fi
+          gh release upload nightly out/* --clobber
+          gh release edit nightly --prerelease --title "pearosd nightly" --notes "$notes"
+
+      - name: Publish versioned release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: gh release create "$GITHUB_REF_NAME" out/* --verify-tag --generate-notes --title "pearosd $GITHUB_REF_NAME"
