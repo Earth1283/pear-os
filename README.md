@@ -37,6 +37,7 @@ One-time setup: Settings → Pages → Source: **GitHub Actions**.
 
 - **Login:** the lock screen checks a real password (argon2). Sessions use an HttpOnly, SameSite=Strict cookie. Login is rate-limited, and cross-origin requests are refused.
 - **PearDrive:** a real folder in Finder. Upload by dragging files in, download, rename, trash, and edit text files in TextEdit. Paths can't escape the folder, including via `..` or symlinks.
+- **Music:** plays the audio in PearDrive (`/Music` or anywhere else). Titles, artists, albums and cover art come from the files' ID3 tags. Dropping files onto the Music window uploads them to `/Music`.
 - **Terminal:** a real shell on the host (pty plus xterm.js).
 - **Activity Monitor:** the host's real processes. You can quit your own.
 - **Sapphari:** browses the real web through a rewriting proxy. Pages run in a sandboxed iframe with an opaque origin, so they can't reach the PearOS API. Private, LAN and loopback addresses are blocked unless you pass `--allow-private`.
@@ -55,6 +56,17 @@ Full setup guide (downloads, reverse proxies, systemd, Docker, troubleshooting):
 `npm run server:static` builds a fully static musl binary (needs `zig` for `cargo zigbuild`).
 
 **Development:** run `npm run server:dev` (API on 127.0.0.1:9092) alongside `npm run dev`. Vite proxies `/api` and `/p/` to it.
+
+## Music, widgets and notifications
+
+- **Music** is a full player: Songs, Albums, Artists, Favorites, search, sorting, a live spectrum visualizer, and Media Session support, so your keyboard media keys work. It plays from three places:
+  - **PearDrive**, when `pearosd` is running.
+  - **This Computer**: drop or add files, which last until you close the tab.
+  - **Pear Radio**, four endless stations synthesised in your browser with WebAudio. There are no samples, so it works on the static GitHub Pages build too.
+- **Control Center** has a Now Playing card, a working Sound slider and a working Do Not Disturb.
+- **Notification Center** opens when you click the clock. It keeps a history of everything that popped up, grouped by app, with widgets underneath. Do Not Disturb holds banners back but still files them here.
+- **Widgets**: Clock, Calendar, Weather (forecast by vibes), Activity (real CPU, memory and disk with `pearosd`, simulated without), Music and Notes. Drag them around the desktop, resize them from the right-click menu, and add or remove them with *Edit Widgets…*. Layout is saved in your browser.
+- Music stops when you shut down, restart, panic, log out or quit it. It pauses when you sleep, and keeps playing on the lock screen, like the real thing.
 
 ## What the Rust kernel does
 
@@ -78,6 +90,8 @@ Everything here goes through WebGL2, so it runs on the real GPU of whatever mach
 
 - Drag a window to a screen edge to tile it, or hover the green button.
 - `Ctrl+Space` for Spotlight, then type `2^64` or `8gb`.
+- Click the clock for Notification Center, then *Edit Widgets*. Right-click the desktop for the same.
+- Open Music, hit *Pear Radio*, and try the visualizer. In Terminal, `open music` works too.
 - Terminal: `pearfetch`, `pearsay hi`, `ls ~/Downloads`, `open notes`, `sudo rm -rf /`.
 - Notes: end a line with `=`.
 - Fractals: click to zoom, then "Set as Wallpaper".

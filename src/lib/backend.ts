@@ -124,6 +124,16 @@ export const drive = {
   remove: (path: string) => post('/api/fs/delete', { path }),
 }
 
+export interface DriveSong {
+  path: string
+  size: number
+  modified: number
+}
+
+export const music = {
+  library: () => call<DriveSong[]>('/api/music/library'),
+}
+
 export const procs = {
   list: () => call<RealProc[]>('/api/procs'),
   kill: (pid: number, force = false) => post<{ ok: boolean }>('/api/procs/kill', { pid, force }),

@@ -34,6 +34,7 @@ export const root: DirNode = d({
   Applications: d({
     'Finder.app': app('finder'),
     'Sapphari.app': app('safari'),
+    'Music.app': app('music'),
     'Notes.app': app('notes'),
     'TextEdit.app': app('textedit'),
     'Calculator.app': app('calculator'),

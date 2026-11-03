@@ -1,4 +1,5 @@
 import { os, useOS, type Win } from '../store'
+import { openGallery } from '../components/Widgets'
 import { APPS, DOCK_APPS } from '../apps/registry'
 import type { AppId } from '../apps/ids'
 import { TOOLS } from '../apps/Sequel'
@@ -318,7 +319,7 @@ export function desktopMenu(): MenuEntry[] {
     { label: 'Get Info', run: () => os().openApp('about') },
     'sep',
     { label: 'Change Wallpaper…', run: () => os().openApp('settings', { props: { pane: 'wallpaper' } }) },
-    { label: 'Edit Widgets…', run: () => toast('Widgets', 'Your widget is now a clock. It was already a clock. Now it is two clocks.', 'settings') },
+    { label: 'Edit Widgets…', run: () => openGallery('desktop') },
     'sep',
     { label: 'Use Stacks', run: () => toast('Stacks', 'Your desktop is now organised into one stack called “Everything”.') },
     {

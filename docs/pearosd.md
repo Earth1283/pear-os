@@ -326,12 +326,13 @@ Everything is under `/api` and needs the session cookie, except `health`, `login
 | POST | `/api/login` | `{ password }` | Sets the session cookie; `{ ok, proxyToken }` |
 | POST | `/api/logout` | | Clears the session |
 | GET | `/api/fs/list` | `?path=/Documents` | `[{ name, dir, size, modified }]` |
-| GET | `/api/fs/read` | `?path=…&download=true` | File contents (served with `CSP: sandbox`) |
+| GET | `/api/fs/read` | `?path=…&download=true` | File contents (served with `CSP: sandbox`). Supports `Range`, so audio and video can seek |
 | PUT | `/api/fs/write` | `?path=…`, raw body | Streams to a temp file, then renames it into place |
 | POST | `/api/fs/mkdir` | `{ path }` | |
 | POST | `/api/fs/rename` | `{ from, to }` | |
 | POST | `/api/fs/trash` | `{ path }` | Moves it to `.Trash` inside PearDrive |
 | POST | `/api/fs/delete` | `{ path }` | Deletes it permanently |
+| GET | `/api/music/library` | | Every audio file in PearDrive (`mp3 m4a aac flac wav ogg opus`), skipping hidden folders and symlinks |
 | GET | `/api/sys` | | Hostname, OS, kernel, CPU, memory, disk, uptime, load |
 | GET | `/api/procs` | | The top 200 processes by CPU |
 | POST | `/api/procs/kill` | `{ pid, force }` | SIGTERM, or SIGKILL if `force` is set |

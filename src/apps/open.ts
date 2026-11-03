@@ -1,5 +1,6 @@
 import { os } from '../store'
 import { normalise, resolve } from '../lib/fs'
+import { usePlayer } from '../lib/player'
 
 export function openPath(path: string) {
   const abs = normalise(path)
@@ -19,7 +20,9 @@ export function openPath(path: string) {
     case 'disk':
       return os().notify({ app: 'finder', title: 'DiskImageMounter', body: `"${name}" is damaged and can't be opened. You should move it to the Trash, or download it a 5th time.` })
     case 'audio':
-      return os().notify({ app: 'finder', title: 'Music', body: `Now playing "${name}". You can't hear it, but it's playing.` })
+      // The virtual disk has no real audio, so these files become a station with the same vibe.
+      usePlayer.getState().playStation(/lofi|beats/i.test(name) ? 'lofi' : /u2|innocence/i.test(name) ? 'waltz' : 'panic')
+      return os().openApp('music', { props: { view: 'now' } })
     case 'video':
       return os().notify({ app: 'finder', title: 'QuickTime Player', body: `"${name}" is 14 hours long. Maybe later.` })
     default:

@@ -2,6 +2,7 @@ export type AppId =
   | 'finder'
   | 'launchpad'
   | 'safari'
+  | 'music'
   | 'notes'
   | 'textedit'
   | 'calculator'

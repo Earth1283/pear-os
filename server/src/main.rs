@@ -87,6 +87,7 @@ async fn main() {
         .route("/api/fs/rename", post(files::rename))
         .route("/api/fs/trash", post(files::trash))
         .route("/api/fs/delete", post(files::delete))
+        .route("/api/music/library", get(files::music_library))
         .route("/api/sys", get(sys::info))
         .route("/api/procs", get(sys::procs))
         .route("/api/procs/kill", post(sys::kill))

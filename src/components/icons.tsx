@@ -69,6 +69,24 @@ export function AppIcon({ app, size = 52 }: { app: AppId; size?: number }) {
         </>
       )
       break
+    case 'music':
+      body = (
+        <>
+          <defs>
+            <linearGradient id={g('b')} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#ff5f7e" />
+              <stop offset="1" stopColor="#e5143c" />
+            </linearGradient>
+          </defs>
+          <Squircle fill={u('b')} />
+          <path d="M40 30.5l28-6.5v38.5" stroke="#fff" strokeWidth="5" strokeLinejoin="round" strokeLinecap="round" fill="none" />
+          <path d="M40 30.5V66" stroke="#fff" strokeWidth="5" strokeLinecap="round" fill="none" />
+          <ellipse cx="33" cy="67" rx="8.5" ry="7" fill="#fff" />
+          <ellipse cx="61" cy="63" rx="8.5" ry="7" fill="#fff" />
+          <path d="M40 30.5l28-6.5v10l-28 6.5z" fill="#fff" />
+        </>
+      )
+      break
     case 'launchpad':
       body = (
         <>

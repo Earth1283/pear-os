@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Airplay, Bluetooth, Calculator as CalcIcon, Globe, Moon, Radio, Search, Sun, Volume2, Wifi, X, Contrast, MonitorSmartphone } from 'lucide-react'
+import { Airplay, Bluetooth, Calculator as CalcIcon, Globe, Moon, Pause, Play, Radio, Search, SkipBack, SkipForward, Sun, Volume2, Wifi, X, Contrast, MonitorSmartphone } from 'lucide-react'
 import { useOS, os } from '../store'
 import { APPS, LAUNCHPAD_APPS } from '../apps/registry'
 import type { AppId } from '../apps/ids'
 import { AppIcon } from './icons'
 import { calc, formatNumber } from '../kernel'
+import { STATION_TRACKS, useCurrent, usePlayer } from '../lib/player'
+import { Art, Eq } from './MusicBits'
 
 export function Spotlight() {
   const open = useOS((s) => s.overlay.spotlight)
@@ -36,6 +38,20 @@ export function Spotlight() {
     const lower = t.toLowerCase()
     for (const id of LAUNCHPAD_APPS) {
       if (APPS[id].name.toLowerCase().includes(lower)) out.push({ key: id, icon: <AppIcon app={id} size={26} />, title: APPS[id].name, sub: 'Application', run: () => os().openApp(id) })
+    }
+    const { drive, local } = usePlayer.getState()
+    const hits = [...STATION_TRACKS, ...drive, ...local].filter((t) => `${t.title} ${t.artist}`.toLowerCase().includes(lower)).slice(0, 4)
+    for (const t of hits) {
+      out.push({
+        key: t.id,
+        icon: <Art track={t} size={26} radius={5} />,
+        title: t.title,
+        sub: t.source === 'station' ? 'Pear Radio · Live' : `Song · ${t.artist}`,
+        run: () => {
+          usePlayer.getState().playTrack(t, t.source === 'station' ? STATION_TRACKS : t.source === 'drive' ? drive : local)
+          os().openApp('music', { props: { view: 'now' } })
+        },
+      })
     }
     out.push({
       key: 'web',
@@ -150,11 +166,39 @@ function Tile({ on, icon, label, sub, onClick }: { on: boolean; icon: React.Reac
   )
 }
 
+function NowPlayingCard() {
+  const cur = useCurrent()
+  const playing = usePlayer((s) => s.playing)
+  const p = usePlayer.getState()
+  return (
+    <div className="cc-card cc-music">
+      <button className="cc-music-main" onClick={() => os().openApp('music', { props: { view: 'now' } })} title="Open Music">
+        <Art track={cur} size={44} radius={7} />
+        <span className="cc-text">
+          <b>{cur?.title ?? 'Not Playing'}</b>
+          <small>{cur ? cur.artist : 'Music'}</small>
+        </span>
+        {cur && playing && <Eq playing />}
+      </button>
+      <div className="cc-music-ctl">
+        <button title="Previous" onClick={() => p.prev()} disabled={!cur}>
+          <SkipBack size={15} fill="currentColor" />
+        </button>
+        <button title={playing ? 'Pause' : 'Play'} onClick={() => p.toggle()}>
+          {playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}
+        </button>
+        <button title="Next" onClick={() => p.next()} disabled={!cur}>
+          <SkipForward size={15} fill="currentColor" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function ControlCenter() {
   const open = useOS((s) => s.overlay.controlCenter)
-  const { wifi, bluetooth, brightness, volume, theme } = useOS()
+  const { wifi, bluetooth, brightness, volume, theme, dnd } = useOS()
   const [airdrop, setAirdrop] = useState(true)
-  const [focus, setFocus] = useState(false)
   if (!open) return null
   return (
     <div className="overlay-catch" onPointerDown={() => os().setOverlay({ controlCenter: false })}>
@@ -166,11 +210,11 @@ export function ControlCenter() {
             <Tile on={airdrop} icon={<Radio size={15} />} label="AirDrop" sub={airdrop ? 'Everyone for 10 Minutes' : 'Receiving Off'} onClick={() => setAirdrop(!airdrop)} />
           </div>
           <div className="cc-col">
-            <button className="cc-card cc-small" onClick={() => setFocus(!focus)}>
-              <span className={`cc-circle ${focus ? 'on purple' : ''}`}>
+            <button className="cc-card cc-small" onClick={() => os().set('dnd', !dnd)} aria-pressed={dnd}>
+              <span className={`cc-circle ${dnd ? 'on purple' : ''}`}>
                 <Moon size={15} />
               </span>
-              <b>{focus ? 'Do Not Disturb' : 'Focus'}</b>
+              <b>{dnd ? 'Do Not Disturb' : 'Focus'}</b>
             </button>
             <div className="cc-split">
               <button className="cc-card cc-tiny" onClick={() => os().set('theme', theme === 'dark' ? 'light' : 'dark')}>
@@ -201,6 +245,7 @@ export function ControlCenter() {
             <input type="range" min={0} max={1} step={0.01} value={volume} onChange={(e) => os().set('volume', +e.target.value)} />
           </label>
         </div>
+        <NowPlayingCard />
         <button className="cc-card cc-wide" onClick={() => os().openApp('mirroring')}>
           <MonitorSmartphone size={16} />
           <span>pPhone Mirroring</span>
@@ -212,6 +257,8 @@ export function ControlCenter() {
 
 export function Notifications() {
   const toasts = useOS((s) => s.toasts)
+  const centerOpen = useOS((s) => s.overlay.notificationCenter)
+  if (centerOpen) return null
   return (
     <div className="toasts">
       {toasts.map((t) => (

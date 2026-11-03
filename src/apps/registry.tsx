@@ -7,6 +7,7 @@ import { Calculator, Notes, TextEdit } from './Productivity'
 import { Intelligence, Mirroring, Passwords, Safari } from './Sequel'
 import { About, ActivityMonitor, Fractals, Settings } from './System'
 import { Preview } from './Drive'
+import { Music } from './Music'
 
 const Nothing = () => null
 
@@ -14,6 +15,7 @@ export const APPS: Record<AppId, AppDef> = {
   finder: { name: 'Finder', component: Finder, w: 860, h: 520, minW: 520, minH: 300, chrome: 'overlay' },
   launchpad: { name: 'Launchpad', component: Nothing, w: 0, h: 0, hidden: true },
   safari: { name: 'Sapphari', component: Safari, w: 1040, h: 680, minW: 480, chrome: 'overlay' },
+  music: { name: 'Music', component: Music, w: 980, h: 620, minW: 640, minH: 420, singleton: true, chrome: 'overlay' },
   notes: { name: 'Notes', component: Notes, w: 820, h: 540, minW: 520, singleton: true, chrome: 'overlay' },
   textedit: { name: 'TextEdit', component: TextEdit, w: 620, h: 520 },
   calculator: { name: 'Calculator', component: Calculator, w: 236, h: 392, singleton: true, resizable: false, chrome: 'overlay' },
@@ -31,5 +33,5 @@ export const APPS: Record<AppId, AppDef> = {
 
 registerSpecs(APPS)
 
-export const DOCK_APPS: AppId[] = ['finder', 'launchpad', 'safari', 'notes', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'settings']
-export const LAUNCHPAD_APPS: AppId[] = ['finder', 'safari', 'notes', 'textedit', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'settings']
+export const DOCK_APPS: AppId[] = ['finder', 'launchpad', 'safari', 'music', 'notes', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'settings']
+export const LAUNCHPAD_APPS: AppId[] = ['finder', 'safari', 'music', 'notes', 'textedit', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'settings']

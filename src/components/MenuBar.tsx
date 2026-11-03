@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Search, SlidersHorizontal, Wifi, WifiOff } from 'lucide-react'
+import { AudioLines, Moon, Search, SlidersHorizontal, Wifi, WifiOff } from 'lucide-react'
 import { useOS, os, type Win } from '../store'
 import { MenuList } from './ContextMenu'
 import type { MenuEntry } from '../lib/menu'
@@ -8,6 +8,7 @@ import { logout } from '../lib/backend'
 import { APPS } from '../apps/registry'
 import type { MenuDef, MenuItem } from '../apps/types'
 import { PearLogo, IntelOrb } from './icons'
+import { useCurrent, usePlayer } from '../lib/player'
 
 function Battery() {
   const [pct, setPct] = useState(100)
@@ -35,10 +36,16 @@ function Clock() {
   }, [])
   const date = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
   const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  const open = useOS((s) => s.overlay.notificationCenter)
   return (
-    <span className="mb-item clock">
+    <button
+      className={`mb-item clock ${open ? 'active' : ''}`}
+      title="Notification Center"
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={() => os().setOverlay({ notificationCenter: !open, controlCenter: false, spotlight: false, menu: null })}
+    >
       {date.replace(',', '')}&nbsp;&nbsp;{time}
-    </span>
+    </button>
   )
 }
 
@@ -109,6 +116,7 @@ const pearMenu: MenuItem[] = [
     label: 'Log Out Pear User…',
     shortcut: '⇧⌘Q',
     action: () => {
+      usePlayer.getState().stop()
       logout()
       useOS.setState({ windows: [], focused: null, phase: 'login' })
     },
@@ -169,6 +177,9 @@ export function MenuBar() {
   const focusedApp = useOS((s) => s.windows.find((w) => w.id === s.focused)?.app ?? 'finder')
   const openMenu = useOS((s) => s.overlay.menu)
   const wifi = useOS((s) => s.wifi)
+  const dnd = useOS((s) => s.dnd)
+  const cur = useCurrent()
+  const playing = usePlayer((s) => s.playing)
   const { setOverlay } = useOS.getState()
   const app = APPS[focusedApp]
   const menus: { key: string; label: React.ReactNode; items: MenuItem[]; bold?: boolean }[] = [
@@ -189,7 +200,7 @@ export function MenuBar() {
     ...(app.menus ?? defaultMenus(app.name)).map((m) => ({ key: m.title, label: m.title, items: m.items })),
   ]
 
-  const toggle = (k: string) => setOverlay({ menu: openMenu === k ? null : k, controlCenter: false, spotlight: false })
+  const toggle = (k: string) => setOverlay({ menu: openMenu === k ? null : k, controlCenter: false, notificationCenter: false, spotlight: false })
 
   return (
     <div className="menubar" onPointerDown={(e) => e.stopPropagation()}>
@@ -208,14 +219,24 @@ export function MenuBar() {
         ))}
       </div>
       <div className="mb-right">
+        {dnd && (
+          <span className="mb-item icon" title="Do Not Disturb is on">
+            <Moon size={13} strokeWidth={2.4} fill="currentColor" />
+          </span>
+        )}
+        {cur && (
+          <button className="mb-item icon" title={`${playing ? 'Playing' : 'Paused'}: ${cur.title}`} onClick={() => setOverlay({ controlCenter: !os().overlay.controlCenter, notificationCenter: false, menu: null })}>
+            <AudioLines size={14} strokeWidth={2.4} className={playing ? 'mb-playing' : ''} />
+          </button>
+        )}
         <Battery />
         <button className="mb-item icon" title={wifi ? 'Wi-Fi: PearNet (5 bars of nothing)' : 'Wi-Fi: Off'} onClick={() => os().set('wifi', !wifi)}>
           {wifi ? <Wifi size={15} strokeWidth={2.2} /> : <WifiOff size={15} strokeWidth={2.2} />}
         </button>
-        <button className="mb-item icon" title="Spotlight" onClick={() => setOverlay({ spotlight: true, menu: null, controlCenter: false })}>
+        <button className="mb-item icon" title="Spotlight" onClick={() => setOverlay({ spotlight: true, menu: null, controlCenter: false, notificationCenter: false })}>
           <Search size={14} strokeWidth={2.4} />
         </button>
-        <button className="mb-item icon" title="Control Center" onClick={() => setOverlay({ controlCenter: !os().overlay.controlCenter, menu: null })}>
+        <button className="mb-item icon" title="Control Center" onClick={() => setOverlay({ controlCenter: !os().overlay.controlCenter, notificationCenter: false, menu: null })}>
           <SlidersHorizontal size={14} strokeWidth={2.4} />
         </button>
         <button className="mb-item icon" title="Pear Intelligence" onClick={() => os().openApp('intelligence')}>

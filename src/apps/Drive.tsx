@@ -5,6 +5,7 @@ import { TEXT_EXT, bumpDrive, drive, formatBytes, useBackend, type DriveEntry } 
 import { FileIcon, FolderIcon } from '../components/icons'
 import { menu, type MenuEntry } from '../lib/menu'
 import type { FileKind } from '../lib/fs'
+import { playDriveFile } from '../lib/player'
 
 export const join = (dir: string, name: string) => `${dir.replace(/\/$/, '')}/${name}`
 
@@ -23,7 +24,11 @@ export function openDriveFile(rel: string) {
   const name = rel.split('/').pop() ?? ''
   const kind = kindFor(name)
   if (kind === 'text') return os().openApp('textedit', { props: { drive: rel } })
-  if (kind === 'image' || kind === 'video' || kind === 'audio') return os().openApp('preview', { props: { drive: rel }, forceNew: true })
+  if (kind === 'audio') {
+    void playDriveFile(rel)
+    return os().openApp('music', { props: { view: 'now' } })
+  }
+  if (kind === 'image' || kind === 'video') return os().openApp('preview', { props: { drive: rel }, forceNew: true })
   window.open(drive.url(rel, true), '_blank', 'noopener')
 }
 

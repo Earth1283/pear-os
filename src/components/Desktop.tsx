@@ -5,6 +5,8 @@ import { MenuBar } from './MenuBar'
 import { Dock } from './Dock'
 import { Window } from './Window'
 import { ControlCenter, Launchpad, Notifications, Spotlight } from './Overlays'
+import { NotificationCenter } from './Center'
+import { DesktopWidgets, WidgetGallery } from './Widgets'
 import { GlobalContextMenu } from './ContextMenu'
 import { isTextField, menu, openContextMenu } from '../lib/menu'
 import { desktopMenu, fileMenu, selectionMenu, textMenu, windowChromeMenu, windowFallbackMenu } from '../lib/menus'
@@ -54,7 +56,7 @@ function useShortcuts() {
       const s = os()
       if ((e.ctrlKey || e.altKey || e.metaKey) && e.code === 'Space') {
         e.preventDefault()
-        s.setOverlay({ spotlight: !s.overlay.spotlight, launchpad: false, controlCenter: false, menu: null })
+        s.setOverlay({ spotlight: !s.overlay.spotlight, launchpad: false, controlCenter: false, notificationCenter: false, menu: null })
       } else if (e.key === 'Escape') {
         s.closeOverlays()
       } else if (e.ctrlKey && e.altKey && s.focused) {
@@ -132,7 +134,7 @@ export function Desktop() {
       onContextMenu={(e) => {
         e.preventDefault()
         const t = e.target as HTMLElement
-        if (t.closest('.menubar, .toasts, .control-center, .spotlight, .launchpad, .dropdown, .dock-wrap')) return
+        if (t.closest('.menubar, .toasts, .control-center, .notif-center, .wg, .spotlight, .launchpad, .dropdown, .dock-wrap')) return
         const open = (items: Parameters<typeof openContextMenu>[2]) => openContextMenu(e.clientX, e.clientY, items)
         const field = t.closest('input, textarea')
         if (isTextField(field)) return open(textMenu(field))
@@ -150,6 +152,7 @@ export function Desktop() {
     >
       <Wallpaper />
       <DesktopIcons />
+      <DesktopWidgets />
       {preview && <div className="tile-preview" style={{ left: preview.x, top: preview.y, width: preview.w, height: preview.h }} />}
       {windows.map((w) => (
         <Window key={w.id} win={w} focused={w.id === focused} />
@@ -158,6 +161,8 @@ export function Desktop() {
       <Dock />
       <Notifications />
       <ControlCenter />
+      <NotificationCenter />
+      <WidgetGallery />
       <Spotlight />
       <Launchpad />
       <GlobalContextMenu />

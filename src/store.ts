@@ -38,12 +38,45 @@ export interface Toast {
   actions?: { label: string; run?: () => void }[]
 }
 
+export interface HistoryItem {
+  id: string
+  app: AppId
+  title: string
+  body: string
+  time: number
+}
+
 export interface Overlay {
   spotlight: boolean
   launchpad: boolean
   controlCenter: boolean
+  notificationCenter: boolean
+  widgetGallery: boolean
   menu: string | null
 }
+
+export const CLOSED: Overlay = { spotlight: false, launchpad: false, controlCenter: false, notificationCenter: false, widgetGallery: false, menu: null }
+
+export type WidgetKind = 'clock' | 'calendar' | 'weather' | 'system' | 'music' | 'notes'
+export type WidgetSize = 'small' | 'medium' | 'large'
+export type WidgetHome = 'desktop' | 'center'
+
+export interface WidgetInst {
+  id: string
+  kind: WidgetKind
+  size: WidgetSize
+  x: number
+  y: number
+}
+
+export interface Widgets {
+  desktop: WidgetInst[]
+  center: WidgetInst[]
+}
+
+export const WIDGET_PX: Record<WidgetSize, [number, number]> = { small: [158, 158], medium: [328, 158], large: [328, 328] }
+const WIDGET_GAP = 12
+const WIDGET_KEY = 'pearos.widgets.v1'
 
 export const MENU_H = 26
 export const DOCK_ZONE = 86
@@ -66,6 +99,9 @@ interface State {
   dockSize: number
   notes: Note[]
   toasts: Toast[]
+  history: HistoryItem[]
+  dnd: boolean
+  widgets: Widgets
   overlay: Overlay
   fsVersion: number
   launching: AppId[]
@@ -88,6 +124,12 @@ interface State {
   closeOverlays(): void
   notify(t: Omit<Toast, 'id'>): void
   dismiss(id: string): void
+  clearHistory(app?: AppId): void
+  removeHistory(id: string): void
+  addWidget(home: WidgetHome, kind: WidgetKind, size: WidgetSize): void
+  removeWidget(id: string): void
+  resizeWidget(id: string, size: WidgetSize): void
+  moveWidget(id: string, x: number, y: number): void
   set<K extends keyof State>(k: K, v: State[K]): void
   bumpFs(): void
   saveNote(n: Note): void
@@ -136,6 +178,60 @@ export function tileRect(t: Tile): Rect {
   }
 }
 
+// Apps that need to clean up when they're really quit (as opposed to a window being closed).
+const quitHooks: Partial<Record<AppId, () => void>> = {}
+export const onQuit = (app: AppId, fn: () => void) => {
+  quitHooks[app] = fn
+}
+
+let wid = 0
+const widget = (kind: WidgetKind, size: WidgetSize, x = 0, y = 0): WidgetInst => ({ id: `w${Date.now().toString(36)}${wid++}`, kind, size, x, y })
+
+const defaultWidgets = (): Widgets => ({
+  desktop: [widget('clock', 'small', 18, MENU_H + 18), widget('weather', 'small', 18 + 158 + WIDGET_GAP, MENU_H + 18)],
+  center: [widget('calendar', 'medium'), widget('music', 'medium'), widget('weather', 'small'), widget('system', 'small'), widget('notes', 'medium')],
+})
+
+const KINDS: WidgetKind[] = ['clock', 'calendar', 'weather', 'system', 'music', 'notes']
+const SIZES: WidgetSize[] = ['small', 'medium', 'large']
+
+function loadWidgets(): Widgets {
+  try {
+    const raw = JSON.parse(localStorage.getItem(WIDGET_KEY) ?? 'null')
+    const clean = (list: unknown): WidgetInst[] =>
+      Array.isArray(list)
+        ? list.filter((w): w is WidgetInst => !!w && KINDS.includes(w.kind) && SIZES.includes(w.size) && typeof w.id === 'string' && Number.isFinite(w.x) && Number.isFinite(w.y))
+        : []
+    if (raw && Array.isArray(raw.desktop) && Array.isArray(raw.center)) return { desktop: clean(raw.desktop), center: clean(raw.center) }
+  } catch {
+    // Corrupt or unavailable storage: fall through to the defaults.
+  }
+  return defaultWidgets()
+}
+
+function saveWidgets(w: Widgets) {
+  try {
+    localStorage.setItem(WIDGET_KEY, JSON.stringify(w))
+  } catch {
+    // Private mode: widgets simply reset next visit.
+  }
+}
+
+/** First free slot on the desktop, scanning rows from the top-left. Desktop icons live on the right. */
+function freeSpot(existing: WidgetInst[], size: WidgetSize): { x: number; y: number } {
+  const [w, h] = WIDGET_PX[size]
+  const W = window.innerWidth - 130
+  const H = window.innerHeight - DOCK_ZONE
+  const hit = (x: number, y: number) => existing.some((e) => {
+    const [ew, eh] = WIDGET_PX[e.size]
+    return x < e.x + ew + WIDGET_GAP && x + w + WIDGET_GAP > e.x && y < e.y + eh + WIDGET_GAP && y + h + WIDGET_GAP > e.y
+  })
+  for (let y = MENU_H + 18; y + h <= H; y += 20) {
+    for (let x = 18; x + w <= W; x += 20) if (!hit(x, y)) return { x, y }
+  }
+  return { x: 18 + (existing.length % 5) * 24, y: MENU_H + 18 + (existing.length % 5) * 24 }
+}
+
 const initialNotes: Note[] = [
   {
     id: 'math',
@@ -164,7 +260,10 @@ export const useOS = create<State>((set, get) => ({
   dockSize: 52,
   notes: initialNotes,
   toasts: [],
-  overlay: { spotlight: false, launchpad: false, controlCenter: false, menu: null },
+  history: [],
+  dnd: false,
+  widgets: loadWidgets(),
+  overlay: CLOSED,
   fsVersion: 0,
   launching: [],
   fractalWallpaper: null,
@@ -172,7 +271,7 @@ export const useOS = create<State>((set, get) => ({
   dockAutohide: false,
   liveWallpaper: true,
 
-  setPhase: (phase) => set({ phase, overlay: { spotlight: false, launchpad: false, controlCenter: false, menu: null } }),
+  setPhase: (phase) => set({ phase, overlay: CLOSED }),
   panic: (reason) => set({ phase: 'panic', panicReason: reason, windows: [], focused: null, toasts: [] }),
 
   openApp(app, opts = {}) {
@@ -234,6 +333,7 @@ export const useOS = create<State>((set, get) => ({
   },
 
   closeApp(app) {
+    quitHooks[app]?.()
     const rest = get().windows.filter((w) => w.app !== app)
     const next = rest.filter((w) => !w.minimized).sort((a, b) => b.z - a.z)[0]
     set({ windows: rest, focused: next?.id ?? null })
@@ -277,16 +377,48 @@ export const useOS = create<State>((set, get) => ({
   setOverlay: (o) => set({ overlay: { ...get().overlay, ...o } }),
   closeOverlays: () => {
     const o = get().overlay
-    if (o.spotlight || o.launchpad || o.controlCenter || o.menu) set({ overlay: { spotlight: false, launchpad: false, controlCenter: false, menu: null } })
+    if (Object.values(o).some(Boolean)) set({ overlay: CLOSED })
     if (get().contextMenu) set({ contextMenu: null })
   },
 
   notify(t) {
     const id = uid()
-    set({ toasts: [...get().toasts.slice(-3), { ...t, id }] })
+    const history = [{ id, app: t.app, title: t.title, body: t.body, time: Date.now() }, ...get().history].slice(0, 60)
+    // Do Not Disturb keeps the banner away but still files the notification for later.
+    if (get().dnd) return set({ history })
+    set({ toasts: [...get().toasts.slice(-3), { ...t, id }], history })
     setTimeout(() => get().dismiss(id), t.actions ? 12000 : 7000)
   },
   dismiss: (id) => set({ toasts: get().toasts.filter((t) => t.id !== id) }),
+  clearHistory: (app) => set({ history: app ? get().history.filter((h) => h.app !== app) : [] }),
+  removeHistory: (id) => set({ history: get().history.filter((h) => h.id !== id) }),
+
+  addWidget(home, kind, size) {
+    const w = get().widgets
+    const inst = home === 'desktop' ? { ...widget(kind, size), ...freeSpot(w.desktop, size) } : widget(kind, size)
+    const next = { ...w, [home]: [...w[home], inst] }
+    saveWidgets(next)
+    set({ widgets: next })
+  },
+  removeWidget(id) {
+    const w = get().widgets
+    const next = { desktop: w.desktop.filter((x) => x.id !== id), center: w.center.filter((x) => x.id !== id) }
+    saveWidgets(next)
+    set({ widgets: next })
+  },
+  resizeWidget(id, size) {
+    const w = get().widgets
+    const map = (l: WidgetInst[]) => l.map((x) => (x.id === id ? { ...x, size } : x))
+    const next = { desktop: map(w.desktop), center: map(w.center) }
+    saveWidgets(next)
+    set({ widgets: next })
+  },
+  moveWidget(id, x, y) {
+    const w = get().widgets
+    const next = { ...w, desktop: w.desktop.map((e) => (e.id === id ? { ...e, x, y } : e)) }
+    saveWidgets(next)
+    set({ widgets: next })
+  },
 
   set: (k, v) => set({ [k]: v } as Partial<State>),
   bumpFs: () => set({ fsVersion: get().fsVersion + 1 }),
