@@ -14,7 +14,8 @@
   --sidebar: rgba(232, 232, 237, 0.72);
   --toolbar: rgba(255, 255, 255, 0.92);
   --glass: rgba(246, 246, 248, 0.72);
-  --glass-strong: rgba(240, 240, 243, 0.86);
+  --glass-strong: rgba(240, 240, 243, 0.9);
+  --glass-toast: rgba(242, 242, 245, 0.92);
   --glass-border: rgba(255, 255, 255, 0.55);
   --glass-edge: rgba(0, 0, 0, 0.14);
   --menu-hover: rgba(0, 0, 0, 0.06);
@@ -43,7 +44,8 @@
   --sidebar: rgba(40, 40, 44, 0.66);
   --toolbar: rgba(38, 38, 40, 0.94);
   --glass: rgba(36, 36, 40, 0.62);
-  --glass-strong: rgba(40, 40, 44, 0.84);
+  --glass-strong: rgba(40, 40, 44, 0.9);
+  --glass-toast: rgba(34, 34, 38, 0.95);
   --glass-border: rgba(255, 255, 255, 0.14);
   --glass-edge: rgba(0, 0, 0, 0.6);
   --menu-hover: rgba(255, 255, 255, 0.1);
@@ -1371,6 +1373,11 @@ input[type='range']::-moz-range-progress {
   width: 352px;
   max-width: calc(100vw - 20px);
 }
+.toast.glass {
+  background: var(--glass-toast);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+}
 .toast {
   position: relative;
   display: flex;
@@ -1406,8 +1413,7 @@ input[type='range']::-moz-range-progress {
   margin: 1px 0 0;
   font-size: 13px;
   line-height: 1.32;
-  color: var(--fg);
-  opacity: 0.9;
+  color: color-mix(in srgb, var(--fg) 90%, transparent);
 }
 .toast-actions {
   display: flex;
@@ -3413,4 +3419,17 @@ input[type='range']::-moz-range-progress {
 .about-real b {
   color: var(--fg);
   font-size: 11px;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --glass: rgba(246, 246, 248, 0.97);
+    --glass-strong: rgba(240, 240, 243, 0.98);
+    --glass-toast: rgba(242, 242, 245, 0.98);
+  }
+  :root[data-theme='dark'] {
+    --glass: rgba(36, 36, 40, 0.97);
+    --glass-strong: rgba(40, 40, 44, 0.98);
+    --glass-toast: rgba(34, 34, 38, 0.98);
+  }
 }

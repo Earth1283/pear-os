@@ -52,10 +52,13 @@ export function RealTerminal({ win }: { win: Win }) {
   const user = useBackend((s) => s.sys?.user)
   const [state, setState] = useState<'connecting' | 'open' | 'closed'>('connecting')
   const [attempt, setAttempt] = useState(0)
+  const [program, setProgram] = useState('')
+  const [size, setSize] = useState('80×24')
 
   useEffect(() => {
-    os().setTitle(win.id, `${user || 'shell'} — ${hostname ?? 'pearosd'} — ${state === 'closed' ? 'exited' : 'zsh'}`)
-  }, [hostname, user, state])
+    const running = state === 'closed' ? 'exited' : program || hostname || 'shell'
+    os().setTitle(win.id, `${user || 'shell'} — ${running} — ${size}`)
+  }, [hostname, user, state, program, size])
 
   useEffect(() => {
     const el = host.current!
@@ -79,6 +82,10 @@ export function RealTerminal({ win }: { win: Win }) {
       t.resize(80, 24)
     }
 
+    setSize(`${t.cols}×${t.rows}`)
+    setProgram('')
+    const title = t.onTitleChange((s) => setProgram(s.replace(/[\u0000-\u001f]/g, '').trim().slice(0, 60)))
+    const sized = t.onResize(({ cols, rows }) => setSize(`${cols}×${rows}`))
     const ws = new WebSocket(ptyUrl(t.cols, t.rows))
     ws.binaryType = 'arraybuffer'
     const enc = new TextEncoder()
@@ -104,6 +111,8 @@ export function RealTerminal({ win }: { win: Win }) {
     ro.observe(el)
     return () => {
       ro.disconnect()
+      title.dispose()
+      sized.dispose()
       input.dispose()
       binary.dispose()
       resize.dispose()

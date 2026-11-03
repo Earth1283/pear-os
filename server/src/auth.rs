@@ -9,7 +9,7 @@ use argon2::Argon2;
 use axum::{
     Json,
     extract::{ConnectInfo, Request, State},
-    http::{HeaderMap, StatusCode, header},
+    http::{HeaderMap, StatusCode, Uri, header},
     middleware::Next,
     response::{IntoResponse, Response},
 };
@@ -107,14 +107,31 @@ fn cookie(headers: &HeaderMap, name: &str) -> Option<String> {
         .map(|(_, v)| v.to_string())
 }
 
-pub fn origin_ok(headers: &HeaderMap) -> bool {
+fn normalize_authority(authority: &str, scheme: &str) -> String {
+    let a = authority.trim().to_ascii_lowercase();
+    let default = match scheme {
+        "https" | "wss" => ":443",
+        "http" | "ws" => ":80",
+        _ => "",
+    };
+    match a.strip_suffix(default) {
+        Some(stripped) if !default.is_empty() => stripped.to_string(),
+        _ => a,
+    }
+}
+
+pub fn origin_ok(headers: &HeaderMap, uri: &Uri) -> bool {
     let Some(origin) = headers.get(header::ORIGIN).and_then(|o| o.to_str().ok()) else {
         return true;
     };
-    let Some(host) = headers.get(header::HOST).and_then(|h| h.to_str().ok()) else {
+    let Some((scheme, origin_host)) = origin.split_once("://") else {
         return false;
     };
-    origin.split_once("://").map(|(_, rest)| rest == host).unwrap_or(false)
+    let host = headers.get(header::HOST).and_then(|h| h.to_str().ok()).map(str::to_string).or_else(|| uri.authority().map(|a| a.as_str().to_string()));
+    let Some(host) = host else {
+        return false;
+    };
+    normalize_authority(origin_host, scheme) == normalize_authority(&host, scheme)
 }
 
 #[derive(Deserialize)]
@@ -122,8 +139,8 @@ pub struct LoginBody {
     password: String,
 }
 
-pub async fn login(State(s): State<Shared>, ConnectInfo(addr): ConnectInfo<SocketAddr>, headers: HeaderMap, Json(body): Json<LoginBody>) -> Response {
-    if !origin_ok(&headers) {
+pub async fn login(State(s): State<Shared>, ConnectInfo(addr): ConnectInfo<SocketAddr>, uri: Uri, headers: HeaderMap, Json(body): Json<LoginBody>) -> Response {
+    if !origin_ok(&headers, &uri) {
         return StatusCode::FORBIDDEN.into_response();
     }
     if s.auth.rate_limited(addr.ip()) {
@@ -146,8 +163,8 @@ pub async fn login(State(s): State<Shared>, ConnectInfo(addr): ConnectInfo<Socke
     ([(header::SET_COOKIE, set)], Json(json!({ "ok": true, "proxyToken": session.proxy_token }))).into_response()
 }
 
-pub async fn logout(State(s): State<Shared>, headers: HeaderMap) -> Response {
-    if !origin_ok(&headers) {
+pub async fn logout(State(s): State<Shared>, uri: Uri, headers: HeaderMap) -> Response {
+    if !origin_ok(&headers, &uri) {
         return StatusCode::FORBIDDEN.into_response();
     }
     if let Some(t) = cookie(&headers, COOKIE) {
@@ -157,11 +174,46 @@ pub async fn logout(State(s): State<Shared>, headers: HeaderMap) -> Response {
 }
 
 pub async fn require(State(s): State<Shared>, req: Request, next: Next) -> Response {
-    if !origin_ok(req.headers()) {
+    if !origin_ok(req.headers(), req.uri()) {
         return (StatusCode::FORBIDDEN, "cross-origin request refused").into_response();
     }
     if s.auth.session_from(req.headers()).is_none() {
         return (StatusCode::UNAUTHORIZED, Json(json!({ "error": "locked" }))).into_response();
     }
     next.run(req).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::HeaderValue;
+
+    fn h(pairs: &[(&'static str, &'static str)]) -> HeaderMap {
+        let mut m = HeaderMap::new();
+        for (k, v) in pairs {
+            m.insert(*k, HeaderValue::from_static(v));
+        }
+        m
+    }
+
+    #[test]
+    fn same_origin_over_http1_and_http2() {
+        let path: Uri = "/api/login".parse().unwrap();
+        let h2: Uri = "https://pear.example.com:9091/api/login".parse().unwrap();
+        assert!(origin_ok(&h(&[("origin", "https://pear.example.com:9091"), ("host", "pear.example.com:9091")]), &path));
+        assert!(origin_ok(&h(&[("origin", "https://pear.example.com:9091")]), &h2));
+        assert!(origin_ok(&h(&[("origin", "https://Pear.Example.com")]), &"https://pear.example.com:443/x".parse().unwrap()));
+        assert!(origin_ok(&h(&[("host", "x")]), &path));
+    }
+
+    #[test]
+    fn refuses_cross_origin() {
+        let path: Uri = "/api/login".parse().unwrap();
+        let h2: Uri = "https://pear.example.com:9091/api/login".parse().unwrap();
+        assert!(!origin_ok(&h(&[("origin", "https://evil.example"), ("host", "pear.example.com:9091")]), &path));
+        assert!(!origin_ok(&h(&[("origin", "https://evil.example")]), &h2));
+        assert!(!origin_ok(&h(&[("origin", "https://pear.example.com:9092")]), &h2));
+        assert!(!origin_ok(&h(&[("origin", "null"), ("host", "pear.example.com")]), &path));
+        assert!(!origin_ok(&h(&[("origin", "https://pear.example.com")]), &path));
+    }
 }

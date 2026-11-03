@@ -229,7 +229,7 @@ function WindowFrame({ win, focused }: { win: Win; focused: boolean }) {
       style={{ zIndex: win.z, transform: `translate(${win.x}px, ${win.y}px)`, width: win.w, height: win.h }}
       onPointerDown={startDrag}
       onDoubleClick={(e) => {
-        const t = e.target as HTMLElement
+        const t = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null) ?? (e.target as HTMLElement)
         if (t.closest('[data-drag]') && !t.closest('button, input, [data-nodrag]') && spec.resizable !== false) tileWindow(win.id, win.tile === 'fill' ? null : 'fill')
       }}
     >
