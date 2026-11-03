@@ -3,6 +3,7 @@ import { Plus, Search, SquarePen, Trash2, Save } from 'lucide-react'
 import { useOS, os, type Win } from '../store'
 import { calc, formatNumber } from '../kernel'
 import { resolve, writeFile } from '../lib/fs'
+import { menu } from '../lib/menu'
 
 type Op = '+' | '−' | '×' | '÷'
 
@@ -103,7 +104,27 @@ export function Calculator() {
   return (
     <div className="calculator" data-drag>
       <div className="calc-tape">{tape[0] ?? ''}</div>
-      <div className="calc-display" style={{ fontSize }}>
+      <div
+        className="calc-display"
+        style={{ fontSize }}
+        onContextMenu={menu([
+          { label: 'Copy', shortcut: '⌘C', run: () => navigator.clipboard?.writeText(display) },
+          {
+            label: 'Paste',
+            shortcut: '⌘V',
+            run: () =>
+              navigator.clipboard?.readText().then((t) => {
+                const v = calc(t)
+                if (v !== null) {
+                  setDisplay(String(v))
+                  setFresh(true)
+                }
+              }),
+          },
+          'sep',
+          { label: 'Clear Tape', run: () => setTape([]) },
+        ])}
+      >
         {shown}
       </div>
       <div className="calc-keys">
@@ -176,7 +197,35 @@ export function Notes() {
         {list.map((n) => {
           const [title, ...rest] = n.text.split('\n')
           return (
-            <button key={n.id} className={`note-row ${n.id === active ? 'active' : ''}`} onClick={() => setActive(n.id)}>
+            <button
+              key={n.id}
+              className={`note-row ${n.id === active ? 'active' : ''}`}
+              onClick={() => setActive(n.id)}
+              onContextMenu={menu([
+                { label: 'Pin Note', run: () => os().saveNote({ ...n, updated: Date.now() }) },
+                'sep',
+                {
+                  label: 'Delete',
+                  run: () => {
+                    os().deleteNote(n.id)
+                    if (active === n.id) setActive(notes.find((x) => x.id !== n.id)?.id ?? null)
+                  },
+                },
+                {
+                  label: 'Duplicate',
+                  run: () => {
+                    const id = Math.random().toString(36).slice(2)
+                    os().saveNote({ id, text: n.text, updated: Date.now() })
+                    setActive(id)
+                  },
+                },
+                { label: 'Move to', submenu: [{ label: 'Notes', checked: true }, { label: 'Recently Deleted', run: () => os().deleteNote(n.id) }] },
+                'sep',
+                { label: 'Lock Note', disabled: true },
+                { label: 'Copy Link', run: () => navigator.clipboard?.writeText(`pearnotes://${n.id}`) },
+                { label: 'Share Note…', run: () => os().notify({ app: 'notes', title: 'Notes', body: 'Shared with nobody. Your secrets are safe.' }) },
+              ])}
+            >
               <b>{title || 'New Note'}</b>
               <span>
                 <time>{fmtDate(n.updated)}</time> {rest.join(' ').trim().slice(0, 40) || 'No additional text'}

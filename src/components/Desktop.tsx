@@ -4,7 +4,11 @@ import { Wallpaper } from './Wallpaper'
 import { MenuBar } from './MenuBar'
 import { Dock } from './Dock'
 import { Window } from './Window'
-import { ContextMenu, ControlCenter, Launchpad, Notifications, Spotlight, type CtxItem } from './Overlays'
+import { ControlCenter, Launchpad, Notifications, Spotlight } from './Overlays'
+import { GlobalContextMenu } from './ContextMenu'
+import { isTextField, menu, openContextMenu } from '../lib/menu'
+import { desktopMenu, fileMenu, selectionMenu, textMenu, windowChromeMenu, windowFallbackMenu } from '../lib/menus'
+import { TAG_COLORS } from './ContextMenu'
 import { DiskIcon, FileIcon, FolderIcon } from './icons'
 import { HOME, listDir, resolve } from '../lib/fs'
 import { openPath } from '../apps/open'
@@ -89,9 +93,18 @@ function DesktopIcons() {
               setSel(it.path)
             }}
             onDoubleClick={() => openPath(it.path)}
+            onContextMenu={(e) => {
+              setSel(it.path)
+              menu(fileMenu(it.path))(e)
+            }}
           >
             {it.node === null ? <DiskIcon size={60} /> : it.node?.type === 'dir' ? <FolderIcon size={60} /> : <FileIcon size={60} kind={it.node!.kind} ext={ext} />}
-            <span>{it.name}</span>
+            <span>
+              {it.name}
+              {(it.node?.tags ?? []).map((tg) => (
+                <i key={tg} className="tag-dot" style={{ background: TAG_COLORS[tg] }} />
+              ))}
+            </span>
           </button>
         )
       })}
@@ -104,21 +117,10 @@ export function Desktop() {
   const focused = useOS((s) => s.focused)
   const tilePreview = useOS((s) => s.tilePreview)
   const brightness = useOS((s) => s.brightness)
-  const [ctx, setCtx] = useState<{ x: number; y: number } | null>(null)
   useJokeNotifications()
   useShortcuts()
 
   const preview = tilePreview ? tileRect(tilePreview) : null
-  const ctxItems: (CtxItem | 'sep')[] = [
-    { label: 'New Folder', run: () => os().notify({ app: 'finder', title: 'Finder', body: 'New folders are a Pro feature. Upgrade to PearOS Sequel Pro Max.' }) },
-    'sep',
-    { label: 'Get Info', run: () => os().openApp('about') },
-    { label: 'Change Wallpaper…', run: () => os().openApp('settings', { props: { pane: 'wallpaper' } }) },
-    { label: 'Edit Widgets…', disabled: true },
-    'sep',
-    { label: 'Use Stacks', run: () => os().notify({ app: 'finder', title: 'Stacks', body: 'Your desktop is now organised into one stack called "Everything".' }) },
-    { label: 'Show View Options', disabled: true },
-  ]
 
   return (
     <div
@@ -129,8 +131,21 @@ export function Desktop() {
       }}
       onContextMenu={(e) => {
         e.preventDefault()
-        if ((e.target as HTMLElement).closest('.window')) return
-        setCtx({ x: e.clientX, y: e.clientY })
+        const t = e.target as HTMLElement
+        if (t.closest('.menubar, .toasts, .control-center, .spotlight, .launchpad, .dropdown, .dock-wrap')) return
+        const open = (items: Parameters<typeof openContextMenu>[2]) => openContextMenu(e.clientX, e.clientY, items)
+        const field = t.closest('input, textarea')
+        if (isTextField(field)) return open(textMenu(field))
+        const sel = window.getSelection()?.toString().trim()
+        if (sel) return open(selectionMenu(sel))
+        const winEl = t.closest<HTMLElement>('.window')
+        if (winEl) {
+          const win = os().windows.find((w) => w.id === winEl.dataset.win)
+          if (!win) return
+          os().focus(win.id)
+          return open(t.closest('[data-drag]') && !t.closest('button, a, [data-nodrag]') ? windowChromeMenu(win) : windowFallbackMenu(win))
+        }
+        open(desktopMenu())
       }}
     >
       <Wallpaper />
@@ -145,7 +160,7 @@ export function Desktop() {
       <ControlCenter />
       <Spotlight />
       <Launchpad />
-      {ctx && <ContextMenu x={ctx.x} y={ctx.y} items={ctxItems} onClose={() => setCtx(null)} />}
+      <GlobalContextMenu />
       <div className="brightness" style={{ opacity: 1 - brightness }} />
     </div>
   )

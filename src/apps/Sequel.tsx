@@ -3,6 +3,7 @@ import { ArrowUp, Check, Copy, Eye, EyeOff, Key, Lock, ShieldAlert, Wand2, Globe
 import { os, type Win } from '../store'
 import { passwordStrength } from '../kernel'
 import { AppIcon, PearLogo } from '../components/icons'
+import { menu } from '../lib/menu'
 
 type Msg = { from: 'me' | 'ai'; text: string; tool?: string }
 
@@ -31,7 +32,7 @@ const ASK_REPLIES = [
   "I'm still learning. Specifically, I'm learning to say I'm still learning.",
 ]
 
-const TOOLS: { id: string; label: string; run: (t: string) => string }[] = [
+export const TOOLS: { id: string; label: string; run: (t: string) => string }[] = [
   { id: 'proofread', label: 'Proofread', run: (t) => `${t}\n\nNo issues found. (We did not look.)` },
   {
     id: 'rewrite',
@@ -207,7 +208,23 @@ export function Passwords() {
             </div>
             {ACCOUNTS.map((x, i) =>
               tab === 'security' && !x.leaked ? null : (
-                <button key={x.site} className={`pw-row ${i === sel ? 'active' : ''}`} onClick={() => setSel(i)}>
+                <button
+                  key={x.site}
+                  className={`pw-row ${i === sel ? 'active' : ''}`}
+                  onClick={() => setSel(i)}
+                  onContextMenu={(e) => {
+                    setSel(i)
+                    menu([
+                      { label: 'Copy User Name', disabled: !x.user, run: () => navigator.clipboard?.writeText(x.user) },
+                      { label: 'Copy Password', run: () => navigator.clipboard?.writeText(x.pw) },
+                      { label: 'Copy Website', run: () => navigator.clipboard?.writeText(x.site) },
+                      'sep',
+                      { label: 'Open Website', run: () => os().openApp('safari', { props: { url: x.site } }) },
+                      'sep',
+                      { label: 'Delete…', run: () => os().notify({ app: 'passwords', title: 'Passwords', body: `Can't delete “${x.pw}”. It is load-bearing for ${x.reused ? 'several accounts' : 'this account'}.` }) },
+                    ])(e)
+                  }}
+                >
                   <span className="site-ico">{x.site[0].toUpperCase()}</span>
                   <span>
                     <b>{x.site}</b>
@@ -509,7 +526,23 @@ export function Safari({ win }: { win: Win }) {
           </button>
         </div>
       </div>
-      <div className={`sf-page ${reader ? 'distraction-free' : ''}`}>
+      <div
+        className={`sf-page ${reader ? 'distraction-free' : ''}`}
+        onContextMenu={menu([
+          { label: 'Back', disabled: i === 0, run: () => (setI(i - 1), setAddr(hist[i - 1])) },
+          { label: 'Forward', disabled: i === hist.length - 1, run: () => (setI(i + 1), setAddr(hist[i + 1])) },
+          { label: 'Reload Page', shortcut: '⌘R', run: () => nav(url) },
+          'sep',
+          { label: reader ? 'Show Distractions' : 'Hide Distracting Items', run: () => setReader(!reader) },
+          { label: 'Summarize Page', run: () => os().openApp('intelligence', { props: { ask: `Summarize ${page.title}` } }) },
+          'sep',
+          { label: 'Save As…', run: () => os().notify({ app: 'safari', title: 'Sapphari', body: 'Saved as “Untitled (1).webarchive”. Nobody has opened a .webarchive since 2011.' }) },
+          { label: 'Print Page…', disabled: true },
+          'sep',
+          { label: 'Show Page Source', run: () => os().notify({ app: 'safari', title: 'Page Source', body: '<div><div><div><div>It is divs all the way down.</div></div></div></div>' }) },
+          { label: 'Inspect Element', run: () => os().notify({ app: 'safari', title: 'Web Inspector', body: 'Enable “Show features for web developers” in Settings › Advanced › Developer › Really Sure?' }) },
+        ])}
+      >
         {reader ? (
           <div className="sf-error">
             <Check size={40} />

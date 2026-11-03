@@ -224,6 +224,7 @@ function WindowFrame({ win, focused }: { win: Win; focused: boolean }) {
   return (
     <div
       ref={ref}
+      data-win={win.id}
       className={`window ${focused ? 'focused' : 'blurred'} chrome-${chrome} ${win.minimized ? 'minimized' : ''} ${win.tile ? 'tiled' : ''} app-${win.app}`}
       style={{ zIndex: win.z, transform: `translate(${win.x}px, ${win.y}px)`, width: win.w, height: win.h }}
       onPointerDown={startDrag}

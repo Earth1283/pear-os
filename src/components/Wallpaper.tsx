@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react'
 import { useOS } from '../store'
 import { renderMandelbrot, DEFAULT_VIEW, kernelReady } from '../kernel'
+import { GPU_MIN_SCALE, MandelbrotGL, WaveRenderer, gpuInfo, type WavePalette } from '../lib/gpu'
 
-const LIGHT = {
+const LIGHT: WavePalette = {
   sky: ['#2c5fd0', '#6fb2ff'],
   bands: [
     ['#c4ecff', '#6fb4ff', '#3d7fe6'],
@@ -14,7 +15,7 @@ const LIGHT = {
     ['#5b7cff', '#2338c4', '#0c1460'],
   ],
 }
-const DARK = {
+const DARK: WavePalette = {
   sky: ['#050a24', '#0f1d55'],
   bands: [
     ['#2f5fc0', '#14306e', '#0a1640'],
@@ -83,17 +84,50 @@ function SequelWaves({ dark }: { dark: boolean }) {
   )
 }
 
+function LiveWaves({ dark, blur }: { dark: boolean; blur: boolean }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  const r = useRef<WaveRenderer | null>(null)
+  const motion = useOS((s) => s.liveWallpaper)
+  useEffect(() => {
+    const still = !motion || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const w = new WaveRenderer(ref.current!, blur ? 0.06 : 0.75, !still)
+    r.current = w
+    w.setPalette(dark ? DARK : LIGHT, dark)
+    w.loop()
+    return () => w.dispose()
+  }, [blur, motion])
+  useEffect(() => {
+    r.current?.setPalette(dark ? DARK : LIGHT, dark)
+  }, [dark])
+  return <canvas ref={ref} className="wallpaper-canvas gpu" />
+}
+
+function Sequel({ dark, blur }: { dark: boolean; blur: boolean }) {
+  return gpuInfo().available ? <LiveWaves dark={dark} blur={blur} /> : <SequelWaves dark={dark} />
+}
+
 function FractalWallpaper() {
   const ref = useRef<HTMLCanvasElement>(null)
   const view = useOS((s) => s.fractalWallpaper)
   useEffect(() => {
     const c = ref.current
-    if (!c || !kernelReady()) return
+    if (!c) return
+    const v = view ?? DEFAULT_VIEW
+    let gl: MandelbrotGL | null = null
+    if (gpuInfo().available && v.scale > GPU_MIN_SCALE) {
+      try {
+        gl = new MandelbrotGL(c)
+      } catch {
+        gl = null
+      }
+    }
+    if (!gl && !kernelReady()) return
     const draw = () => {
-      const scale = Math.min(1, 1600 / window.innerWidth)
+      const scale = gl ? Math.min(2, window.devicePixelRatio || 1) : Math.min(1, 1600 / window.innerWidth)
       c.width = Math.round(window.innerWidth * scale)
       c.height = Math.round(window.innerHeight * scale)
-      renderMandelbrot(c, view ?? DEFAULT_VIEW)
+      if (gl) gl.render(v)
+      else renderMandelbrot(c, v)
     }
     draw()
     let t: number
@@ -102,9 +136,12 @@ function FractalWallpaper() {
       t = window.setTimeout(draw, 200)
     }
     window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      gl?.dispose()
+    }
   }, [view])
-  return <canvas ref={ref} className="wallpaper-canvas" />
+  return <canvas key={JSON.stringify(view)} ref={ref} className="wallpaper-canvas" />
 }
 
 export function Wallpaper({ blur = false }: { blur?: boolean }) {
@@ -122,10 +159,10 @@ export function Wallpaper({ blur = false }: { blur?: boolean }) {
       inner = <div className="wallpaper-css graphite" />
       break
     case 'sequel-dark':
-      inner = <SequelWaves dark />
+      inner = <Sequel dark blur={blur} />
       break
     default:
-      inner = <SequelWaves dark={theme === 'dark'} />
+      inner = <Sequel dark={theme === 'dark'} blur={blur} />
   }
   return <div className={`wallpaper${blur ? ' blurred' : ''}`}>{inner}</div>
 }

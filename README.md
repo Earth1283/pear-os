@@ -27,6 +27,14 @@ npm run test:kernel  # parser tests
 | `kernel_task_cpu`, `entropy` | Activity Monitor |
 | `kernel_version_*` | `uname -a`, About |
 
+## What the GPU does
+
+Everything here goes through WebGL2, so it runs on the real GPU of whatever machine is showing the page.
+
+- The Sequel wallpaper is a fragment shader, animated at 30 fps. It pauses in background tabs and is static with reduced motion. If WebGL2 isn't available, it falls back to an SVG.
+- Fractals renders on the GPU (float32) until zoom passes float32 precision, then the Rust kernel (f64) takes over. You can force either one.
+- About, Settings → Displays and `pearfetch` show your actual GPU name.
+
 ## Things to try
 
 - Drag a window to a screen edge to tile it, or hover the green button.
@@ -35,5 +43,6 @@ npm run test:kernel  # parser tests
 - Notes: end a line with `=`.
 - Fractals: click to zoom, then "Set as Wallpaper".
 - Activity Monitor: force quit `kernel_task`.
+- Right-click anything: files (tags, duplicate, compress), the desktop, dock icons, the dock separator (autohide), window title bars (tiling), and text fields (Writing Tools, Transformations, Speech).
 
 Not affiliated with Apple. All artwork is original SVG.

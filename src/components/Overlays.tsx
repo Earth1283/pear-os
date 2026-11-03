@@ -248,37 +248,4 @@ export function Notifications() {
   )
 }
 
-export interface CtxItem {
-  label: string
-  run?: () => void
-  disabled?: boolean
-}
-
-export function ContextMenu({ x, y, items, onClose }: { x: number; y: number; items: (CtxItem | 'sep')[]; onClose: () => void }) {
-  return (
-    <div className="overlay-catch" onPointerDown={onClose} onContextMenu={(e) => e.preventDefault()}>
-      <div className="dropdown glass ctx" style={{ left: Math.min(x, window.innerWidth - 240), top: Math.min(y, window.innerHeight - items.length * 26 - 20) }} onPointerDown={(e) => e.stopPropagation()}>
-        {items.map((it, i) =>
-          it === 'sep' ? (
-            <div key={i} className="dd-sep" />
-          ) : (
-            <button
-              key={i}
-              className="dd-item"
-              disabled={it.disabled}
-              onClick={() => {
-                onClose()
-                it.run?.()
-              }}
-            >
-              <span className="dd-check" />
-              <span className="dd-label">{it.label}</span>
-            </button>
-          ),
-        )}
-      </div>
-    </div>
-  )
-}
-
 export type { AppId }

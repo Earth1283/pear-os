@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { AppId } from './apps/ids'
+import type { MenuEntry } from './lib/menu'
 
 export type Phase = 'off' | 'booting' | 'login' | 'desktop' | 'sleep' | 'panic' | 'shuttingdown'
 export type Tile = 'left' | 'right' | 'fill' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | null
@@ -69,6 +70,9 @@ interface State {
   fsVersion: number
   launching: AppId[]
   fractalWallpaper: { cx: number; cy: number; scale: number; iter: number; scheme: 0 | 1 | 2 } | null
+  contextMenu: { x: number; y: number; items: MenuEntry[] } | null
+  dockAutohide: boolean
+  liveWallpaper: boolean
 
   setPhase(p: Phase): void
   panic(reason: string): void
@@ -164,6 +168,9 @@ export const useOS = create<State>((set, get) => ({
   fsVersion: 0,
   launching: [],
   fractalWallpaper: null,
+  contextMenu: null,
+  dockAutohide: false,
+  liveWallpaper: true,
 
   setPhase: (phase) => set({ phase, overlay: { spotlight: false, launchpad: false, controlCenter: false, menu: null } }),
   panic: (reason) => set({ phase: 'panic', panicReason: reason, windows: [], focused: null, toasts: [] }),
@@ -271,6 +278,7 @@ export const useOS = create<State>((set, get) => ({
   closeOverlays: () => {
     const o = get().overlay
     if (o.spotlight || o.launchpad || o.controlCenter || o.menu) set({ overlay: { spotlight: false, launchpad: false, controlCenter: false, menu: null } })
+    if (get().contextMenu) set({ contextMenu: null })
   },
 
   notify(t) {

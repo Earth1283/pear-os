@@ -9,12 +9,14 @@ export interface FileNode {
   size: number
   app?: AppId
   modified: number
+  tags?: string[]
 }
 
 export interface DirNode {
   type: 'dir'
   children: Record<string, FsNode>
   modified: number
+  tags?: string[]
 }
 
 export type FsNode = FileNode | DirNode
@@ -182,4 +184,30 @@ export function formatBytes(n: number) {
     u++
   }
   return `${v.toFixed(v < 10 ? 1 : 0)} ${units[u]}`
+}
+
+export function addNode(dirPath: string, name: string, node: FsNode): string | null {
+  const dir = resolve(dirPath)
+  if (!dir || dir.type !== 'dir') return null
+  const dot = node.type === 'file' && name.lastIndexOf('.') > 0 ? name.lastIndexOf('.') : name.length
+  const base = name.slice(0, dot)
+  const ext = name.slice(dot)
+  let target = name
+  for (let i = 2; dir.children[target]; i++) target = `${base} ${i}${ext}`
+  dir.children[target] = node
+  dir.modified = Date.now()
+  return target
+}
+
+export function cloneNode<T extends FsNode>(n: T): T {
+  return structuredClone(n)
+}
+
+export function toggleTag(path: string, tag: string) {
+  const n = resolve(path)
+  if (!n) return
+  const tags = new Set(n.tags ?? [])
+  if (tags.has(tag)) tags.delete(tag)
+  else tags.add(tag)
+  n.tags = [...tags]
 }

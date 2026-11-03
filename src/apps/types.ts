@@ -9,6 +9,7 @@ export type MenuItem =
       disabled?: boolean
       checked?: boolean
       action?: (win: Win | null) => void
+      submenu?: MenuItem[]
     }
 
 export interface MenuDef {

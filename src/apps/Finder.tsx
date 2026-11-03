@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { AppWindow, ChevronLeft, ChevronRight, Clock, Cloud, Download, FileText, HardDrive, LayoutGrid, List, Monitor, Radio, Search, Trash2, House } from 'lucide-react'
 import { useOS, os, type Win } from '../store'
-import { HOME, formatBytes, listDir, moveToTrash, normalise, resolve, sizeOf } from '../lib/fs'
+import { HOME, formatBytes, listDir, normalise, resolve, sizeOf } from '../lib/fs'
 import { FileIcon, FolderIcon, AppIcon } from '../components/icons'
-import { ContextMenu } from '../components/Overlays'
+import { TAG_COLORS } from '../components/ContextMenu'
+import { menu } from '../lib/menu'
+import { fileMenu, folderMenu } from '../lib/menus'
 import { openPath } from './open'
 
 const SIDEBAR = [
@@ -72,7 +74,7 @@ export function Finder({ win }: { win: Win }) {
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const [sel, setSel] = useState<string | null>(null)
   const [q, setQ] = useState('')
-  const [ctx, setCtx] = useState<{ x: number; y: number; path: string } | null>(null)
+  const [sort, setSort] = useState('')
   const path = history[idx]
   const special = !path.startsWith('/') && path !== 'recents'
   const setTitle = useOS((s) => s.setTitle)
@@ -111,6 +113,16 @@ export function Finder({ win }: { win: Win }) {
     if (n?.type === 'dir') entries = listDir(n).map(([name, c]) => [`${path === '/' ? '' : path}/${name}`, c])
   }
   if (q) entries = entries.filter(([p]) => p.split('/').pop()!.toLowerCase().includes(q.toLowerCase()))
+  if (sort) {
+    const key = (p: string, n: NonNullable<ReturnType<typeof resolve>>): string | number =>
+      sort === 'Size' ? -sizeOf(n) : sort === 'Date Modified' ? -n.modified : sort === 'Kind' ? (n.type === 'dir' ? ' ' : n.kind) + p : p.split('/').pop()!.toLowerCase()
+    entries = [...entries].sort(([a, an], [b, bn]) => {
+      const ka = key(a, an!)
+      const kb = key(b, bn!)
+      return ka < kb ? -1 : ka > kb ? 1 : 0
+    })
+  }
+  const tagDots = (n: NonNullable<ReturnType<typeof resolve>>) => (n.tags ?? []).map((t) => <i key={t} className="tag-dot" style={{ background: TAG_COLORS[t] }} />)
 
   const icon = (p: string, node: NonNullable<ReturnType<typeof resolve>>, size: number) => {
     const name = p.split('/').pop()!
@@ -168,7 +180,7 @@ export function Finder({ win }: { win: Win }) {
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" />
           </label>
         </div>
-        <div className="finder-content">
+        <div className="finder-content" onContextMenu={special || path === 'recents' ? undefined : menu(() => folderMenu(path, { view, setView, sort, setSort }))}>
           {special ? (
             <Special path={path} />
           ) : entries.length === 0 ? (
@@ -185,14 +197,15 @@ export function Finder({ win }: { win: Win }) {
                   }}
                   onDoubleClick={() => (node!.type === 'dir' ? go(p) : openPath(p))}
                   onContextMenu={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
                     setSel(p)
-                    setCtx({ x: e.clientX, y: e.clientY, path: p })
+                    menu(fileMenu(p))(e)
                   }}
                 >
                   {icon(p, node!, 56)}
-                  <span>{p.split('/').pop()}</span>
+                  <span>
+                    {p.split('/').pop()}
+                    {tagDots(node!)}
+                  </span>
                 </button>
               ))}
             </div>
@@ -216,11 +229,16 @@ export function Finder({ win }: { win: Win }) {
                       setSel(p)
                     }}
                     onDoubleClick={() => (node!.type === 'dir' ? go(p) : openPath(p))}
+                    onContextMenu={(e) => {
+                      setSel(p)
+                      menu(fileMenu(p))(e)
+                    }}
                   >
                     <td>
                       <span className="lv-name">
                         {icon(p, node!, 18)}
                         {p.split('/').pop()}
+                        {tagDots(node!)}
                       </span>
                     </td>
                     <td>{new Date(node!.modified).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
@@ -246,30 +264,6 @@ export function Finder({ win }: { win: Win }) {
           )}
         </div>
       </section>
-      {ctx && (
-        <ContextMenu
-          x={ctx.x}
-          y={ctx.y}
-          onClose={() => setCtx(null)}
-          items={[
-            { label: 'Open', run: () => openPath(ctx.path) },
-            'sep',
-            {
-              label: 'Move to Trash',
-              disabled: ctx.path.startsWith(HOME + '/.Trash') || ctx.path.startsWith('/Applications') || ctx.path.startsWith('/System'),
-              run: () => {
-                moveToTrash(ctx.path)
-                os().bumpFs()
-              },
-            },
-            'sep',
-            { label: 'Get Info', run: () => os().notify({ app: 'finder', title: 'Get Info', body: `${ctx.path.split('/').pop()}: ${formatBytes(sizeOf(resolve(ctx.path)!))}. Info got.` }) },
-            { label: 'Copy', run: () => navigator.clipboard?.writeText(ctx.path) },
-            'sep',
-            { label: 'Share…', disabled: true },
-          ]}
-        />
-      )}
     </div>
   )
 }

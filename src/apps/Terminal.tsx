@@ -4,6 +4,8 @@ import { HOME, listDir, mkdir, normalise, resolve, writeFile, moveToTrash, forma
 import { calc, formatNumber, kernelVersion } from '../kernel'
 import { APPS } from './registry'
 import type { AppId } from './ids'
+import { menu } from '../lib/menu'
+import { gpuInfo } from '../lib/gpu'
 
 type Line = { text: string; cls?: string }
 
@@ -165,7 +167,7 @@ export function Terminal({ win }: { win: Win }) {
           ['WM', 'React 19'],
           ['Terminal', 'Terminal.tsx'],
           ['CPU', 'Pear P4 Max (2) @ 1.00 GHz'],
-          ['GPU', 'Pear P4 Max (CSS backdrop-filter)'],
+          ['GPU', `${gpuInfo().renderer} (WebGL2, borrowed)`],
           ['Memory', '7,998 MiB / 8,192 MiB (like 16,384 MiB)'],
         ]
         const rows = Math.max(PEAR_ART.length, info.length)
@@ -282,7 +284,50 @@ export function Terminal({ win }: { win: Win }) {
   }
 
   return (
-    <div className="terminal" onClick={() => window.getSelection()?.isCollapsed && inputRef.current?.focus()} ref={scroll}>
+    <div
+      className="terminal"
+      onClick={() => window.getSelection()?.isCollapsed && inputRef.current?.focus()}
+      onContextMenu={menu(() => [
+        { label: 'Copy', shortcut: '⌘C', disabled: true },
+        {
+          label: 'Paste',
+          shortcut: '⌘V',
+          run: () =>
+            navigator.clipboard
+              ?.readText()
+              .then((t) => setInput((i) => i + t.replace(/\n/g, ' ')))
+              .catch(() => print({ text: 'pbpaste: clipboard access denied by the browser. Classic.', cls: 'err' })),
+        },
+        {
+          label: 'Select All',
+          shortcut: '⌘A',
+          run: () => {
+            const r = document.createRange()
+            r.selectNodeContents(scroll.current!)
+            window.getSelection()?.removeAllRanges()
+            window.getSelection()?.addRange(r)
+          },
+        },
+        'sep',
+        { label: 'Clear to Start', shortcut: '⌘L', run: () => setLines([]) },
+        { label: 'Clear Scrollback', shortcut: '⌥⌘K', run: () => setLines([]) },
+        {
+          label: 'Hard Reset',
+          run: () => {
+            setLines([])
+            setCwd(HOME)
+            setSudo(null)
+          },
+        },
+        'sep',
+        { label: 'New Window', shortcut: '⌘N', run: () => os().openApp('terminal', { forceNew: true }) },
+        { label: 'Split Pane', shortcut: '⌘D', disabled: true },
+        'sep',
+        { label: 'Open man Page', disabled: true },
+        { label: 'Show Inspector', shortcut: '⌘I', run: () => print({ text: `tty: ttys000 · shell: zsh · cwd: ${cwd} · kernel: pearnel.wasm`, cls: 'dim' }) },
+      ])}
+      ref={scroll}
+    >
       {lines.map((l, i) => (
         <div key={i} className={`t-line ${l.cls ?? ''}`}>
           {render(l.text)}

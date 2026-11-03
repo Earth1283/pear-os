@@ -393,6 +393,9 @@ textarea {
   filter: blur(36px) saturate(1.3);
   transform: scale(1.12);
 }
+.wallpaper.blurred > .gpu {
+  filter: blur(10px) saturate(1.3);
+}
 .wallpaper-svg,
 .wallpaper-canvas {
   position: absolute;
@@ -531,9 +534,82 @@ textarea {
   background: var(--glass-strong);
   animation: menu-in 0.12s ease-out;
 }
-.dropdown.ctx {
+.dropdown.floating {
   position: fixed;
-  top: auto;
+  top: 0;
+  left: 0;
+  z-index: 70000;
+  animation: none;
+}
+.dropdown.sub {
+  z-index: 70001;
+}
+.ctx-catch {
+  z-index: 69000;
+}
+.dd-item.sub-open {
+  background: var(--sel);
+}
+.dd-arrow {
+  margin-left: 18px;
+  margin-right: -4px;
+  opacity: 0.55;
+}
+.dd-item:not(:disabled):hover .dd-arrow {
+  opacity: 0.9;
+}
+.dd-header {
+  padding: 4px 10px 2px 20px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg3);
+}
+.dd-tags {
+  display: flex;
+  gap: 7px;
+  padding: 4px 10px 4px 20px;
+}
+.dd-tag {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.2);
+  transition: transform 0.08s;
+}
+.dd-tag:hover {
+  transform: scale(1.3);
+}
+.dd-tag.on {
+  box-shadow:
+    inset 0 0 0 0.5px rgba(0, 0, 0, 0.2),
+    0 0 0 1.5px var(--glass-strong),
+    0 0 0 2.5px var(--fg2);
+}
+.tag-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 3px;
+  border-radius: 50%;
+  vertical-align: 0;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7);
+}
+.tag-dot + .tag-dot {
+  margin-left: -3px;
+}
+.dock-wrap {
+  transition: transform 0.35s cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+.dock-wrap.hidden {
+  transform: translateY(calc(100% + 10px));
+}
+.dock-trigger {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  z-index: 44999;
 }
 .dd-item {
   width: 100%;
@@ -958,12 +1034,22 @@ textarea {
   opacity: 1;
 }
 .dock-sep {
-  width: 1px;
+  position: relative;
+  width: 13px;
   align-self: stretch;
-  margin: 10px 6px 2px;
+  margin: 10px 0 2px;
+  cursor: ns-resize;
+}
+.dock-sep::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 6px;
+  width: 1px;
   background: rgba(0, 0, 0, 0.18);
 }
-:root[data-theme='dark'] .dock-sep {
+:root[data-theme='dark'] .dock-sep::after {
   background: rgba(255, 255, 255, 0.2);
 }
 

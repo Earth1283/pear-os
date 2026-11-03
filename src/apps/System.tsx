@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Accessibility, Bell, Bluetooth, Cpu, Hand, Info, LayoutGrid, Lock, Monitor, Moon, Palette, RefreshCw, Search, Sparkles, Wifi, Image, Battery, ZoomIn, ZoomOut, Gauge } from 'lucide-react'
 import { useOS, os, type Win, type Wallpaper } from '../store'
 import { kernelTaskCpu, entropy, renderMandelbrot, DEFAULT_VIEW, type FractalView, kernelVersion } from '../kernel'
+import { GPU_MIN_SCALE, MandelbrotGL, gpuInfo } from '../lib/gpu'
 import { APPS } from './registry'
 import { LaptopArt, PearLogo, AppIcon } from '../components/icons'
+import { menu } from '../lib/menu'
 
 export function About() {
   return (
@@ -14,6 +16,8 @@ export function About() {
       <dl>
         <dt>Chip</dt>
         <dd>Pear P4 Max (2 performance cores, 1 efficiency core, 0 cores that do anything)</dd>
+        <dt>Graphics</dt>
+        <dd>{gpuInfo().renderer} (borrowed from your actual computer)</dd>
         <dt>Memory</dt>
         <dd>8 GB (comparable to 16 GB on other computers)</dd>
         <dt>Startup disk</dt>
@@ -79,6 +83,25 @@ export function ActivityMonitor() {
     return [kt, ...apps, ...statics].sort((a, b) => b.cpu - a.cpu)
   }, [tick, windows])
 
+  const forceQuit = (p: Proc, gentle = false) => {
+    if (p.winId) os().closeApp(windows.find((w) => w.id === p.winId)!.app)
+    else if (p.name === 'kernel_task') os().panic(`${gentle ? 'Quit' : 'Force quit'} kernel_task (bold move)`)
+    else if (p.nr && gentle) os().notify({ app: 'activity', title: 'Activity Monitor', body: `"${p.name}" is not responding to your request to stop not responding.` })
+    else os().notify({ app: 'activity', title: 'Activity Monitor', body: `"${p.name}" respawned immediately. It always does.` })
+    setSel(null)
+  }
+  const procMenu = (p: Proc) =>
+    menu([
+      { label: 'Quit Process', run: () => forceQuit(p, true) },
+      { label: 'Force Quit Process', shortcut: '⌥⌘⎋', run: () => forceQuit(p) },
+      'sep',
+      { label: 'Sample Process', run: () => os().notify({ app: 'activity', title: `Sample of ${p.name}`, body: 'Analysis complete. 98% of samples were in “waiting for something”.' }) },
+      { label: 'Run Spindump', run: () => os().notify({ app: 'activity', title: 'Spindump', body: 'Spindump spun. Then dumped. Results saved to a file you will never open.' }) },
+      'sep',
+      { label: 'Get Info', shortcut: '⌘I', run: () => os().notify({ app: 'activity', title: p.name, body: `PID ${p.pid} · ${p.threads} threads · ${(p.mem / 1024).toFixed(2)} GB · Parent: launchd · Feelings: none` }) },
+      { label: 'Copy Process Name', run: () => navigator.clipboard?.writeText(p.name) },
+    ])
+
   const total = Math.min(100, procs.reduce((s, p) => s + p.cpu, 0) / 8)
   hist.current = [...hist.current.slice(-59), total]
   const selected = sel !== null ? procs.find((p) => p.pid === sel) : null
@@ -90,17 +113,7 @@ export function ActivityMonitor() {
           className="tb-btn"
           disabled={!selected}
           aria-label="Force quit"
-          onClick={() => {
-            if (!selected) return
-            if (selected.winId) {
-              os().closeApp(windows.find((w) => w.id === selected.winId)!.app)
-            } else if (selected.name === 'kernel_task') {
-              os().panic('Force quit kernel_task (bold move)')
-            } else {
-              os().notify({ app: 'activity', title: 'Activity Monitor', body: `"${selected.name}" respawned immediately. It always does.` })
-            }
-            setSel(null)
-          }}
+          onClick={() => selected && forceQuit(selected)}
         >
           <svg width="16" height="16" viewBox="0 0 16 16">
             <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.4" />
@@ -132,7 +145,7 @@ export function ActivityMonitor() {
           </thead>
           <tbody>
             {procs.map((p) => (
-              <tr key={p.pid + p.name} className={`${sel === p.pid ? 'sel' : ''} ${p.nr ? 'nr' : ''}`} onClick={() => setSel(p.pid)}>
+              <tr key={p.pid + p.name} className={`${sel === p.pid ? 'sel' : ''} ${p.nr ? 'nr' : ''}`} onClick={() => setSel(p.pid)} onContextMenu={(e) => (setSel(p.pid), procMenu(p)(e))}>
                 <td>
                   <span className="lv-name">
                     {p.icon ? <AppIcon app={p.icon} size={16} /> : <span className="proc-dot" />}
@@ -176,34 +189,76 @@ export function ActivityMonitor() {
   )
 }
 
+type Engine = 'auto' | 'gpu' | 'cpu'
+
 export function Fractals() {
-  const canvas = useRef<HTMLCanvasElement>(null)
+  const cpuCanvas = useRef<HTMLCanvasElement>(null)
+  const gpuCanvas = useRef<HTMLCanvasElement>(null)
+  const gl = useRef<MandelbrotGL | null>(null)
   const box = useRef<HTMLDivElement>(null)
+  const gpu = gpuInfo()
   const [view, setView] = useState<FractalView>(DEFAULT_VIEW)
-  const [ms, setMs] = useState(0)
+  const [engine, setEngine] = useState<Engine>(gpu.available ? 'auto' : 'cpu')
+  const [stats, setStats] = useState({ ms: 0, on: 'cpu' as 'cpu' | 'gpu' })
+  const useGpu = gpu.available && (engine === 'gpu' || (engine === 'auto' && view.scale > GPU_MIN_SCALE))
+
   useEffect(() => {
-    const c = canvas.current
+    if (!gpu.available || !gpuCanvas.current) return
+    try {
+      gl.current = new MandelbrotGL(gpuCanvas.current)
+    } catch {
+      gl.current = null
+    }
+    return () => gl.current?.dispose()
+  }, [])
+
+  useEffect(() => {
     const b = box.current
-    if (!c || !b) return
+    if (!b) return
     const draw = () => {
       const dpr = Math.min(2, window.devicePixelRatio || 1)
-      c.width = Math.max(1, Math.round(b.clientWidth * dpr))
-      c.height = Math.max(1, Math.round(b.clientHeight * dpr))
-      setMs(renderMandelbrot(c, view))
+      const w = Math.max(1, Math.round(b.clientWidth * dpr))
+      const h = Math.max(1, Math.round(b.clientHeight * dpr))
+      if (useGpu && gl.current) {
+        gpuCanvas.current!.width = w
+        gpuCanvas.current!.height = h
+        setStats({ ms: gl.current.render(view), on: 'gpu' })
+      } else if (cpuCanvas.current) {
+        cpuCanvas.current.width = w
+        cpuCanvas.current.height = h
+        setStats({ ms: renderMandelbrot(cpuCanvas.current, view), on: 'cpu' })
+      }
     }
     draw()
     const ro = new ResizeObserver(() => draw())
     ro.observe(b)
     return () => ro.disconnect()
-  }, [view])
+  }, [view, useGpu])
 
-  const zoomAt = (e: React.MouseEvent, factor: number) => {
+  const zoomAt = (clientX: number, clientY: number, factor: number) => {
     const r = box.current!.getBoundingClientRect()
-    const fx = (e.clientX - r.left) / r.width - 0.5
-    const fy = (e.clientY - r.top) / r.height - 0.5
+    const fx = (clientX - r.left) / r.width - 0.5
+    const fy = (clientY - r.top) / r.height - 0.5
     const aspect = r.width / r.height
-    setView((v) => ({ ...v, cx: v.cx + fx * v.scale * aspect, cy: v.cy + fy * v.scale, scale: v.scale * factor, iter: Math.min(3000, Math.round(v.iter * (factor < 1 ? 1.15 : 0.87))) }))
+    setView((v) => ({ ...v, cx: v.cx + fx * v.scale * aspect, cy: v.cy + fy * v.scale, scale: v.scale * factor, iter: Math.min(4000, Math.round(v.iter * (factor < 1 ? 1.15 : 0.87))) }))
   }
+
+  const setWallpaper = () => {
+    os().set('fractalWallpaper', view)
+    os().set('wallpaper', 'fractal')
+    os().notify({ app: 'fractals', title: 'Wallpaper Set', body: useGpu ? `Your wallpaper is now rendered by your ${gpu.renderer}. Every resize. On purpose.` : 'Your wallpaper is now rendered by a Rust kernel every time you resize the window. As nature intended.' })
+  }
+
+  const saveImage = () => {
+    const c = useGpu ? gpuCanvas.current : cpuCanvas.current
+    if (!c) return
+    const a = document.createElement('a')
+    a.href = c.toDataURL('image/png')
+    a.download = `Mandelbrot ${view.cx.toFixed(6)}, ${view.cy.toFixed(6)}.png`
+    a.click()
+  }
+
+  const engineLabel = stats.on === 'gpu' ? `on ${gpu.renderer} (WebGL2)` : 'in pearnel.wasm (Rust)'
 
   return (
     <div className="fractals">
@@ -211,8 +266,21 @@ export function Fractals() {
         <div className="toolbar-title left">
           Fractals
           <small>
-            {ms.toFixed(1)} ms in pearnel.wasm · zoom {(3 / view.scale).toExponential(1)}× · {view.iter} iter
+            {stats.ms.toFixed(1)} ms {engineLabel} · zoom {(3 / view.scale).toExponential(1)}× · {view.iter} iter
           </small>
+        </div>
+        <div className="seg" title="Render engine">
+          {(
+            [
+              ['auto', 'Auto'],
+              ['gpu', 'GPU'],
+              ['cpu', 'Rust'],
+            ] as const
+          ).map(([id, label]) => (
+            <button key={id} className={engine === id ? 'on' : ''} disabled={id !== 'cpu' && !gpu.available} onClick={() => setEngine(id)}>
+              {label}
+            </button>
+          ))}
         </div>
         <div className="seg">
           {(['Sequel', 'Pear', 'Rainbow'] as const).map((n, i) => (
@@ -224,29 +292,46 @@ export function Fractals() {
         <button className="tb-btn" onClick={() => setView(DEFAULT_VIEW)} aria-label="Reset">
           <RefreshCw size={14} />
         </button>
-        <button
-          className="btn small"
-          onClick={() => {
-            os().set('fractalWallpaper', view)
-            os().set('wallpaper', 'fractal')
-            os().notify({ app: 'fractals', title: 'Wallpaper Set', body: 'Your wallpaper is now rendered by a Rust kernel every time you resize the window. As nature intended.' })
-          }}
-        >
+        <button className="btn small" onClick={setWallpaper}>
           Set as Wallpaper
         </button>
       </div>
       <div
         ref={box}
         className="fractal-canvas"
-        onClick={(e) => zoomAt(e, e.shiftKey || e.altKey ? 2 : 0.4)}
-        onContextMenu={(e) => {
-          e.preventDefault()
-          zoomAt(e, 2.5)
-        }}
+        onClick={(e) => zoomAt(e.clientX, e.clientY, e.shiftKey || e.altKey ? 2 : 0.4)}
+        onContextMenu={menu((e) => [
+          { label: 'Zoom In Here', run: () => zoomAt(e.clientX, e.clientY, 0.4) },
+          { label: 'Zoom Out Here', run: () => zoomAt(e.clientX, e.clientY, 2.5) },
+          { label: 'Reset View', run: () => setView(DEFAULT_VIEW) },
+          'sep',
+          {
+            label: 'Render With',
+            submenu: [
+              { label: 'Automatic', checked: engine === 'auto', disabled: !gpu.available, run: () => setEngine('auto') },
+              { label: `GPU: ${gpu.renderer}`, checked: engine === 'gpu', disabled: !gpu.available, run: () => setEngine('gpu') },
+              { label: 'CPU: pearnel.wasm (Rust, f64)', checked: engine === 'cpu', run: () => setEngine('cpu') },
+            ],
+          },
+          { label: 'Colors', submenu: (['Sequel', 'Pear', 'Rainbow'] as const).map((n, i) => ({ label: n, checked: view.scheme === i, run: () => setView((v) => ({ ...v, scheme: i as 0 | 1 | 2 })) })) },
+          {
+            label: 'Detail',
+            submenu: [
+              { label: 'More Iterations', run: () => setView((v) => ({ ...v, iter: Math.min(8000, Math.round(v.iter * 1.5)) })) },
+              { label: 'Fewer Iterations', run: () => setView((v) => ({ ...v, iter: Math.max(50, Math.round(v.iter / 1.5)) })) },
+            ],
+          },
+          'sep',
+          { label: 'Copy Coordinates', run: () => navigator.clipboard?.writeText(`${view.cx}, ${view.cy} @ ${view.scale}`) },
+          { label: 'Save Image…', run: saveImage },
+          { label: 'Set as Wallpaper', run: setWallpaper },
+        ])}
       >
-        <canvas ref={canvas} />
+        <canvas ref={cpuCanvas} style={{ visibility: useGpu ? 'hidden' : 'visible' }} />
+        <canvas ref={gpuCanvas} style={{ visibility: useGpu ? 'visible' : 'hidden' }} />
         <div className="fractal-hint">
-          <ZoomIn size={12} /> click · <ZoomOut size={12} /> right-click
+          <ZoomIn size={12} /> click · <ZoomOut size={12} /> shift-click · right-click for more
+          {engine === 'auto' && gpu.available && !useGpu && <b> · float32 ran out, Rust took over</b>}
         </div>
       </div>
     </div>
@@ -378,6 +463,9 @@ export function Settings({ win }: { win: Win }) {
               </button>
             ))}
           </div>
+          <Row label="Dynamic wallpaper" sub={gpuInfo().available ? `Shaded live on your ${gpuInfo().renderer}` : 'Needs WebGL2. Your browser said no.'}>
+            <Toggle on={s.liveWallpaper && gpuInfo().available} onChange={(v) => gpuInfo().available && os().set('liveWallpaper', v)} />
+          </Row>
           <Row label="Show on all Spaces">
             <Toggle on onChange={() => {}} />
           </Row>
@@ -436,6 +524,9 @@ export function Settings({ win }: { win: Win }) {
           </div>
           <Row label="Name">PearBook Pro (47)</Row>
           <Row label="Chip">Pear P4 Max</Row>
+          <Row label="Graphics" sub="Your real GPU, via WebGL2">
+            <span className="small">{gpuInfo().renderer}</span>
+          </Row>
           <Row label="Memory">8 GB (like 16 GB)</Row>
           <Row label="Serial number">C02PEAR4LYF3</Row>
           <Row label="Coverage" sub="Expired 3 days after purchase">
@@ -448,6 +539,44 @@ export function Settings({ win }: { win: Win }) {
         </div>
       )
       break
+    case 'displays': {
+      const g = gpuInfo()
+      body = (
+        <>
+          <div className="set-card">
+            <div className="about-mini">
+              <Monitor size={54} strokeWidth={1.2} />
+              <div>
+                <b>Built-in Liquid Retina XDR Display (in a browser tab)</b>
+                <small className="muted">
+                  {window.screen.width} × {window.screen.height} · {window.devicePixelRatio}× · {window.innerWidth} × {window.innerHeight} usable
+                </small>
+              </div>
+            </div>
+            <Row label="Graphics processor" sub="The real one, underneath PearOS">
+              <span className="small">{g.renderer}</span>
+            </Row>
+            <Row label="Vendor">
+              <span className="small">{g.vendor || '—'}</span>
+            </Row>
+            <Row label="WebGL2">{g.available ? 'Available' : 'Unavailable'}</Row>
+            <Row label="Max texture size">{g.maxTexture ? `${g.maxTexture} × ${g.maxTexture}` : '—'}</Row>
+          </div>
+          <div className="set-card">
+            <Row label="Brightness">
+              <input type="range" min={0.25} max={1} step={0.01} value={s.brightness} onChange={(e) => os().set('brightness', +e.target.value)} />
+            </Row>
+            <Row label="True Tone" sub="Makes everything slightly yellow, like a pear">
+              <Toggle on={misc.truetone ?? true} onChange={(v) => setMisc({ ...misc, truetone: v })} />
+            </Row>
+            <Row label="Dynamic wallpaper on GPU">
+              <Toggle on={s.liveWallpaper && g.available} onChange={(v) => g.available && os().set('liveWallpaper', v)} />
+            </Row>
+          </div>
+        </>
+      )
+      break
+    }
     case 'battery':
       body = (
         <div className="set-card">

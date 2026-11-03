@@ -9,6 +9,11 @@ export default function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme
   }, [theme])
+  useEffect(() => {
+    const block = (e: MouseEvent) => e.preventDefault()
+    document.addEventListener('contextmenu', block)
+    return () => document.removeEventListener('contextmenu', block)
+  }, [])
   switch (phase) {
     case 'off':
       return <PowerScreen />

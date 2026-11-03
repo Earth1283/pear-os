@@ -4,6 +4,8 @@ import { APPS, DOCK_APPS } from '../apps/registry'
 import type { AppId } from '../apps/ids'
 import { AppIcon } from './icons'
 import { HOME } from '../lib/fs'
+import { menu } from '../lib/menu'
+import { dockMenu, dockSeparatorMenu } from '../lib/menus'
 
 function activate(app: AppId) {
   if (app === 'launchpad') return os().setOverlay({ launchpad: !os().overlay.launchpad })
@@ -16,6 +18,18 @@ export function Dock() {
   const magnify = useOS((s) => s.dockMagnify)
   const running = useOS((s) => s.windows.map((w) => w.app).join(','))
   const launching = useOS((s) => s.launching)
+  const autohide = useOS((s) => s.dockAutohide)
+  const menuOpen = useOS((s) => s.contextMenu !== null)
+  const [peek, setPeek] = useState(false)
+  const leave = useRef<number | undefined>(undefined)
+  const show = () => {
+    clearTimeout(leave.current)
+    setPeek(true)
+  }
+  const hide = () => {
+    clearTimeout(leave.current)
+    leave.current = window.setTimeout(() => setPeek(false), 500)
+  }
   const [mouseX, setMouseX] = useState<number | null>(null)
   const refs = useRef<Record<string, HTMLButtonElement | null>>({})
   const centers = useRef<Record<string, number>>({})
@@ -45,6 +59,7 @@ export function Dock() {
         className={`dock-item ${launching.includes(id) ? 'bounce' : ''}`}
         style={{ width: size * s, height: size }}
         onClick={() => activate(id)}
+        onContextMenu={menu(() => dockMenu(id))}
         aria-label={APPS[id].name}
       >
         <span className="dock-label glass">{APPS[id].name}</span>
@@ -57,12 +72,20 @@ export function Dock() {
   }
 
   return (
-    <div className="dock-wrap" onPointerDown={(e) => e.stopPropagation()}>
+    <>
+    {autohide && <div className="dock-trigger" onPointerEnter={show} onPointerLeave={hide} />}
+    <div
+      className={`dock-wrap ${autohide && !peek && !menuOpen ? 'hidden' : ''}`}
+      onPointerDown={(e) => e.stopPropagation()}
+      onPointerEnter={show}
+      onPointerLeave={hide}
+    >
       <div className="dock glass" onPointerEnter={() => mouseX === null && capture()} onPointerMove={(e) => setMouseX(e.clientX)} onPointerLeave={() => setMouseX(null)} style={{ height: size + 16 }}>
         {DOCK_APPS.map(item)}
-        <div className="dock-sep" />
+        <div className="dock-sep" onContextMenu={menu(dockSeparatorMenu)} />
         {item('trash')}
       </div>
     </div>
+    </>
   )
 }

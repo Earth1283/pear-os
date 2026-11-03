@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Search, SlidersHorizontal, Wifi, WifiOff } from 'lucide-react'
-import { useOS, os } from '../store'
+import { useOS, os, type Win } from '../store'
+import { MenuList } from './ContextMenu'
+import type { MenuEntry } from '../lib/menu'
+import { openPath } from '../apps/open'
 import { APPS } from '../apps/registry'
 import type { MenuDef, MenuItem } from '../apps/types'
 import { PearLogo, IntelOrb } from './icons'
@@ -38,31 +41,17 @@ function Clock() {
   )
 }
 
+function toEntries(items: MenuItem[], win: Win | null): MenuEntry[] {
+  return items.map((it) =>
+    it === 'sep'
+      ? 'sep'
+      : { label: it.label, shortcut: it.shortcut, disabled: it.disabled, checked: it.checked, submenu: it.submenu && toEntries(it.submenu, win), run: it.action && (() => it.action!(win)) },
+  )
+}
+
 function Dropdown({ items, close }: { items: MenuItem[]; close: () => void }) {
   const focusedWin = useOS((s) => s.windows.find((w) => w.id === s.focused) ?? null)
-  return (
-    <div className="dropdown glass" onPointerDown={(e) => e.stopPropagation()}>
-      {items.map((it, i) =>
-        it === 'sep' ? (
-          <div key={i} className="dd-sep" />
-        ) : (
-          <button
-            key={i}
-            className="dd-item"
-            disabled={it.disabled}
-            onClick={() => {
-              close()
-              it.action?.(focusedWin)
-            }}
-          >
-            <span className="dd-check">{it.checked ? '✓' : ''}</span>
-            <span className="dd-label">{it.label}</span>
-            {it.shortcut && <span className="dd-sc">{it.shortcut}</span>}
-          </button>
-        ),
-      )}
-    </div>
-  )
+  return <MenuList items={toEntries(items, focusedWin)} onDone={close} />
 }
 
 const pearMenu: MenuItem[] = [
@@ -71,7 +60,19 @@ const pearMenu: MenuItem[] = [
   { label: 'System Settings…', action: () => os().openApp('settings') },
   { label: 'App Store…', action: () => os().notify({ app: 'settings', title: 'App Store', body: 'The App Store is closed for renovations. Please enjoy the apps you already have.' }) },
   'sep',
-  { label: 'Recent Items', disabled: true },
+  {
+    label: 'Recent Items',
+    submenu: [
+      { label: 'Terminal', action: () => os().openApp('terminal') },
+      { label: 'Notes', action: () => os().openApp('notes') },
+      { label: 'Fractals', action: () => os().openApp('fractals') },
+      'sep',
+      { label: 'TODO.txt', action: () => openPath('/Users/pear/Desktop/TODO.txt') },
+      { label: 'taxes.txt', action: () => openPath('/Users/pear/Documents/taxes.txt') },
+      'sep',
+      { label: 'Clear Menu', disabled: true },
+    ],
+  },
   'sep',
   {
     label: 'Force Quit…',
