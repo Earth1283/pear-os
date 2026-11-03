@@ -50,6 +50,8 @@ PEAROS_PASSWORD='something long' ./server/target/release/pearosd
 
 Anyone with the password gets a shell as the user running pearosd, so run it as an unprivileged user or in a container.
 
+Full setup guide (downloads, reverse proxies, systemd, Docker, troubleshooting): [docs/pearosd.md](docs/pearosd.md).
+
 `npm run server:static` builds a fully static musl binary (needs `zig` for `cargo zigbuild`).
 
 **Development:** run `npm run server:dev` (API on 127.0.0.1:9092) alongside `npm run dev`. Vite proxies `/api` and `/p/` to it.

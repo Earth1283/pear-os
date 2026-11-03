@@ -23,13 +23,13 @@ use serde_json::json;
 pub struct Args {
     #[arg(long, env = "PEAROS_PASSWORD", hide_env_values = true, help = "Login password (prefer the env var; flags show up in `ps`)")]
     password: Option<String>,
-    #[arg(long, default_value = "0.0.0.0:9091")]
+    #[arg(long, default_value = "0.0.0.0:9091", help = "Address and port to listen on")]
     bind: SocketAddr,
     #[arg(long, env = "PEAROS_ROOT", help = "Folder served as PearDrive [default: ~/PearDrive]")]
     root: Option<PathBuf>,
     #[arg(long, requires = "key", help = "TLS certificate (PEM). Without it a self-signed one is generated")]
     cert: Option<PathBuf>,
-    #[arg(long, requires = "cert")]
+    #[arg(long, requires = "cert", help = "TLS private key (PEM) for --cert")]
     key: Option<PathBuf>,
     #[arg(long, help = "Serve plain HTTP (only behind a TLS-terminating proxy or on localhost)")]
     no_tls: bool,
