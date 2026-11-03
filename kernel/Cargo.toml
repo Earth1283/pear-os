@@ -1,0 +1,15 @@
+[package]
+name = "pearnel"
+version = "15.0.0"
+edition = "2021"
+description = "The PearOS kernel. Compiled to WebAssembly for absolutely no good reason."
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

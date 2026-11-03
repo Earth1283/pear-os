@@ -1,0 +1,484 @@
+import { useId } from 'react'
+import type { AppId } from '../apps/ids'
+import type { FileKind } from '../lib/fs'
+
+const PEAR_BODY = 'M50 22c-9 0-12.8 8.6-13.8 16.5-1 7.4-12.7 13.8-12.7 31C23.5 85 36 95 50 95s26.5-10 26.5-25.5c0-17.2-11.7-23.6-12.7-31C62.8 30.6 59 22 50 22z'
+const PEAR_LEAF = 'M53 20c2-8 9-13 18-13-1 9-8 15-18 13z'
+const PEAR_STEM = 'M49.5 23c.2-5-1-9-3.5-12'
+
+export function PearLogo({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden>
+      <path d={PEAR_BODY} fill={color} />
+      <path d={PEAR_LEAF} fill={color} />
+      <path d={PEAR_STEM} stroke={color} strokeWidth="4" strokeLinecap="round" fill="none" />
+    </svg>
+  )
+}
+
+function gearPath(cx: number, cy: number, rOuter: number, rInner: number, teeth: number) {
+  const pts: string[] = []
+  const step = (Math.PI * 2) / teeth
+  for (let i = 0; i < teeth; i++) {
+    const a = i * step
+    const corners = [a - step * 0.25, a - step * 0.12, a + step * 0.12, a + step * 0.25]
+    const radii = [rInner, rOuter, rOuter, rInner]
+    corners.forEach((c, k) => pts.push(`${(cx + Math.cos(c) * radii[k]).toFixed(2)},${(cy + Math.sin(c) * radii[k]).toFixed(2)}`))
+  }
+  return 'M' + pts.join('L') + 'Z'
+}
+
+const GEAR_BIG = gearPath(50, 50, 36, 30, 28)
+const GEAR_MID = gearPath(50, 50, 22, 18, 14)
+
+function Squircle({ fill, stroke }: { fill: string; stroke?: string }) {
+  return <rect x="7" y="7" width="86" height="86" rx="20" fill={fill} stroke={stroke ?? 'rgba(0,0,0,.08)'} strokeWidth=".6" />
+}
+
+export function AppIcon({ app, size = 52 }: { app: AppId; size?: number }) {
+  const uid = useId().replace(/:/g, '')
+  const g = (n: string) => `${uid}${n}`
+  const u = (n: string) => `url(#${g(n)})`
+  let body: React.ReactNode
+
+  switch (app) {
+    case 'finder':
+      body = (
+        <>
+          <defs>
+            <linearGradient id={g('l')} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#5fc8ff" />
+              <stop offset="1" stopColor="#1572f0" />
+            </linearGradient>
+            <linearGradient id={g('r')} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#f4f8fc" />
+              <stop offset="1" stopColor="#c9d8ea" />
+            </linearGradient>
+            <clipPath id={g('c')}>
+              <rect x="7" y="7" width="86" height="86" rx="20" />
+            </clipPath>
+          </defs>
+          <g clipPath={u('c')}>
+            <rect x="0" y="0" width="100" height="100" fill={u('r')} />
+            <path d="M0 0H56C50 20 46 38 47 56H54C52 70 54 84 58 100H0Z" fill={u('l')} />
+          </g>
+          <rect x="33" y="31" width="5" height="15" rx="2.5" fill="#0d2a4f" />
+          <rect x="63" y="31" width="5" height="15" rx="2.5" fill="#0d2a4f" />
+          <path d="M27 64c14 9 32 9 46 0" stroke="#0d2a4f" strokeWidth="4" strokeLinecap="round" fill="none" />
+          <path d="M57 4c2-5 7-8 12-8-.6 6-6 9-12 8z" fill="#7cc243" transform="translate(-6 8)" />
+        </>
+      )
+      break
+    case 'launchpad':
+      body = (
+        <>
+          <defs>
+            <linearGradient id={g('b')} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#c9ced8" />
+              <stop offset="1" stopColor="#8d94a3" />
+            </linearGradient>
+          </defs>
+          <Squircle fill={u('b')} />
+          {['#ff5f57', '#ffbd2e', '#28c840', '#0a84ff', '#bf5af2', '#ff9f0a', '#64d2ff', '#ff375f', '#30d158'].map((c, i) => (
+            <rect key={i} x={23 + (i % 3) * 19} y={23 + Math.floor(i / 3) * 19} width="14" height="14" rx="4" fill={c} />
+          ))}
+        </>
+      )
+      break
+    case 'safari':
+      body = (
+        <>
+          <defs>
+            <radialGradient id={g('b')} cx=".5" cy=".4" r=".6">
+              <stop offset="0" stopColor="#5ee0ff" />
+              <stop offset="1" stopColor="#1463e6" />
+            </radialGradient>
+          </defs>
+          <Squircle fill="#fbfbfd" />
+          <circle cx="50" cy="50" r="35" fill={u('b')} />
+          {Array.from({ length: 48 }, (_, i) => {
+            const a = (i / 48) * Math.PI * 2
+            const r1 = i % 4 === 0 ? 27 : 30
+            return <line key={i} x1={50 + Math.cos(a) * r1} y1={50 + Math.sin(a) * r1} x2={50 + Math.cos(a) * 33} y2={50 + Math.sin(a) * 33} stroke="#fff" strokeWidth={i % 4 === 0 ? 1.4 : 0.7} opacity=".85" />
+          })}
+          <path d="M50 50L72 28L54 54Z" fill="#ff3b30" />
+          <path d="M50 50L28 72L46 46Z" fill="#fff" />
+          <circle cx="50" cy="50" r="2.5" fill="#d0d0d0" />
+        </>
+      )
+      break
+    case 'notes':
+      body = (
+        <>
+          <defs>
+            <linearGradient id={g('y')} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#ffe066" />
+              <stop offset="1" stopColor="#f6c90e" />
+            </linearGradient>
+            <clipPath id={g('c')}>
+              <rect x="7" y="7" width="86" height="86" rx="20" />
+            </clipPath>
+          </defs>
+          <Squircle fill="#fdfdfb" />
+          <g clipPath={u('c')}>
+            <rect x="0" y="0" width="100" height="30" fill={u('y')} />
+            <line x1="7" y1="30" x2="93" y2="30" stroke="#e2b400" strokeWidth="1" />
+          </g>
+          {[44, 56, 68, 80].map((y) => (
+            <line key={y} x1="18" y1={y} x2="82" y2={y} stroke="#d4d4d8" strokeWidth="1.6" />
+          ))}
+          {Array.from({ length: 9 }, (_, i) => (
+            <circle key={i} cx={18 + i * 8} cy="30" r="1.1" fill="#b98f00" />
+          ))}
+        </>
+      )
+      break
+    case 'textedit':
+      body = (
+        <>
+          <Squircle fill="#e9e6df" />
+          <rect x="24" y="16" width="52" height="68" rx="3" fill="#fff" stroke="#cfcac0" />
+          {[28, 36, 44, 52, 60, 68].map((y, i) => (
+            <line key={y} x1="31" y1={y} x2={i % 2 ? 62 : 69} y2={y} stroke="#b9b4aa" strokeWidth="1.8" strokeLinecap="round" />
+          ))}
+          <g transform="rotate(38 66 58)">
+            <rect x="62" y="22" width="9" height="52" rx="2" fill="#2f6fe0" />
+            <rect x="62" y="22" width="9" height="8" rx="2" fill="#f0a3b4" />
+            <path d="M62 74l4.5 10 4.5-10z" fill="#e8d3a8" />
+            <path d="M65 80.5l1.5 3.5 1.5-3.5z" fill="#333" />
+          </g>
+        </>
+      )
+      break
+    case 'calculator':
+      body = (
+        <>
+          <defs>
+            <linearGradient id={g('b')} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#4a4a4f" />
+              <stop offset="1" stopColor="#1c1c1e" />
+            </linearGradient>
+          </defs>
+          <Squircle fill={u('b')} />
+          {Array.from({ length: 16 }, (_, i) => {
+            const col = i % 4
+            const row = Math.floor(i / 4)
+            const fill = col === 3 ? '#ff9f0a' : row === 0 ? '#a5a5aa' : '#6b6b70'
+            return <circle key={i} cx={24 + col * 17.3} cy={26 + row * 16.5} r="6.6" fill={fill} />
+          })}
+        </>
+      )
+      break
+    case 'terminal':
+      body = (
+        <>
+          <defs>
+            <linearGradient id={g('b')} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#3a3a3c" />
+              <stop offset="1" stopColor="#111113" />
+            </linearGradient>
+          </defs>
+          <Squircle fill="#d7d7db" />
+          <rect x="13" y="16" width="74" height="68" rx="8" fill={u('b')} />
+          <path d="M23 34l12 8-12 8" stroke="#f5f5f7" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          <line x1="40" y1="52" x2="54" y2="52" stroke="#f5f5f7" strokeWidth="4.2" strokeLinecap="round" />
+        </>
+      )
+      break
+    case 'intelligence': {
+      const colors = ['#ff9f0a', '#ff375f', '#bf5af2', '#5e5ce6', '#0a84ff', '#64d2ff', '#ff9f0a']
+      body = (
+        <>
+          <defs>
+            <filter id={g('blur')} x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="2.4" />
+            </filter>
+            <radialGradient id={g('bg')} cx=".5" cy=".5" r=".7">
+              <stop offset="0" stopColor="#ffffff" />
+              <stop offset="1" stopColor="#ece9f6" />
+            </radialGradient>
+          </defs>
+          <Squircle fill={u('bg')} />
+          <g filter={u('blur')}>
+            {colors.slice(0, 6).map((c, i) => {
+              const a0 = (i / 6) * Math.PI * 2
+              const a1 = ((i + 1) / 6) * Math.PI * 2
+              const r = 25
+              return (
+                <path
+                  key={i}
+                  d={`M${50 + Math.cos(a0) * r} ${50 + Math.sin(a0) * r}A${r} ${r} 0 0 1 ${50 + Math.cos(a1) * r} ${50 + Math.sin(a1) * r}`}
+                  stroke={c}
+                  strokeWidth="11"
+                  fill="none"
+                  strokeLinecap="round"
+                />
+              )
+            })}
+          </g>
+          <circle cx="50" cy="50" r="14" fill="#fff" opacity=".9" />
+        </>
+      )
+      break
+    }
+    case 'passwords':
+      body = (
+        <>
+          <defs>
+            <linearGradient id={g('b')} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#4fb4ff" />
+              <stop offset="1" stopColor="#1458d6" />
+            </linearGradient>
+          </defs>
+          <Squircle fill={u('b')} />
+          <circle cx="50" cy="35" r="15" fill="none" stroke="#fff" strokeWidth="7" />
+          <path d="M46.5 48h7v28l-3.5 5-3.5-5v-4h-4v-5h4v-3h-4v-5h4z" fill="#fff" />
+        </>
+      )
+      break
+    case 'mirroring':
+      body = (
+        <>
+          <defs>
+            <linearGradient id={g('b')} x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#3f8cff" />
+              <stop offset="1" stopColor="#1b3fbf" />
+            </linearGradient>
+            <linearGradient id={g('s')} x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#ffb86b" />
+              <stop offset=".5" stopColor="#ff5e9a" />
+              <stop offset="1" stopColor="#7a5cff" />
+            </linearGradient>
+          </defs>
+          <Squircle fill={u('b')} />
+          <rect x="34" y="18" width="32" height="64" rx="7" fill="#0b0b10" />
+          <rect x="36.5" y="20.5" width="27" height="59" rx="5" fill={u('s')} />
+          <rect x="45" y="23" width="10" height="3.2" rx="1.6" fill="#0b0b10" />
+        </>
+      )
+      break
+    case 'activity':
+      body = (
+        <>
+          <Squircle fill="#e8e8ec" />
+          <rect x="14" y="20" width="72" height="56" rx="5" fill="#141416" />
+          {[32, 44, 56, 68].map((y) => (
+            <line key={y} x1="16" y1={y} x2="84" y2={y} stroke="#2b3a2b" strokeWidth=".7" />
+          ))}
+          <path d="M16 56L28 56L33 40L40 66L47 30L54 60L60 48L66 52L72 36L78 56L84 56" stroke="#3cf06e" strokeWidth="2.6" fill="none" strokeLinejoin="round" strokeLinecap="round" />
+          <rect x="14" y="78" width="72" height="5" rx="2.5" fill="#b8b8bf" />
+        </>
+      )
+      break
+    case 'fractals':
+      body = (
+        <>
+          <defs>
+            <radialGradient id={g('glow')} cx=".55" cy=".5" r=".5">
+              <stop offset="0" stopColor="#7c6cff" />
+              <stop offset=".6" stopColor="#2a1f6e" />
+              <stop offset="1" stopColor="#0a0a1a" />
+            </radialGradient>
+          </defs>
+          <Squircle fill={u('glow')} />
+          <path
+            d="M70 50c0-11-9-20-20-20-6 0-10 2-13 5 3 2 4 6 4 9 0 2-1 4-2 6 1 2 2 4 2 6 0 3-1 7-4 9 3 3 7 5 13 5 11 0 20-9 20-20z"
+            fill="#05050c"
+            stroke="#9ad7ff"
+            strokeWidth="1.2"
+          />
+          <circle cx="31.5" cy="50" r="7" fill="#05050c" stroke="#9ad7ff" strokeWidth="1.2" />
+          <circle cx="22" cy="50" r="2.5" fill="#05050c" stroke="#9ad7ff" strokeWidth="1" />
+          <circle cx="50" cy="27.5" r="3" fill="#05050c" stroke="#ff9ad5" strokeWidth="1" />
+          <circle cx="50" cy="72.5" r="3" fill="#05050c" stroke="#ff9ad5" strokeWidth="1" />
+        </>
+      )
+      break
+    case 'settings':
+      body = (
+        <>
+          <defs>
+            <linearGradient id={g('b')} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#e2e2e6" />
+              <stop offset="1" stopColor="#9a9aa2" />
+            </linearGradient>
+            <linearGradient id={g('gear')} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#8e8e96" />
+              <stop offset="1" stopColor="#4a4a52" />
+            </linearGradient>
+          </defs>
+          <Squircle fill={u('b')} />
+          <path d={GEAR_BIG} fill={u('gear')} />
+          <circle cx="50" cy="50" r="26" fill="#d9d9de" />
+          <path d={GEAR_MID} fill="#6c6c74" />
+          <circle cx="50" cy="50" r="7" fill="#d9d9de" />
+          {[0, 1, 2].map((i) => (
+            <rect key={i} x="48.5" y="28" width="3" height="16" rx="1.5" fill="#6c6c74" transform={`rotate(${i * 120} 50 50)`} />
+          ))}
+        </>
+      )
+      break
+    case 'trash':
+      body = (
+        <>
+          <defs>
+            <linearGradient id={g('b')} x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stopColor="#c7ccd4" stopOpacity=".9" />
+              <stop offset=".5" stopColor="#f2f4f7" stopOpacity=".95" />
+              <stop offset="1" stopColor="#b9bec7" stopOpacity=".9" />
+            </linearGradient>
+          </defs>
+          <path d="M24 26h52l-5 64c0 2-2 4-4 4H33c-2 0-4-2-4-4z" fill={u('b')} stroke="#9aa1ab" strokeWidth="1" />
+          <ellipse cx="50" cy="26" rx="27" ry="5" fill="#dfe3e8" stroke="#9aa1ab" />
+          {[35, 42.5, 50, 57.5, 65].map((x) => (
+            <line key={x} x1={x} y1="34" x2={x + (x - 50) * -0.05} y2="88" stroke="#a5acb6" strokeWidth="1.4" />
+          ))}
+        </>
+      )
+      break
+    case 'about':
+    default:
+      body = (
+        <>
+          <Squircle fill="#1c1c1e" />
+          <g transform="translate(18 16) scale(.64)">
+            <path d={PEAR_BODY} fill="#9bd14b" />
+            <path d={PEAR_LEAF} fill="#5aa72f" />
+            <path d={PEAR_STEM} stroke="#8b5a2b" strokeWidth="4" strokeLinecap="round" fill="none" />
+          </g>
+        </>
+      )
+  }
+
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" className="app-icon" aria-hidden>
+      {body}
+      {app !== 'trash' && (
+        <>
+          <defs>
+            <linearGradient id={g('gloss')} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#fff" stopOpacity=".28" />
+              <stop offset=".5" stopColor="#fff" stopOpacity="0" />
+              <stop offset="1" stopColor="#000" stopOpacity=".08" />
+            </linearGradient>
+          </defs>
+          <rect x="7" y="7" width="86" height="86" rx="20" fill={u('gloss')} pointerEvents="none" />
+          <rect x="7.4" y="7.4" width="85.2" height="85.2" rx="19.6" fill="none" stroke="#fff" strokeOpacity=".22" strokeWidth=".8" />
+        </>
+      )}
+    </svg>
+  )
+}
+
+export function IntelOrb({ size = 16 }: { size?: number }) {
+  const uid = useId().replace(/:/g, '')
+  const colors = ['#ff9f0a', '#ff375f', '#bf5af2', '#5e5ce6', '#0a84ff', '#64d2ff']
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden>
+      <defs>
+        <filter id={`${uid}b`} x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation=".6" />
+        </filter>
+      </defs>
+      <g filter={`url(#${uid}b)`}>
+        {colors.map((c, i) => {
+          const a0 = (i / 6) * Math.PI * 2
+          const a1 = ((i + 1) / 6) * Math.PI * 2
+          return <path key={i} d={`M${10 + Math.cos(a0) * 6.5} ${10 + Math.sin(a0) * 6.5}A6.5 6.5 0 0 1 ${10 + Math.cos(a1) * 6.5} ${10 + Math.sin(a1) * 6.5}`} stroke={c} strokeWidth="3.2" fill="none" />
+        })}
+      </g>
+    </svg>
+  )
+}
+
+export function FolderIcon({ size = 64, tint = '#3fa0f5' }: { size?: number; tint?: string }) {
+  const uid = useId().replace(/:/g, '')
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden>
+      <defs>
+        <linearGradient id={`${uid}f`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#8fd0ff" />
+          <stop offset="1" stopColor={tint} />
+        </linearGradient>
+      </defs>
+      <path d="M8 26c0-3 2-5 5-5h22l6 6h46c3 0 5 2 5 5v6H8z" fill={tint} opacity=".85" />
+      <rect x="8" y="32" width="84" height="54" rx="5" fill={`url(#${uid}f)`} />
+      <rect x="8" y="32" width="84" height="2" fill="#fff" opacity=".4" />
+    </svg>
+  )
+}
+
+const KIND_COLOR: Record<FileKind, string> = {
+  text: '#8e8e93',
+  image: '#34c759',
+  archive: '#a2845e',
+  audio: '#ff2d55',
+  video: '#5856d6',
+  app: '#0a84ff',
+  disk: '#636366',
+  binary: '#ff9f0a',
+}
+
+export function FileIcon({ size = 64, kind, ext }: { size?: number; kind: FileKind; ext: string }) {
+  if (kind === 'disk') return <DiskIcon size={size} />
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden>
+      <path d="M22 8h40l18 18v62c0 2-2 4-4 4H22c-2 0-4-2-4-4V12c0-2 2-4 4-4z" fill="#fff" stroke="#d1d1d6" />
+      <path d="M62 8v14c0 2 2 4 4 4h14" fill="#ececf0" stroke="#d1d1d6" />
+      {kind === 'image' ? (
+        <>
+          <rect x="27" y="36" width="46" height="34" rx="3" fill="#cfe8ff" />
+          <circle cx="38" cy="46" r="5" fill="#ffd60a" />
+          <path d="M27 70l14-16 9 10 8-7 15 13z" fill="#34c759" />
+        </>
+      ) : kind === 'text' ? (
+        [36, 44, 52, 60, 68].map((y, i) => <line key={y} x1="28" y1={y} x2={i === 4 ? 56 : 70} y2={y} stroke="#c7c7cc" strokeWidth="2.4" strokeLinecap="round" />)
+      ) : null}
+      <rect x="22" y="74" width="54" height="12" rx="3" fill={KIND_COLOR[kind]} />
+      <text x="49" y="83.5" textAnchor="middle" fontSize="9" fontWeight="700" fill="#fff" fontFamily="Inter, system-ui, sans-serif">
+        {ext.slice(0, 5).toUpperCase()}
+      </text>
+    </svg>
+  )
+}
+
+export function DiskIcon({ size = 64 }: { size?: number }) {
+  const uid = useId().replace(/:/g, '')
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden>
+      <defs>
+        <linearGradient id={`${uid}d`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#f2f2f5" />
+          <stop offset="1" stopColor="#a9a9b0" />
+        </linearGradient>
+      </defs>
+      <rect x="10" y="30" width="80" height="42" rx="6" fill={`url(#${uid}d)`} stroke="#8e8e93" />
+      <rect x="10" y="60" width="80" height="12" rx="0" fill="#8e8e93" opacity=".35" />
+      <circle cx="80" cy="66" r="2" fill="#30d158" />
+      <g transform="translate(14 33) scale(.24)">
+        <path d={PEAR_BODY} fill="#636366" />
+        <path d={PEAR_LEAF} fill="#636366" />
+      </g>
+    </svg>
+  )
+}
+
+export function LaptopArt({ size = 160 }: { size?: number }) {
+  const uid = useId().replace(/:/g, '')
+  return (
+    <svg width={size} height={size * 0.7} viewBox="0 0 160 112" aria-hidden>
+      <defs>
+        <linearGradient id={`${uid}s`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#1e3a8a" />
+          <stop offset=".5" stopColor="#7c3aed" />
+          <stop offset="1" stopColor="#f472b6" />
+        </linearGradient>
+      </defs>
+      <rect x="22" y="6" width="116" height="80" rx="6" fill="#2c2c2e" />
+      <rect x="27" y="11" width="106" height="70" rx="2" fill={`url(#${uid}s)`} />
+      <rect x="70" y="11" width="20" height="4" rx="2" fill="#2c2c2e" />
+      <path d="M6 90h148l-6 10c-1 2-3 3-5 3H17c-2 0-4-1-5-3z" fill="#c7c7cc" />
+      <rect x="66" y="90" width="28" height="3" rx="1.5" fill="#9e9ea3" />
+    </svg>
+  )
+}
