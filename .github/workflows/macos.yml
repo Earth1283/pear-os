@@ -1,0 +1,64 @@
+name: macOS build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos-arm64
+            target: aarch64-apple-darwin
+          - name: macos-x86_64
+            target: x86_64-apple-darwin
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server
+          key: ${{ matrix.target }}
+
+      - name: Build UI
+        run: npm ci && npm run build
+
+      - name: Build pearosd
+        working-directory: server
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Smoke test
+        if: matrix.target != 'x86_64-apple-darwin'
+        run: server/target/${{ matrix.target }}/release/pearosd --version
+
+      - name: Package
+        run: |
+          mkdir -p out
+          name=pearosd-${{ matrix.name }}
+          cp server/target/${{ matrix.target }}/release/pearosd "$name"
+          tar -czf "out/$name.tar.gz" "$name"
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pearosd-${{ matrix.name }}
+          path: out/*
+          if-no-files-found: error

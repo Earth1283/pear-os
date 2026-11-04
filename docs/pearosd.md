@@ -25,8 +25,6 @@ Download the latest build from the [`nightly` release](https://github.com/Earth1
 | --- | --- |
 | `pearosd-linux-x86_64.tar.gz` | Linux on x86_64. Static, so it runs on any distro |
 | `pearosd-linux-arm64.tar.gz` | Linux on ARM64 (Raspberry Pi 4/5, Graviton, Ampere). Static |
-| `pearosd-macos-arm64.tar.gz` | macOS on Apple Silicon |
-| `pearosd-macos-x86_64.tar.gz` | macOS on Intel |
 
 ```sh
 curl -LO https://github.com/Earth1283/pear-os/releases/download/nightly/pearosd-linux-x86_64.tar.gz
@@ -39,7 +37,7 @@ PEAROS_PASSWORD='pick something long' ./pearosd-linux-x86_64
 
 Then open `https://<server>:9091`. The first time, your browser warns about the certificate (see [TLS](#tls)). Accept it, press the power button, and log in with your password.
 
-The macOS binaries aren't signed. If macOS refuses to open one, run `xattr -d com.apple.quarantine ./pearosd-macos-*`.
+Releases don't include macOS builds. Run the **macOS build** workflow from the Actions tab to get `pearosd-macos-arm64` or `pearosd-macos-x86_64` as a workflow artifact. Those binaries aren't signed. If macOS refuses to open one, run `xattr -d com.apple.quarantine ./pearosd-macos-*`.
 
 If you don't set a password, `pearosd` generates one and prints it at startup:
 

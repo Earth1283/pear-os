@@ -20,14 +20,11 @@ npm run test:kernel  # parser tests
 ## CI
 
 - **`.github/workflows/pages.yml`** deploys the static parody to GitHub Pages on every push to `main`. That copy has no backend, so it runs in fake mode.
-- **`.github/workflows/release.yml`** runs the tests, then builds `pearosd` for:
-  - Linux x86_64 and arm64 (static musl)
-  - macOS arm64 and x86_64
-
-  It publishes the builds as follows:
+- **`.github/workflows/release.yml`** runs the tests, then builds `pearosd` for Linux x86_64 and arm64 (static musl). It publishes the builds as follows:
   - **Push to `main`:** force-moves the `nightly` tag and replaces the assets on the **nightly** pre-release.
   - **Push a `v*` tag:** creates a normal versioned release.
   - **Pull request:** builds without publishing.
+- **`.github/workflows/macos.yml`** builds `pearosd` for macOS arm64 and x86_64. It only runs on request (Actions, then macOS build, then Run workflow) and uploads the archives as workflow artifacts, not to a release.
 
 One-time setup: Settings → Pages → Source: **GitHub Actions**.
 
