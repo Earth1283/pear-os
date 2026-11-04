@@ -6783,3 +6783,253 @@ html.a11y-reduce-motion .a11y-flash {
   color: var(--fg);
   font: 500 12px var(--font);
 }
+
+/* ---------- Startup Manager ---------- */
+.bootpicker {
+  gap: 0;
+  background: #1c1c1e;
+  animation: fadein 0.4s ease;
+}
+.bootpicker h1 {
+  margin: 0 0 40px;
+  font-size: 22px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.86);
+}
+.bp-disks {
+  display: flex;
+  gap: 34px;
+}
+.bp-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.bp-disk {
+  width: 168px;
+  padding: 18px 10px 14px;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: rgba(255, 255, 255, 0.82);
+  border: 1.5px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+.bp-disk span {
+  margin-top: 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.bp-disk small {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 11.5px;
+}
+.bp-disk:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.bp-disk.sel {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+.bp-go {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+.bp-go:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+.bp-hint {
+  margin: 38px 0 6px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+}
+.bootpicker > small {
+  color: rgba(255, 255, 255, 0.28);
+}
+
+/* ---------- Boot Camp Assistant ---------- */
+.bc {
+  display: flex;
+  height: 100%;
+  background: var(--bg);
+}
+.bc-art {
+  width: 150px;
+  flex: none;
+  display: flex;
+  justify-content: center;
+  padding-top: 38px;
+  background: var(--bg2);
+  border-right: 1px solid var(--line2);
+}
+.bc-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 26px 28px 18px;
+}
+.bc-main h2 {
+  margin: 0 0 14px;
+  font-size: 19px;
+  font-weight: 600;
+}
+.bc-body {
+  flex: 1;
+  overflow: auto;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.bc-body p {
+  margin: 0 0 12px;
+}
+.bc-dim {
+  color: var(--fg2);
+}
+.bc-note {
+  color: #d9534f;
+  font-weight: 500;
+}
+.bc-body code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--sel);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.bc-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+.bc-check.disabled {
+  opacity: 0.6;
+}
+.bc-check input {
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+.bc-check small {
+  display: block;
+  color: var(--fg2);
+  font-size: 11.5px;
+  margin-top: 1px;
+}
+.bc-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.bc-row.bc-tight {
+  margin: 14px 0 6px;
+}
+.bc-label {
+  width: 118px;
+  flex: none;
+  text-align: right;
+  color: var(--fg2);
+}
+.bc-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--field);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bc-btn {
+  padding: 4px 14px;
+  border-radius: 6px;
+  background: var(--field);
+  box-shadow: 0 0 0 0.5px var(--line), 0 1px 1.5px rgba(0, 0, 0, 0.08);
+}
+.bc-btn:hover {
+  background: var(--sel);
+}
+.bc-btn:active {
+  filter: brightness(0.94);
+}
+.bc-btn.primary {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: none;
+}
+.bc-btn.primary:hover {
+  background: var(--accent-sel);
+}
+.bc-btn:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.bc-split {
+  display: flex;
+  height: 64px;
+  gap: 2px;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.bc-seg {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-width: 64px;
+  color: #fff;
+  font-size: 12px;
+  overflow: hidden;
+}
+.bc-seg b {
+  font-weight: 600;
+}
+.bc-seg.mac {
+  background: linear-gradient(#6f7683, #4d535e);
+}
+.bc-seg.win {
+  background: linear-gradient(#2d8cf0, #1558c0);
+}
+.bc-range {
+  width: 100%;
+}
+.bc-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--sel);
+  overflow: hidden;
+  margin: 6px 0 8px;
+}
+.bc-bar > div {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+  transition: width 0.1s linear;
+}
+.bc-meta {
+  display: flex;
+  justify-content: space-between;
+  color: var(--fg2);
+  font-size: 11.5px;
+  margin-bottom: 10px;
+}
+.bc-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 12px;
+}

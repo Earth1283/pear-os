@@ -46,6 +46,7 @@ export const root: DirNode = d({
     'pPhone Mirroring.app': app('mirroring'),
     'Activity Monitor.app': app('activity'),
     'Fractals.app': app('fractals'),
+    'Boot Camp Assistant.app': app('bootcamp'),
     'System Settings.app': app('settings'),
   }),
   System: d({

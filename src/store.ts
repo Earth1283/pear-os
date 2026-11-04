@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { AppId } from './apps/ids'
 import type { MenuEntry } from './lib/menu'
 
-export type Phase = 'off' | 'booting' | 'login' | 'desktop' | 'sleep' | 'panic' | 'shuttingdown'
+export type Phase = 'off' | 'booting' | 'bootpicker' | 'windows' | 'login' | 'desktop' | 'sleep' | 'panic' | 'shuttingdown'
 export type Tile = 'left' | 'right' | 'fill' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | null
 export type Wallpaper = 'sequel' | 'sequel-dark' | 'orchard' | 'graphite' | 'fractal'
 

@@ -3,6 +3,7 @@ import { ArrowRight, Power } from 'lucide-react'
 import { useOS, os } from '../store'
 import { bootKernel } from '../kernel'
 import { detect, login, useBackend } from '../lib/backend'
+import { useBootCamp } from '../lib/bootcamp'
 import { PearLogo } from './icons'
 import { Wallpaper } from './Wallpaper'
 
@@ -77,7 +78,7 @@ export function BootScreen() {
       setLine(Math.min(BOOT_LINES.length - 1, Math.floor(p / (100 / BOOT_LINES.length))))
       if (p >= 100) {
         clearInterval(t)
-        setTimeout(() => os().setPhase('login'), 450)
+        setTimeout(() => os().setPhase(useBootCamp.getState().windows === 'none' ? 'login' : 'bootpicker'), 450)
       }
     }, 90)
     return () => clearInterval(t)

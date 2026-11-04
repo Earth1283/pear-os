@@ -101,6 +101,34 @@ export function AppIcon({ app, size = 52 }: { app: AppId; size?: number }) {
         </>
       )
       break
+    case 'bootcamp':
+      body = (
+        <>
+          <defs>
+            <linearGradient id={g('b')} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#d7dae1" />
+              <stop offset="1" stopColor="#8b919e" />
+            </linearGradient>
+          </defs>
+          <Squircle fill={u('b')} />
+          <rect x="22" y="38" width="56" height="30" rx="5" fill="#2c2f36" />
+          <rect x="22" y="58" width="56" height="10" rx="0" fill="#000" opacity=".25" />
+          <circle cx="69" cy="63" r="2.2" fill="#30d158" />
+          <path d="M50 38v20" stroke="#8b919e" strokeWidth="2" strokeDasharray="3 2" />
+          <g transform="translate(26 42)">
+            <path d="M0 1l8-1.6v7L0 8z" fill="#f25022" />
+            <path d="M9 -.2l8-1.6v7L9 6.8z" fill="#7fba00" transform="translate(0 0)" />
+            <path d="M0 9.4l8-1.6v7l-8 1.6z" fill="#00a4ef" />
+            <path d="M9 7.6l8-1.6v7l-8 1.6z" fill="#ffb900" />
+          </g>
+          <g transform="translate(55 42) scale(.26)">
+            <path d={PEAR_BODY} fill="#e8e8ec" transform="translate(-24 -20)" />
+            <path d={PEAR_LEAF} fill="#e8e8ec" transform="translate(-24 -20)" />
+          </g>
+          <path d="M30 76h40" stroke="#fff" strokeOpacity=".6" strokeWidth="3" strokeLinecap="round" />
+        </>
+      )
+      break
     case 'music':
       body = (
         <>

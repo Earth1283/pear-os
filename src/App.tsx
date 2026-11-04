@@ -2,6 +2,8 @@ import { useEffect } from 'react'
 import { useOS } from './store'
 import { Desktop } from './components/Desktop'
 import { A11yLayer } from './components/Accessibility'
+import { BootPicker } from './components/BootPicker'
+import { Windows95 } from './win95/Windows95'
 import { BootScreen, LoginScreen, PanicScreen, PowerScreen, ShutdownScreen, SleepScreen } from './components/Screens'
 
 export default function App() {
@@ -29,6 +31,10 @@ function Screen({ phase }: { phase: ReturnType<typeof useOS.getState>['phase'] }
       return <PowerScreen />
     case 'booting':
       return <BootScreen />
+    case 'bootpicker':
+      return <BootPicker />
+    case 'windows':
+      return <Windows95 />
     case 'login':
       return <LoginScreen />
     case 'sleep':

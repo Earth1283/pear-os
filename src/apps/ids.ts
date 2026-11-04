@@ -16,4 +16,5 @@ export type AppId =
   | 'settings'
   | 'about'
   | 'preview'
+  | 'bootcamp'
   | 'trash'

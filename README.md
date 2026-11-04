@@ -68,6 +68,19 @@ Full setup guide (downloads, reverse proxies, systemd, Docker, troubleshooting):
 - **Widgets**: Clock, Calendar, Weather (forecast by vibes), Activity (real CPU, memory and disk with `pearosd`, simulated without), Music and Notes. Drag them around the desktop, resize them from the right-click menu, and add or remove them with *Edit Widgets…*. Layout is saved in your browser.
 - Music stops when you shut down, restart, panic, log out or quit it. It pauses when you sleep, and keeps playing on the lock screen, like the real thing.
 
+## Boot Camp: install Windows 95
+
+Open **Boot Camp Assistant** (Spotlight, Launchpad, or *Applications*). It walks through the real flow: pick an ISO, size the partition, then "download" the support software over a 56k modem (the progress bar stalls at 99% and falls back to 62%). Restart when it asks.
+
+- Once Windows exists, every boot shows a **Startup Manager** (arrow keys, Return, or click). It auto-picks the default disk after 8 seconds.
+- First boot runs **Windows 95 Setup**: ScanDisk, a licence agreement, a Product Key (try `111-1111111`), file copying, and a restart. Then comes the Welcome screen, a Start menu, a taskbar, and a desktop full of things that work.
+- Windows 95 is a fake: a self-contained React and CSS app in `src/win95/`, with original SVG art and no Microsoft files, so it also runs on the static GitHub Pages build.
+- Inside: **Minesweeper** (all three levels, chording), **Paint** (real tools, flood fill, saves a PNG), **Notepad**, **MS-DOS Prompt** (`dir`, `cd`, `type`, `format c:`, `pear`), **My Computer**, **Recycle Bin**, **Control Panel → Display** (recolour the desktop), and **The Pear Network** (dial-up, busy line).
+- Start → Run… takes `winmine`, `mspaint`, `command`, `winver`, `explorer`, `bsod`. Ctrl+Alt+Del opens Close Program.
+- It will crash on its own, once per boot, a few minutes in. Press any key. That closes your current program, like the real thing.
+- Leave through *Start → Shut Down…*: shut down, restart, **restart in MS-DOS mode** (type `win` to come back), or **go back to Pear OS**.
+- State (installed or not, startup disk, partition size, Welcome screen) lives in `localStorage`. *Remove Windows 95…* in Boot Camp wipes it.
+
 ## What the Rust kernel does
 
 | Export | Used by |
@@ -97,6 +110,7 @@ Everything here goes through WebGL2, so it runs on the real GPU of whatever mach
 - Fractals: click to zoom, then "Set as Wallpaper".
 - Chess: play Stockfish 19. Losing? Open the *Additional Tools* menu (Tactical Nuke, Orbital Strike, `kill -9 stockfish`, Uno Reverse, and friends).
 - Activity Monitor: force quit `kernel_task`.
+- Boot Camp Assistant: install Windows 95, restart, and survive Setup. Then beat Minesweeper before the blue screen gets you.
 - Right-click anything: files (tags, duplicate, compress), the desktop, dock icons, the dock separator (autohide), window title bars (tiling), and text fields (Writing Tools, Transformations, Speech).
 
 Not affiliated with Apple. All artwork is original SVG.

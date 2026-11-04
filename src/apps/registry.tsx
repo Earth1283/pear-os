@@ -9,6 +9,7 @@ import { About, ActivityMonitor, Fractals, Settings } from './System'
 import { Preview, previewMenus } from './Preview'
 import { Music } from './Music'
 import { ChessGame, chessMenus } from './Chess'
+import { BootCamp } from './BootCamp'
 
 const Nothing = () => null
 
@@ -51,6 +52,7 @@ export const APPS: Record<AppId, AppDef> = {
       return previewMenus()
     },
   },
+  bootcamp: { name: 'Boot Camp Assistant', component: BootCamp, w: 640, h: 470, singleton: true, resizable: false },
   about: { name: 'About This Pear', component: About, w: 300, h: 580, singleton: true, resizable: false, chrome: 'overlay' },
   trash: { name: 'Trash', component: Nothing, w: 0, h: 0, hidden: true },
 }
@@ -58,4 +60,4 @@ export const APPS: Record<AppId, AppDef> = {
 registerSpecs(APPS)
 
 export const DOCK_APPS: AppId[] = ['finder', 'launchpad', 'safari', 'music', 'chess', 'notes', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'settings']
-export const LAUNCHPAD_APPS: AppId[] = ['finder', 'safari', 'music', 'chess', 'notes', 'textedit', 'preview', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'settings']
+export const LAUNCHPAD_APPS: AppId[] = ['finder', 'safari', 'music', 'chess', 'notes', 'textedit', 'preview', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'bootcamp', 'settings']
