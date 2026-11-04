@@ -6104,7 +6104,8 @@ html.a11y-reduce-motion .a11y-flash {
   position: relative;
   flex: none;
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-rows: repeat(8, minmax(0, 1fr));
   border-radius: 4px;
   box-shadow:
     0 0 0 6px #5b3a22,
@@ -6120,6 +6121,8 @@ html.a11y-reduce-motion .a11y-flash {
   position: relative;
   display: grid;
   place-items: center;
+  min-width: 0;
+  min-height: 0;
 }
 .cx-sq.l {
   background: #f0dcb3;
