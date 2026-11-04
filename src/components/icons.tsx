@@ -507,19 +507,41 @@ export function IntelOrb({ size = 16 }: { size?: number }) {
   )
 }
 
+function mix(hex: string, to: string, t: number) {
+  const n = (h: string) => {
+    const x = h.length === 4 ? h.replace(/\w/g, '$&$&').slice(1) : h.slice(1)
+    return [0, 2, 4].map((i) => parseInt(x.slice(i, i + 2), 16))
+  }
+  const [a, b] = [n(hex), n(to)]
+  return `#${a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, '0')).join('')}`
+}
+
 export function FolderIcon({ size = 64, tint = '#3fa0f5' }: { size?: number; tint?: string }) {
   const uid = useId().replace(/:/g, '')
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden>
       <defs>
+        <linearGradient id={`${uid}b`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={mix(tint, '#000', 0.12)} />
+          <stop offset="1" stopColor={mix(tint, '#000', 0.4)} />
+        </linearGradient>
         <linearGradient id={`${uid}f`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#8fd0ff" />
-          <stop offset="1" stopColor={tint} />
+          <stop offset="0" stopColor={mix(tint, '#fff', 0.5)} />
+          <stop offset=".55" stopColor={mix(tint, '#fff', 0.12)} />
+          <stop offset="1" stopColor={mix(tint, '#000', 0.08)} />
+        </linearGradient>
+        <linearGradient id={`${uid}s`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#000" stopOpacity=".28" />
+          <stop offset="1" stopColor="#000" stopOpacity="0" />
         </linearGradient>
       </defs>
-      <path d="M8 26c0-3 2-5 5-5h22l6 6h46c3 0 5 2 5 5v6H8z" fill={tint} opacity=".85" />
-      <rect x="8" y="32" width="84" height="54" rx="5" fill={`url(#${uid}f)`} />
-      <rect x="8" y="32" width="84" height="2" fill="#fff" opacity=".4" />
+      <path d="M8 22a6 6 0 0 1 6-6h21c2.4 0 3.7.8 5.3 2.6l2.9 3.4H86a6 6 0 0 1 6 6v50a6 6 0 0 1-6 6H14a6 6 0 0 1-6-6z" fill={`url(#${uid}b)`} />
+      <rect x="13" y="29" width="74" height="30" rx="2.5" fill="#e8e8ee" />
+      <rect x="15" y="32" width="70" height="30" rx="2.5" fill="#fff" />
+      <path d="M8 40a6 6 0 0 1 6-6h72a6 6 0 0 1 6 6v40a6 6 0 0 1-6 6H14a6 6 0 0 1-6-6z" fill={`url(#${uid}f)`} />
+      <rect x="8" y="34" width="84" height="8" rx="6" fill={`url(#${uid}s)`} opacity=".5" />
+      <path d="M14.5 34.6h71" stroke="#fff" strokeOpacity=".7" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M8.6 78.5v1.5a6 6 0 0 0 6 6h70.8a6 6 0 0 0 6-6v-1.5" fill="none" stroke={mix(tint, '#000', 0.35)} strokeOpacity=".35" strokeWidth="1" />
     </svg>
   )
 }
@@ -535,23 +557,109 @@ const KIND_COLOR: Record<FileKind, string> = {
   binary: '#ff9f0a',
 }
 
+function FileGlyph({ kind, color }: { kind: FileKind; color: string }) {
+  switch (kind) {
+    case 'image':
+      return (
+        <>
+          <rect x="27" y="33" width="46" height="34" rx="3.5" fill="#d6ecff" />
+          <circle cx="60" cy="42.5" r="4.5" fill="#ffd60a" />
+          <path d="M27 67l13-17c1-1.4 3-1.4 4 0l7 9 5-6c1-1.2 2.8-1.2 3.8 0L73 67z" fill="#34c759" />
+          <path d="M27 67l13-17c1-1.4 3-1.4 4 0l5 6.5L40 67z" fill="#248a3d" opacity=".55" />
+        </>
+      )
+    case 'text':
+      return (
+        <>
+          {[34, 42, 50, 58, 66].map((y, i) => (
+            <rect key={y} x="28" y={y} width={i === 4 ? 26 : 44} height="3.2" rx="1.6" fill="#c7c7cc" />
+          ))}
+        </>
+      )
+    case 'audio':
+      return (
+        <>
+          <path d="M43 36l22-5v32l-22 5z" fill={color} opacity=".18" />
+          <path d="M44 37l21-5v6.5l-21 5z" fill={color} />
+          <rect x="42" y="37" width="3.2" height="26" fill={color} />
+          <rect x="63" y="32" width="3.2" height="26" fill={color} />
+          <ellipse cx="38.5" cy="63" rx="6.5" ry="4.8" fill={color} transform="rotate(-18 38.5 63)" />
+          <ellipse cx="59.5" cy="58" rx="6.5" ry="4.8" fill={color} transform="rotate(-18 59.5 58)" />
+        </>
+      )
+    case 'video':
+      return (
+        <>
+          <rect x="26" y="34" width="48" height="33" rx="5" fill={color} />
+          {[0, 1, 2, 3].map((i) => (
+            <g key={i} fill="#fff" opacity=".55">
+              <rect x={30 + i * 11.5} y="37" width="5" height="3.5" rx="1" />
+              <rect x={30 + i * 11.5} y="60.5" width="5" height="3.5" rx="1" />
+            </g>
+          ))}
+          <path d="M45 45l12 5.5-12 5.5z" fill="#fff" />
+        </>
+      )
+    case 'archive':
+      return (
+        <>
+          {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+            <rect key={i} x={i % 2 ? 49 : 45} y={10 + i * 5.5} width="6" height="3.2" rx="1" fill={color} opacity={i < 6 ? 0.9 : 0.55} />
+          ))}
+          <rect x="43" y="52" width="14" height="14" rx="3.5" fill={color} />
+          <rect x="47.5" y="56" width="5" height="6" rx="1.5" fill="#fff" opacity=".85" />
+        </>
+      )
+    case 'app':
+      return (
+        <>
+          <rect x="29" y="30" width="42" height="38" rx="9" fill={color} />
+          <g transform="translate(35.6 32.2) scale(.28)" fill="#fff">
+            <path d={PEAR_BODY} />
+            <path d={PEAR_LEAF} />
+          </g>
+        </>
+      )
+    default:
+      return (
+        <>
+          <rect x="27" y="33" width="46" height="34" rx="4" fill={color} opacity=".16" />
+          <text x="50" y="47" textAnchor="middle" fontSize="11" fontWeight="700" fill={color} fontFamily="ui-monospace, Menlo, monospace">
+            0110
+          </text>
+          <text x="50" y="62" textAnchor="middle" fontSize="11" fontWeight="700" fill={color} fontFamily="ui-monospace, Menlo, monospace">
+            1001
+          </text>
+        </>
+      )
+  }
+}
+
 export function FileIcon({ size = 64, kind, ext }: { size?: number; kind: FileKind; ext: string }) {
+  const uid = useId().replace(/:/g, '')
   if (kind === 'disk') return <DiskIcon size={size} />
+  const color = KIND_COLOR[kind]
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden>
-      <path d="M22 8h40l18 18v62c0 2-2 4-4 4H22c-2 0-4-2-4-4V12c0-2 2-4 4-4z" fill="#fff" stroke="#d1d1d6" />
-      <path d="M62 8v14c0 2 2 4 4 4h14" fill="#ececf0" stroke="#d1d1d6" />
-      {kind === 'image' ? (
-        <>
-          <rect x="27" y="36" width="46" height="34" rx="3" fill="#cfe8ff" />
-          <circle cx="38" cy="46" r="5" fill="#ffd60a" />
-          <path d="M27 70l14-16 9 10 8-7 15 13z" fill="#34c759" />
-        </>
-      ) : kind === 'text' ? (
-        [36, 44, 52, 60, 68].map((y, i) => <line key={y} x1="28" y1={y} x2={i === 4 ? 56 : 70} y2={y} stroke="#c7c7cc" strokeWidth="2.4" strokeLinecap="round" />)
-      ) : null}
-      <rect x="22" y="74" width="54" height="12" rx="3" fill={KIND_COLOR[kind]} />
-      <text x="49" y="83.5" textAnchor="middle" fontSize="9" fontWeight="700" fill="#fff" fontFamily="Inter, system-ui, sans-serif">
+      <defs>
+        <linearGradient id={`${uid}p`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ffffff" />
+          <stop offset="1" stopColor="#e9e9ee" />
+        </linearGradient>
+        <linearGradient id={`${uid}c`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#f6f6f9" />
+          <stop offset="1" stopColor="#c9c9d1" />
+        </linearGradient>
+        <linearGradient id={`${uid}k`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={mix(color, '#fff', 0.18)} />
+          <stop offset="1" stopColor={mix(color, '#000', 0.18)} />
+        </linearGradient>
+      </defs>
+      <path d="M22 6h39l21 21v61c0 3.3-2.7 6-6 6H22c-3.3 0-6-2.7-6-6V12c0-3.3 2.7-6 6-6z" fill={`url(#${uid}p)`} stroke="#c4c4cc" strokeWidth="1" />
+      <path d="M61 6v15c0 3.3 2.7 6 6 6h15z" fill={`url(#${uid}c)`} stroke="#c4c4cc" strokeWidth="1" strokeLinejoin="round" />
+      <FileGlyph kind={kind} color={color} />
+      <rect x="21" y="73" width="56" height="14" rx="4" fill={`url(#${uid}k)`} />
+      <text x="49" y="83.2" textAnchor="middle" fontSize="9" fontWeight="700" fill="#fff" fontFamily="Inter, system-ui, sans-serif" letterSpacing=".4">
         {ext.slice(0, 5).toUpperCase()}
       </text>
     </svg>
@@ -563,18 +671,32 @@ export function DiskIcon({ size = 64 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden>
       <defs>
-        <linearGradient id={`${uid}d`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#f2f2f5" />
-          <stop offset="1" stopColor="#a9a9b0" />
+        <linearGradient id={`${uid}t`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fbfbfd" />
+          <stop offset="1" stopColor="#c4c4cb" />
         </linearGradient>
+        <linearGradient id={`${uid}s`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#a4a4ac" />
+          <stop offset="1" stopColor="#6c6c74" />
+        </linearGradient>
+        <radialGradient id={`${uid}l`}>
+          <stop offset="0" stopColor="#b6ffc8" />
+          <stop offset=".45" stopColor="#30d158" />
+          <stop offset="1" stopColor="#30d158" stopOpacity="0" />
+        </radialGradient>
       </defs>
-      <rect x="10" y="30" width="80" height="42" rx="6" fill={`url(#${uid}d)`} stroke="#8e8e93" />
-      <rect x="10" y="60" width="80" height="12" rx="0" fill="#8e8e93" opacity=".35" />
-      <circle cx="80" cy="66" r="2" fill="#30d158" />
-      <g transform="translate(14 33) scale(.24)">
-        <path d={PEAR_BODY} fill="#636366" />
-        <path d={PEAR_LEAF} fill="#636366" />
+      <path d="M9 44l7-14c1-2 3-3 5-3h58c2 0 4 1 5 3l7 14z" fill={`url(#${uid}t)`} stroke="#9d9da5" strokeWidth="1" strokeLinejoin="round" />
+      <path d="M9 44h82v22c0 3.3-2.7 6-6 6H15c-3.3 0-6-2.7-6-6z" fill={`url(#${uid}s)`} stroke="#5c5c64" strokeWidth="1" />
+      <path d="M10 44.7h80" stroke="#fff" strokeOpacity=".55" strokeWidth="1.2" />
+      <g transform="translate(14.5 46.8) scale(.21)" fill="#d8d8de" fillOpacity=".95">
+        <path d={PEAR_BODY} />
+        <path d={PEAR_LEAF} />
       </g>
+      {[0, 1, 2].map((i) => (
+        <rect key={i} x={54 + i * 5} y="54" width="2.4" height="11" rx="1.2" fill="#3f3f46" opacity=".7" />
+      ))}
+      <circle cx="82" cy="59.5" r="6" fill={`url(#${uid}l)`} />
+      <circle cx="82" cy="59.5" r="2" fill="#30d158" />
     </svg>
   )
 }
