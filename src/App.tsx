@@ -4,6 +4,8 @@ import { Desktop } from './components/Desktop'
 import { A11yLayer } from './components/Accessibility'
 import { BootPicker } from './components/BootPicker'
 import { Windows95 } from './win95/Windows95'
+import { Windows98 } from './win98/Windows98'
+import { useBootCamp } from './lib/bootcamp'
 import { BootScreen, LoginScreen, PanicScreen, PowerScreen, ShutdownScreen, SleepScreen } from './components/Screens'
 
 export default function App() {
@@ -34,7 +36,7 @@ function Screen({ phase }: { phase: ReturnType<typeof useOS.getState>['phase'] }
     case 'bootpicker':
       return <BootPicker />
     case 'windows':
-      return <Windows95 />
+      return <WindowsPhase />
     case 'login':
       return <LoginScreen />
     case 'sleep':
@@ -46,4 +48,9 @@ function Screen({ phase }: { phase: ReturnType<typeof useOS.getState>['phase'] }
     default:
       return <Desktop />
   }
+}
+
+function WindowsPhase() {
+  const version = useBootCamp((s) => s.version)
+  return version === '98' ? <Windows98 /> : <Windows95 />
 }

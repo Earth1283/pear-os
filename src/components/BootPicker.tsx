@@ -32,6 +32,7 @@ function WindowsDisk({ size = 96 }: { size?: number }) {
 /** The Startup Manager. Real ones need you to hold ⌥ at the chime; this one shows up on its own. */
 export function BootPicker() {
   const startup = useBootCamp((s) => s.startup)
+  const version = useBootCamp((s) => s.version)
   const [sel, setSel] = useState<Disk>(startup)
   const [count, setCount] = useState(SECONDS)
   const [touched, setTouched] = useState(false)
@@ -66,7 +67,7 @@ export function BootPicker() {
             <button role="option" aria-selected={sel === d} className={`bp-disk ${sel === d ? 'sel' : ''}`} onClick={() => setSel(d)} onDoubleClick={() => go(d)}>
               {d === 'mac' ? <DiskIcon size={104} /> : <WindowsDisk size={104} />}
               <span>{NAMES[d]}</span>
-              <small>{d === 'mac' ? 'PearOS Sequel' : 'Windows 95'}</small>
+              <small>{d === 'mac' ? 'PearOS Sequel' : `Windows ${version}`}</small>
             </button>
             <button className="bp-go" aria-label={`Start up from ${NAMES[d]}`} style={{ visibility: sel === d ? 'visible' : 'hidden' }} onClick={() => go(d)}>
               <ArrowRight size={16} />

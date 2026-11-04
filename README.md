@@ -81,6 +81,17 @@ Open **Boot Camp Assistant** (Spotlight, Launchpad, or *Applications*). It walks
 - Leave through *Start → Shut Down…*: shut down, restart, **restart in MS-DOS mode** (type `win` to come back), or **go back to Pear OS**.
 - State (installed or not, startup disk, partition size, Welcome screen) lives in `localStorage`. *Remove Windows 95…* in Boot Camp wipes it.
 
+### Windows 98 (real, via v86)
+
+Boot Camp's second option is the actual Windows 98, running in [v86](https://github.com/copy/v86), an x86 emulator written in Rust and WebAssembly.
+
+- **Bring your own ISO.** Pear does not ship Windows. Choose your disc image in Boot Camp; it is copied into your browser's IndexedDB and never uploaded. Without an ISO, Windows 98 stays unavailable and Windows 95 (the simulated one) is the choice.
+- **The progress bars are real.** Boot Camp downloads the emulator and its BIOS (`v86.wasm`, `seabios.bin`, `vgabios.bin`, about 2 MB) with streamed byte counts, then copies your ISO in 8 MB chunks with MB/s and an ETA. Both are stored locally, so Windows 98 also starts offline.
+- **Setup runs for real,** so expect 30 to 60 minutes. The machine is saved (RAM, CPU and every disk block the guest wrote) every 5 minutes and whenever you press *Return to Pear OS*, and the next boot resumes it. The hard disk is sparse (0.5 to 2 GB, from the partition slider), so a save is tens of MB, not the whole disk.
+- **Controls:** click the screen to capture the mouse (Esc releases it). The toolbar has *Ctrl+Alt+Del*, *Save* and *Return to Pear OS*. Shutting down inside Windows 98 stops at "It's now safe to turn off your computer"; use *Return to Pear OS* from there.
+- *Remove Windows 98…* in Boot Camp deletes the ISO, the support files and the saved machine.
+- BIOS images in `public/v86/` are SeaBIOS and VGABIOS (LGPL, see `COPYING.LESSER` there). v86 is BSD-2-Clause.
+
 ## What the Rust kernel does
 
 | Export | Used by |
