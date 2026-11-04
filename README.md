@@ -95,7 +95,12 @@ Everything here goes through WebGL2, so it runs on the real GPU of whatever mach
 - Terminal: `pearfetch`, `pearsay hi`, `ls ~/Downloads`, `open notes`, `sudo rm -rf /`.
 - Notes: end a line with `=`.
 - Fractals: click to zoom, then "Set as Wallpaper".
+- Chess: play Stockfish 19. Losing? Open the *Additional Tools* menu (Tactical Nuke, Orbital Strike, `kill -9 stockfish`, Uno Reverse, and friends).
 - Activity Monitor: force quit `kernel_task`.
 - Right-click anything: files (tags, duplicate, compress), the desktop, dock icons, the dock separator (autohide), window title bars (tiling), and text fields (Writing Tools, Transformations, Speech).
 
 Not affiliated with Apple. All artwork is original SVG.
+
+## Credits
+
+Chess runs [Stockfish.js](https://github.com/nmrugg/stockfish.js) (Stockfish 19, lite single-threaded WASM, GPL-3.0) in a Web Worker. The engine files are in `public/stockfish/` with its `COPYING.txt`. Rules come from [chess.js](https://github.com/jhlywa/chess.js).

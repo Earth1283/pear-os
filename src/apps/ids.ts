@@ -3,6 +3,7 @@ export type AppId =
   | 'launchpad'
   | 'safari'
   | 'music'
+  | 'chess'
   | 'notes'
   | 'textedit'
   | 'calculator'

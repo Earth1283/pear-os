@@ -8,6 +8,7 @@ import { Intelligence, Mirroring, Passwords, Safari } from './Sequel'
 import { About, ActivityMonitor, Fractals, Settings } from './System'
 import { Preview, previewMenus } from './Preview'
 import { Music } from './Music'
+import { ChessGame, chessMenus } from './Chess'
 
 const Nothing = () => null
 
@@ -16,6 +17,18 @@ export const APPS: Record<AppId, AppDef> = {
   launchpad: { name: 'Launchpad', component: Nothing, w: 0, h: 0, hidden: true },
   safari: { name: 'Sapphari', component: Safari, w: 1040, h: 680, minW: 480, chrome: 'overlay' },
   music: { name: 'Music', component: Music, w: 980, h: 620, minW: 640, minH: 420, singleton: true, chrome: 'overlay' },
+  chess: {
+    name: 'Chess',
+    component: ChessGame,
+    w: 880,
+    h: 640,
+    minW: 640,
+    minH: 480,
+    chrome: 'overlay',
+    get menus() {
+      return chessMenus()
+    },
+  },
   notes: { name: 'Notes', component: Notes, w: 820, h: 540, minW: 520, singleton: true, chrome: 'overlay' },
   textedit: { name: 'TextEdit', component: TextEdit, w: 620, h: 520 },
   calculator: { name: 'Calculator', component: Calculator, w: 236, h: 392, singleton: true, resizable: false, chrome: 'overlay' },
@@ -44,5 +57,5 @@ export const APPS: Record<AppId, AppDef> = {
 
 registerSpecs(APPS)
 
-export const DOCK_APPS: AppId[] = ['finder', 'launchpad', 'safari', 'music', 'notes', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'settings']
-export const LAUNCHPAD_APPS: AppId[] = ['finder', 'safari', 'music', 'notes', 'textedit', 'preview', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'settings']
+export const DOCK_APPS: AppId[] = ['finder', 'launchpad', 'safari', 'music', 'chess', 'notes', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'settings']
+export const LAUNCHPAD_APPS: AppId[] = ['finder', 'safari', 'music', 'chess', 'notes', 'textedit', 'preview', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'settings']

@@ -69,6 +69,38 @@ export function AppIcon({ app, size = 52 }: { app: AppId; size?: number }) {
         </>
       )
       break
+    case 'chess':
+      body = (
+        <>
+          <defs>
+            <clipPath id={g('c')}>
+              <rect x="7" y="7" width="86" height="86" rx="20" />
+            </clipPath>
+            <linearGradient id={g('p')} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#ffffff" />
+              <stop offset="1" stopColor="#d9d3c7" />
+            </linearGradient>
+          </defs>
+          <g clipPath={u('c')}>
+            {Array.from({ length: 36 }, (_, i) => {
+              const x = i % 6
+              const y = Math.floor(i / 6)
+              return <rect key={i} x={7 + x * 14.34} y={7 + y * 14.34} width="14.4" height="14.4" fill={(x + y) % 2 ? '#a66b3d' : '#f0dcb3'} />
+            })}
+          </g>
+          <rect x="7" y="7" width="86" height="86" rx="20" fill="none" stroke="rgba(0,0,0,.14)" strokeWidth=".8" />
+          <ellipse cx="50" cy="80" rx="22" ry="3.6" fill="rgba(0,0,0,.28)" />
+          <path
+            d="M50 22a10 10 0 0 1 5.6 18.3c4.6 2.6 8.2 8 8.4 16.2.1 4.4 1.6 8 6 11.5H30c4.4-3.5 5.9-7.1 6-11.5.2-8.2 3.8-13.6 8.4-16.2A10 10 0 0 1 50 22Z"
+            fill={u('p')}
+            stroke="#2c2118"
+            strokeWidth="2.4"
+            strokeLinejoin="round"
+          />
+          <rect x="27" y="68" width="46" height="8" rx="4" fill={u('p')} stroke="#2c2118" strokeWidth="2.4" />
+        </>
+      )
+      break
     case 'music':
       body = (
         <>
