@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CirclePlay, Disc3, Download, HardDrive, Heart, Laptop, MicVocal, Music2, Pause, Play, Plus, Radio, Repeat, Repeat1, Search, Shuffle, SkipBack, SkipForward, Volume1, Volume2, VolumeX, X } from 'lucide-react'
 import { os, useOS, type Win } from '../store'
-import { bumpDrive, drive, useBackend } from '../lib/backend'
+import { bumpDrive, drive, formatBytes, useBackend } from '../lib/backend'
 import { menu, type MenuEntry } from '../lib/menu'
 import { STATIONS } from '../lib/synth'
 import { AUDIO_EXT, STATION_TRACKS, formatTime, usePlayer, useCurrent, type Track } from '../lib/player'
@@ -296,6 +296,22 @@ function groupBy(tracks: Track[], by: 'album' | 'artist'): Group[] {
   return [...map.values()].sort((a, b) => byText(a.name, b.name))
 }
 
+function UploadProgress({ name, n, count, sent, total }: { name: string; n: number; count: number; sent: number; total: number }) {
+  const pct = total ? Math.floor((sent / total) * 100) : 0
+  return (
+    <div className="m-upload" role="status">
+      <div className="m-upload-top">
+        <b>Uploading “{name}”</b>
+        {count > 1 && <span>{n} of {count}</span>}
+      </div>
+      <div className="m-upload-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+        <i style={{ width: `${pct}%` }} />
+      </div>
+      <small>{pct >= 100 ? 'Saving to PearDrive…' : `${formatBytes(sent)} of ${formatBytes(total)} · ${pct}%`}</small>
+    </div>
+  )
+}
+
 export function Music({ win }: { win: Win }) {
   const authed = useBackend((s) => s.authed)
   const driveVersion = useBackend((s) => s.driveVersion)
@@ -312,7 +328,7 @@ export function Music({ win }: { win: Win }) {
   const [q, setQ] = useState('')
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'default', dir: 1 })
   const [filter, setFilter] = useState<{ by: 'album' | 'artist'; key: string; label: string } | null>(null)
-  const [busy, setBusy] = useState<string | null>(null)
+  const [upload, setUpload] = useState<{ name: string; n: number; count: number; sent: number; total: number } | null>(null)
   const [dropping, setDropping] = useState(false)
   const picker = useRef<HTMLInputElement>(null)
   const dragDepth = useRef(0)
@@ -373,16 +389,20 @@ export function Music({ win }: { win: Win }) {
     if (!audio.length) return os().notify({ app: 'music', title: 'Music', body: 'None of those look like audio files. Music accepts MP3, M4A, AAC, FLAC, WAV and OGG.' })
     if (authed) {
       try {
+        const total = audio.reduce((n, f) => n + f.size, 0)
+        let done = 0
         for (const [i, f] of audio.entries()) {
-          setBusy(`Uploading “${f.name}” (${i + 1} of ${audio.length})…`)
-          await drive.write(`/Music/${f.name.replace(/[\\/]/g, '_')}`, f)
+          const report = (sent: number) => setUpload({ name: f.name, n: i + 1, count: audio.length, sent: done + Math.min(sent, f.size), total })
+          report(0)
+          await drive.upload(`/Music/${f.name.replace(/[\\/]/g, '_')}`, f, report)
+          done += f.size
         }
         bumpDrive()
         os().notify({ app: 'music', title: 'Music', body: `Added ${audio.length} ${audio.length === 1 ? 'song' : 'songs'} to /Music in PearDrive.` })
       } catch (e) {
         os().notify({ app: 'music', title: 'Music', body: `Upload failed: ${e instanceof Error ? e.message : String(e)}` })
       } finally {
-        setBusy(null)
+        setUpload(null)
       }
     } else {
       const n = usePlayer.getState().addLocal(audio)
@@ -550,7 +570,7 @@ export function Music({ win }: { win: Win }) {
                   <h1>{view === 'favorites' ? 'Favorites' : filter ? filter.label : source === 'drive' ? 'PearDrive' : source === 'local' ? 'This Computer' : 'Songs'}</h1>
                   <p>
                     {songs.length} {songs.length === 1 ? 'song' : 'songs'}
-                    {busy ? ` · ${busy}` : driveState === 'loading' && authed ? ' · Scanning PearDrive…' : ''}
+                    {driveState === 'loading' && authed ? ' · Scanning PearDrive…' : ''}
                   </p>
                 </div>
                 <div className="m-head-actions">
@@ -653,6 +673,7 @@ export function Music({ win }: { win: Win }) {
             </div>
           )}
         </div>
+        {upload && <UploadProgress {...upload} />}
         {dropping && (
           <div className="m-dropzone">
             <Download size={30} />

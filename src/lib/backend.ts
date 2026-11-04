@@ -118,6 +118,26 @@ export const drive = {
   },
   url: (path: string, download = false) => `/api/fs/read?${q(path)}${download ? '&download=true' : ''}`,
   write: (path: string, body: BodyInit) => call(`/api/fs/write?${q(path)}`, { method: 'PUT', body }),
+  upload: (path: string, body: Blob, onProgress: (sent: number) => void) =>
+    new Promise<void>((resolve, reject) => {
+      const x = new XMLHttpRequest()
+      x.open('PUT', `/api/fs/write?${q(path)}`)
+      x.upload.onprogress = (e) => onProgress(e.loaded)
+      x.onerror = () => reject(new ApiError(0, 'Network error'))
+      x.onabort = () => reject(new ApiError(0, 'Upload cancelled'))
+      x.onload = () => {
+        if (x.status === 401) useBackend.setState({ authed: false })
+        if (x.status >= 200 && x.status < 300) return resolve()
+        let msg = x.statusText
+        try {
+          msg = JSON.parse(x.responseText).error ?? msg
+        } catch {
+          msg = x.statusText
+        }
+        reject(new ApiError(x.status, msg))
+      }
+      x.send(body)
+    }),
   mkdir: (path: string) => post('/api/fs/mkdir', { path }),
   rename: (from: string, to: string) => post('/api/fs/rename', { from, to }),
   trash: (path: string) => post('/api/fs/trash', { path }),
