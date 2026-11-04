@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useOS, MENU_H, tileRect, type Tile, type Win } from '../store'
 import { APPS } from '../apps/registry'
+import { WindowShader } from './ShaderLayers'
 
 type Edge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
 const EDGES: Edge[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']
@@ -234,6 +235,7 @@ function WindowFrame({ win, focused }: { win: Win; focused: boolean }) {
       }}
     >
       <TrafficLights win={win} />
+      <WindowShader focused={focused} minimized={win.minimized} />
       {chrome === 'standard' && (
         <div className="titlebar" data-drag>
           <span className="title">{win.title}</span>

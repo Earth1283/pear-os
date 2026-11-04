@@ -40,7 +40,7 @@ One-time setup: Settings → Pages → Source: **GitHub Actions**.
 - **Music:** plays the audio in PearDrive (`/Music` or anywhere else). Titles, artists, albums and cover art come from the files' ID3 tags. Dropping files onto the Music window uploads them to `/Music`.
 - **Terminal:** a real shell on the host (pty plus xterm.js).
 - **Activity Monitor:** the host's real processes. You can quit your own.
-- **Windows 98 download:** Boot Camp can fetch the Windows 98 SE disc from archive.org through `pearosd` (browsers can't do it directly, because archive.org sends no CORS headers). The endpoint only talks to `https://*.archive.org/download/…`. See *Windows 98* below.
+- **Windows 98 download:** Boot Camp can fetch the Windows 98 SE disc from archive.org through `pearosd` (browsers can't do it directly, because archive.org sends no CORS headers). The endpoint only talks to `https://*.archive.org/download/…`, and keeps a copy in `PearDrive/Downloads`, so only the first install on a server waits for archive.org (`--no-download-cache` to turn that off). See *Windows 98* below.
 - **Sapphari:** browses the real web through a rewriting proxy. Pages run in a sandboxed iframe with an opaque origin, so they can't reach the PearOS API. Private, LAN and loopback addresses are blocked unless you pass `--allow-private`.
 - **TLS:** HTTPS with a self-signed cert generated on first run (stored in `~/.config/pearosd/`). Use `--cert`/`--key` for a real one, or `--no-tls` behind your own TLS proxy.
 

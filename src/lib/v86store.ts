@@ -167,6 +167,13 @@ export const ARCHIVE_ISO = {
   page: 'https://archive.org/details/windows-98-se-isofile',
 }
 
+/**
+ * How pearosd served a download: from its own copy (`hit`), by fetching it and keeping a copy (`fill`), by letting
+ * this client share a download another client already started (`join`), or just passing it through (`bypass`).
+ */
+export type CacheKind = 'hit' | 'fill' | 'join' | 'bypass'
+const cacheKind = (h: string | null): CacheKind => (h === 'hit' || h === 'fill' || h === 'join' ? h : 'bypass')
+
 /** What pearosd's download endpoint is called for a given archive.org URL. */
 export const archiveEndpoint = (url: string) => `/api/download?url=${encodeURIComponent(url)}`
 
@@ -174,12 +181,13 @@ export const archiveEndpoint = (url: string) => `/api/download?url=${encodeURICo
  * Streams a disc image from `url` into IndexedDB as it arrives, so only one chunk is ever held in memory and the
  * progress bar reports bytes that actually landed. Stores it the same way saveIso does.
  */
-export async function downloadIso(url: string, name: string, onProgress: (p: Progress) => void, signal?: AbortSignal) {
+export async function downloadIso(url: string, name: string, onProgress: (p: Progress) => void, signal?: AbortSignal, onCache?: (how: CacheKind) => void) {
   await deleteIso()
   const res = await fetch(url, { signal, credentials: 'same-origin', cache: 'no-store' })
   if (!res.ok) throw new Error((await res.text().catch(() => '')).trim() || `The server said ${res.status}.`)
   if (!res.body) throw new Error('This browser cannot stream downloads.')
   const total = Number(res.headers.get('content-length')) || 0
+  onCache?.(cacheKind(res.headers.get('x-pearos-cache')))
 
   // Fail early and clearly if the disc cannot fit, instead of half way through.
   const est = await navigator.storage?.estimate?.().catch(() => undefined)

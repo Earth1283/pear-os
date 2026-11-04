@@ -116,7 +116,7 @@ pub async fn list(State(s): State<Shared>, Query(q): Query<PathQuery>) -> Result
 /// Parses a single `Range: bytes=…` spec against a file of `len` bytes.
 /// `None` means "no usable range, send the whole file"; `Some(Err(()))` means unsatisfiable.
 /// Multi-range requests are treated as "send everything", which the spec allows.
-fn parse_range(value: &str, len: u64) -> Option<Result<(u64, u64), ()>> {
+pub(crate) fn parse_range(value: &str, len: u64) -> Option<Result<(u64, u64), ()>> {
     let spec = value.trim().strip_prefix("bytes=")?;
     if spec.contains(',') {
         return None;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Accessibility, Bell, Bluetooth, Cpu, Hand, Info, LayoutGrid, Lock, Monitor, Moon, Palette, RefreshCw, Search, Sparkles, Wifi, Image, Battery, ZoomIn, ZoomOut, Gauge } from 'lucide-react'
+import { Accessibility, Bell, Bluetooth, Cpu, Hand, Info, LayoutGrid, Lock, Monitor, Moon, Palette, RefreshCw, Search, Sparkles, Wifi, Image, Battery, ZoomIn, ZoomOut, Gauge, Blend } from 'lucide-react'
 import { useOS, os, type Win, type Wallpaper } from '../store'
 import { kernelTaskCpu, entropy, renderMandelbrot, DEFAULT_VIEW, type FractalView, kernelVersion } from '../kernel'
 import { GPU_MIN_SCALE, MandelbrotGL, gpuInfo } from '../lib/gpu'
@@ -7,6 +7,9 @@ import { APPS } from './registry'
 import { LaptopArt, PearLogo, AppIcon } from '../components/icons'
 import { menu } from '../lib/menu'
 import { A11Y_DEFAULTS, speak, useA11y, type A11ySettings, type ColorFilter, type Invert, type ZoomModifier } from '../lib/a11y'
+import { PRESETS, PRESET_ORDER } from '../lib/shaderPresets'
+import { shaderStats, useShaders, type ShaderTarget } from '../lib/shaders'
+import { altitudeDegrees, formatHour, moonName, skyAt, type Body, type SkyState } from '../lib/sky'
 import { procs as realProcs, useBackend, formatBytes as fmtBytes, type RealProc } from '../lib/backend'
 
 export function About() {
@@ -392,6 +395,7 @@ const PANES = [
   { id: 'desktop', label: 'Desktop & Dock', icon: LayoutGrid, color: '#1c1c1e' },
   { id: 'displays', label: 'Displays', icon: Monitor, color: '#0a84ff' },
   { id: 'wallpaper', label: 'Wallpaper', icon: Image, color: '#30b0c7' },
+  { id: 'shaders', label: 'Shaders', icon: Blend, color: '#bf5af2' },
   { id: 'sep3' },
   { id: 'notifications', label: 'Notifications', icon: Bell, color: '#ff3b30' },
   { id: 'focus', label: 'Focus', icon: Moon, color: '#5e5ce6' },
@@ -426,6 +430,7 @@ const WALLPAPERS: { id: Wallpaper; name: string; cls: string }[] = [
   { id: 'sequel-dark', name: 'Sequel Night', cls: 'wp-sequel-dark' },
   { id: 'orchard', name: 'Orchard', cls: 'orchard' },
   { id: 'graphite', name: 'Graphite', cls: 'graphite' },
+  { id: 'lake', name: 'Mountain Lake', cls: 'wp-lake' },
   { id: 'fractal', name: 'Mandelbrot (Rust)', cls: 'wp-fractal' },
 ]
 
@@ -460,6 +465,126 @@ function useVoices() {
     return () => speechSynthesis.removeEventListener('voiceschanged', on)
   }, [])
   return voices
+}
+
+const SHADER_TARGETS: { id: ShaderTarget; label: string; sub: string }[] = [
+  { id: 'desktop', label: 'Desktop', sub: 'Drawn over the wallpaper, under the windows' },
+  { id: 'windows', label: 'Windows', sub: 'Every open window, from one shared GPU context' },
+  { id: 'overlay', label: 'Whole screen', sub: 'A click-through layer over everything, Dock included' },
+]
+
+function LakeOptions() {
+  const s = useShaders()
+  return (
+    <>
+      <Row label="High Quality Water" sub="Smooth ripples and a continuous reflection, instead of rows that snap to the pixel grid">
+        <Toggle on={s.hqWater} onChange={(v) => s.set('hqWater', v)} />
+      </Row>
+      <Row label="High Quality Sky" sub="Soft clouds, a round sun and moon and no dithering, instead of pixel-art banding">
+        <Toggle on={s.hqSky} onChange={(v) => s.set('hqSky', v)} />
+      </Row>
+    </>
+  )
+}
+
+function SkyDiagram({ sky }: { sky: SkyState }) {
+  const W = 280
+  const H = 84
+  const horizon = 66
+  const place = (b: Body) => ({ x: W * (0.5 + 0.42 * b.x), y: horizon - b.elev * 52 })
+  const sun = place(sky.sun)
+  const moon = place(sky.moon)
+  const side = (b: Body) => (b.elev > 0 ? `${altitudeDegrees(b.elev)}° up` : 'below the horizon')
+  return (
+    <div className="sky-diagram">
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Positions of the sun and moon">
+        <path d={`M ${W * 0.08} ${horizon} A ${W * 0.42} 52 0 0 1 ${W * 0.92} ${horizon}`} fill="none" stroke="var(--line)" strokeDasharray="3 4" />
+        <line x1="0" x2={W} y1={horizon} y2={horizon} stroke="var(--line)" />
+        <circle cx={sun.x} cy={sun.y} r="8" fill="#ffb020" opacity={sky.sun.elev > 0 ? 1 : 0.3} />
+        <circle cx={moon.x} cy={moon.y} r="6" fill="#cfd8ff" stroke="var(--line)" opacity={(moon.y < horizon ? 1 : 0.3) * (0.45 + 0.55 * sky.illum)} />
+      </svg>
+      <small className="muted">
+        Sun {side(sky.sun)} · Moon {side(sky.moon)}, {Math.round(sky.illum * 100)}% lit ({moonName(sky.phase).toLowerCase()})
+      </small>
+    </div>
+  )
+}
+
+function ShadersPane() {
+  const s = useShaders()
+  const reduce = useA11y((a) => a.reduceMotion)
+  const g = gpuInfo()
+  const [stats, setStats] = useState(shaderStats())
+  const [, tick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => {
+      setStats(shaderStats())
+      tick((n) => n + 1)
+    }, 500)
+    return () => clearInterval(id)
+  }, [])
+  const preset = PRESETS[s.preset]
+  const running = s.enabled && g.available
+  const sky = skyAt(new Date(), s.hourOverride)
+  return (
+    <>
+      <p className="set-intro">Real-time GLSL shaders, run by your actual GPU (the Pear P4 Max is a sticker). Everything here is drawn live, not played back from a video.</p>
+      <div className="set-card">
+        <Row label="Shaders" sub={g.available ? `Rendered on your ${g.renderer}` : 'Needs WebGL2. Your browser said no.'}>
+          <Toggle on={running} onChange={(v) => g.available && s.set('enabled', v)} />
+        </Row>
+      </div>
+      <h4 className="set-head">Lighting</h4>
+      <div className="set-card">
+        <Row label="Sun, moon & lamp" sub={running ? 'Shadows between windows, files and folders. The sun and moon follow the time, and the lamp (your pointer) comes on at night' : 'Turn Shaders on to see it'}>
+          <Toggle on={s.lighting} onChange={(v) => s.set('lighting', v)} />
+        </Row>
+        <Row label="Time of day" sub={s.hourOverride === null ? 'Following your clock' : 'Set by hand. The Mountain Lake follows it too'}>
+          <Toggle on={s.hourOverride === null} onChange={(v) => s.set('hourOverride', v ? null : Math.round(sky.hour * 4) / 4)} />
+        </Row>
+        {s.hourOverride !== null && (
+          <Row label={formatHour(s.hourOverride)}>
+            <input type="range" min={0} max={24} step={0.25} value={s.hourOverride} onChange={(e) => s.set('hourOverride', +e.target.value)} aria-label="Time of day" />
+          </Row>
+        )}
+        <SkyDiagram sky={sky} />
+      </div>
+      <h4 className="set-head">Look</h4>
+      <div className="set-card">
+        <div className="wp-grid">
+          {PRESET_ORDER.map((id) => (
+            <button key={id} className={`wp-pick ${s.preset === id ? 'on' : ''}`} onClick={() => s.set('preset', id)} title={PRESETS[id].blurb}>
+              <span className="wp-thumb" style={{ background: PRESETS[id].swatch }} />
+              <small>{PRESETS[id].name}</small>
+            </button>
+          ))}
+        </div>
+        <Row label={preset.name} sub={preset.blurb} />
+        <Row label="Intensity">
+          <input type="range" min={0.1} max={1} step={0.01} value={s.intensity} onChange={(e) => s.set('intensity', +e.target.value)} aria-label="Shader intensity" />
+        </Row>
+      </div>
+      <h4 className="set-head">Where</h4>
+      <div className="set-card">
+        {SHADER_TARGETS.map((t) => {
+          const has = !!preset.layers[t.id]
+          return (
+            <Row key={t.id} label={t.label} sub={has ? t.sub : `Not part of ${preset.name}`}>
+              <Toggle on={has && s.targets[t.id]} onChange={(v) => has && s.setTarget(t.id, v)} />
+            </Row>
+          )
+        })}
+      </div>
+      <h4 className="set-head">Status</h4>
+      <div className="set-card">
+        <Row label="Renderer" sub={reduce ? 'Reduce motion is on, so you get one still frame per layer' : 'Capped at 30 fps. Pauses while this tab is in the background'}>
+          <span className="muted sh-stat">
+            {running && stats && stats.layers ? `${stats.layers} layer${stats.layers === 1 ? '' : 's'} · ${reduce ? 'still' : `${stats.fps} fps`} · ${stats.ms.toFixed(1)} ms/frame` : 'Idle'}
+          </span>
+        </Row>
+      </div>
+    </>
+  )
 }
 
 function AccessibilityPane() {
@@ -691,6 +816,7 @@ export function Settings({ win }: { win: Win }) {
           <Row label="Dynamic wallpaper" sub={gpuInfo().available ? `Shaded live on your ${gpuInfo().renderer}` : 'Needs WebGL2. Your browser said no.'}>
             <Toggle on={s.liveWallpaper && gpuInfo().available} onChange={(v) => gpuInfo().available && os().set('liveWallpaper', v)} />
           </Row>
+          {s.wallpaper === 'lake' && <LakeOptions />}
           <Row label="Show on all Spaces">
             <Toggle on onChange={() => {}} />
           </Row>
@@ -837,6 +963,9 @@ export function Settings({ win }: { win: Win }) {
       break
     case 'update':
       body = <UpdatePane />
+      break
+    case 'shaders':
+      body = <ShadersPane />
       break
     case 'accessibility':
       body = <AccessibilityPane />

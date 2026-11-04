@@ -70,9 +70,11 @@ Usage: pearosd [OPTIONS]
       --key <KEY>            TLS private key (PEM) for --cert
       --no-tls               Serve plain HTTP (only behind a TLS-terminating proxy or on localhost)
       --allow-private        Let the web proxy reach private, loopback and link-local addresses
+      --no-download-cache    Do not keep copies of files downloaded from archive.org (Boot Camp's Windows 98 disc). Copies live in PearDrive/Downloads
 ```
 
 - **Password:** pass it with `PEAROS_PASSWORD`, not `--password`. Command-line flags are visible to every user on the machine through `ps`.
+- **Downloads cache:** Boot Camp's *Download from archive.org* keeps the Windows 98 disc (625 MB) in `PearDrive/Downloads`. See the security model for how it works, and pass `--no-download-cache` if the disk is small.
 - **PearDrive:** created if it doesn't exist. If it's empty, it gets a welcome file and a `Documents` folder.
 - **Shell:** Terminal starts the user's `$SHELL` as a login shell (`-l`), falling back to `zsh`, `bash`, then `sh`. It starts in the PearDrive folder with `TERM=xterm-256color`.
 
@@ -275,6 +277,13 @@ The named volume keeps PearDrive, the shell history and the self-signed certific
   - Only `https` URLs on `archive.org` or a subdomain, with no credentials or custom port, and the first URL must be a `/download/…` link. Every redirect hop is checked against the same rule, so a redirect to anywhere else is refused.
   - Uses the same resolver as the web proxy, so private and loopback addresses are blocked unless you pass `--allow-private`.
   - Has no overall timeout (a disc takes minutes), but a connection that stalls for 30 seconds is dropped.
+  - **Keeps a copy** in `PearDrive/Downloads/<item>/<file>` (for example `Downloads/windows-98-se-isofile/Windows 98 Second Edition.iso`), so archive.org is only asked once and later installs run at disk speed. Details:
+    - The download is a background job. It keeps going if the client that started it leaves, and anyone who asks for the same file in the meantime reads the growing file instead of starting a second transfer.
+    - It is written to a hidden `.<file>.part` and only renamed into place once every promised byte has arrived, so a file in `Downloads` is always complete. A failed or short download is deleted and can simply be retried.
+    - Only files with a known size up to 4 GiB are kept; anything else is streamed through.
+    - If the copy cannot be written (read-only drive, no space), the download still works, just uncached.
+    - To get the space back, delete the folder in Finder or the Terminal. To never keep copies, start `pearosd` with `--no-download-cache`.
+    - Responses carry an `X-Pearos-Cache` header: `hit` (served from the copy), `fill` (fetching and keeping), `join` (sharing a download in progress) or `bypass` (not cached). A complete copy supports `Range`; a download in progress always sends the whole file.
 
 ## What the web proxy can and can't do
 
@@ -337,7 +346,7 @@ Everything is under `/api` and needs the session cookie, except `health`, `login
 | POST | `/api/fs/rename` | `{ from, to }` | |
 | POST | `/api/fs/trash` | `{ path }` | Moves it to `.Trash` inside PearDrive |
 | POST | `/api/fs/delete` | `{ path }` | Deletes it permanently |
-| GET | `/api/download` | `?url=https://archive.org/download/…` | Streams that file from archive.org, passing through `Content-Length` and `Range`. Anything else is refused with 403 |
+| GET | `/api/download` | `?url=https://archive.org/download/…` | Streams that file from archive.org and keeps a copy in `PearDrive/Downloads` (see the security model). Anything else is refused with 403 |
 | GET | `/api/music/library` | | Every audio file in PearDrive (`mp3 m4a aac flac wav ogg opus`), skipping hidden folders and symlinks |
 | GET | `/api/sys` | | Hostname, OS, kernel, CPU, memory, disk, uptime, load |
 | GET | `/api/procs` | | The top 200 processes by CPU |

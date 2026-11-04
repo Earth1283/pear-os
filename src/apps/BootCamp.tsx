@@ -3,7 +3,7 @@ import { useBootCamp, restartMac, type Version } from '../lib/bootcamp'
 import { AppIcon } from '../components/icons'
 import type { Win } from '../store'
 import { useBackend } from '../lib/backend'
-import { ARCHIVE_ISO, archiveEndpoint, deleteMachine, downloadIso, downloadSupport, formatBytes, formatEta, hasSupport, isoInfo, saveIso, savedMachine, wipe, type Progress } from '../lib/v86store'
+import { ARCHIVE_ISO, archiveEndpoint, deleteMachine, downloadIso, downloadSupport, type CacheKind, formatBytes, formatEta, hasSupport, isoInfo, saveIso, savedMachine, wipe, type Progress } from '../lib/v86store'
 
 type Step = 'intro' | 'tasks' | 'iso' | 'partition' | 'download' | 'copy' | 'ready' | 'installed' | 'removing'
 
@@ -24,6 +24,14 @@ function eta(remaining: number) {
   if (s > 3600) return `About ${Math.round(s / 3600)} hours`
   if (s > 90) return `About ${Math.round(s / 60)} minutes`
   return 'Less than a minute'
+}
+
+/** What the server did with a Windows 98 download, in words. */
+const CACHE_NOTE: Record<CacheKind, string> = {
+  hit: 'This server already has the disc, so it is coming straight from its own storage, not from archive.org.',
+  fill: 'The server is fetching it from archive.org and keeping a copy, so the next install is instant.',
+  join: 'Someone else is already downloading this disc through the server, so you are sharing that download.',
+  bypass: 'It is 625 MB, and it is streamed from archive.org through the server.',
 }
 
 const COPY_STAGES = [
@@ -91,6 +99,7 @@ export function BootCamp({ win }: { win: Win }) {
 
   // Real progress (Windows 98): bytes actually moved.
   const [live, setLive] = useState<Progress | null>(null)
+  const [cache, setCache] = useState<CacheKind | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
   const abort = useRef<AbortController | null>(null)
@@ -105,6 +114,7 @@ export function BootCamp({ win }: { win: Win }) {
     progress(0)
     setNote('')
     setLive(null)
+    setCache(null)
     setErr(null)
     retried.current = false
     hold.current = 0
@@ -159,7 +169,7 @@ export function BootCamp({ win }: { win: Win }) {
     const ctl = new AbortController()
     abort.current = ctl
     deleteMachine()
-      .then(() => (source === 'archive' ? downloadIso(archiveEndpoint(ARCHIVE_ISO.url), ARCHIVE_ISO.name, setLive, ctl.signal) : saveIso(isoFile!, setLive, ctl.signal)))
+      .then(() => (source === 'archive' ? downloadIso(archiveEndpoint(ARCHIVE_ISO.url), ARCHIVE_ISO.name, setLive, ctl.signal, setCache) : saveIso(isoFile!, setLive, ctl.signal)))
       .then(() => !ctl.signal.aborted && setStep('ready'))
       .catch((e) => !ctl.signal.aborted && setErr(e instanceof Error ? e.message : String(e)))
     return () => ctl.abort()
@@ -463,7 +473,7 @@ export function BootCamp({ win }: { win: Win }) {
             {source === 'archive' ? ' from archive.org, via pearosd…' : ' into this browser…'}
           </p>
           <RealBar p={live} what="Copy progress" />
-          {err ? errorBlock : <p className="bc-dim">{source === 'archive' ? 'Do not close this tab. It is 625 MB, and each piece is saved as it arrives, so this works on a slow connection too.' : 'Do not close this tab. A disc image is a lot of bytes, and every one of them is being written by hand.'}</p>}
+          {err ? errorBlock : <p className="bc-dim">{source === 'archive' ? (CACHE_NOTE[cache ?? 'bypass'] + ' Do not close this tab; each piece is saved here as it arrives.') : 'Do not close this tab. A disc image is a lot of bytes, and every one of them is being written by hand.'}</p>}
         </>
       ) : (
         <>

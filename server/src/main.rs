@@ -36,6 +36,8 @@ pub struct Args {
     no_tls: bool,
     #[arg(long, help = "Let the web proxy reach private, loopback and link-local addresses")]
     allow_private: bool,
+    #[arg(long, help = "Do not keep copies of files downloaded from archive.org (Boot Camp's Windows 98 disc). Copies live in PearDrive/Downloads")]
+    no_download_cache: bool,
     #[arg(long, hide = true)]
     api_only: bool,
 }
@@ -45,6 +47,7 @@ pub struct AppState {
     pub root: PathBuf,
     pub sys: std::sync::Mutex<sysinfo::System>,
     pub proxy: proxy::Proxy,
+    pub downloads: Arc<download::Downloads>,
     pub secure: bool,
 }
 
@@ -77,6 +80,7 @@ async fn main() {
         root: root.clone(),
         sys: std::sync::Mutex::new(sysinfo::System::new_all().expect("sysinfo")),
         proxy: proxy::Proxy::new(args.allow_private),
+        downloads: download::Downloads::new(!args.no_download_cache),
         secure: !args.no_tls,
     });
 
@@ -116,6 +120,7 @@ async fn main() {
         println!("  Password   {password}   (generated; set PEAROS_PASSWORD to choose one)");
     }
     println!("  Proxy      {}", if args.allow_private { "public + private networks" } else { "public internet only" });
+    println!("  Downloads  {}", if args.no_download_cache { "archive.org files are streamed, not kept".to_string() } else { format!("archive.org files are kept in {}", root.join("Downloads").display()) });
     println!("\n  Anyone with the password gets a shell as {}.\n", current_user());
 
     if args.no_tls {

@@ -34,7 +34,7 @@ export function gpuInfo(): GpuInfo {
   return cached
 }
 
-function release(canvas: HTMLCanvasElement, gl: WebGL2RenderingContext) {
+export function release(canvas: HTMLCanvasElement, gl: WebGL2RenderingContext) {
   setTimeout(() => {
     if (!canvas.isConnected) gl.getExtension('WEBGL_lose_context')?.loseContext()
   }, 0)
@@ -45,7 +45,7 @@ in vec2 p;
 out vec2 uv;
 void main() { uv = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }`
 
-function compile(gl: WebGL2RenderingContext, frag: string) {
+export function compile(gl: WebGL2RenderingContext, frag: string) {
   const make = (type: number, src: string) => {
     const s = gl.createShader(type)!
     gl.shaderSource(s, src)
@@ -70,7 +70,7 @@ function compile(gl: WebGL2RenderingContext, frag: string) {
     if (!uniforms.has(name)) uniforms.set(name, gl.getUniformLocation(prog, name))
     return uniforms.get(name)!
   }
-  return u
+  return Object.assign(u, { prog })
 }
 
 const WAVES_FRAG = `#version 300 es

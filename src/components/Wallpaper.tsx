@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useA11y } from '../lib/a11y'
 import { useOS } from '../store'
 import { renderMandelbrot, DEFAULT_VIEW, kernelReady } from '../kernel'
+import { LakeRenderer } from '../lib/lake'
 import { GPU_MIN_SCALE, MandelbrotGL, WaveRenderer, gpuInfo, type WavePalette } from '../lib/gpu'
 
 const LIGHT: WavePalette = {
@@ -104,6 +105,17 @@ function LiveWaves({ dark, blur }: { dark: boolean; blur: boolean }) {
   return <canvas ref={ref} className="wallpaper-canvas gpu" />
 }
 
+function LakeWallpaper({ blur }: { blur: boolean }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  const reduce = useA11y((s) => s.reduceMotion)
+  useEffect(() => {
+    const r = new LakeRenderer(ref.current!, blur ? 0.06 : 0.75, !reduce)
+    r.loop()
+    return () => r.dispose()
+  }, [blur, reduce])
+  return <canvas ref={ref} className="wallpaper-canvas gpu" />
+}
+
 function Sequel({ dark, blur }: { dark: boolean; blur: boolean }) {
   return gpuInfo().available ? <LiveWaves dark={dark} blur={blur} /> : <SequelWaves dark={dark} />
 }
@@ -153,6 +165,9 @@ export function Wallpaper({ blur = false }: { blur?: boolean }) {
   switch (wallpaper) {
     case 'fractal':
       inner = <FractalWallpaper />
+      break
+    case 'lake':
+      inner = gpuInfo().available ? <LakeWallpaper blur={blur} /> : <div className="wallpaper-css lake-fallback" />
       break
     case 'orchard':
       inner = <div className="wallpaper-css orchard" />

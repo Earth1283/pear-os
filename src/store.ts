@@ -4,7 +4,7 @@ import type { MenuEntry } from './lib/menu'
 
 export type Phase = 'off' | 'booting' | 'bootpicker' | 'windows' | 'login' | 'desktop' | 'sleep' | 'panic' | 'shuttingdown'
 export type Tile = 'left' | 'right' | 'fill' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | null
-export type Wallpaper = 'sequel' | 'sequel-dark' | 'orchard' | 'graphite' | 'fractal'
+export type Wallpaper = 'sequel' | 'sequel-dark' | 'orchard' | 'graphite' | 'fractal' | 'lake'
 
 export interface Rect {
   x: number

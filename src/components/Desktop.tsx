@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useOS, os, tileRect } from '../store'
 import { Wallpaper } from './Wallpaper'
+import { ShaderLayer } from './ShaderLayers'
 import { MenuBar } from './MenuBar'
 import { Dock } from './Dock'
 import { Window } from './Window'
@@ -151,8 +152,11 @@ export function Desktop() {
       }}
     >
       <Wallpaper />
+      <ShaderLayer target="desktop" />
+      <ShaderLayer target="sky" />
       <DesktopIcons />
       <DesktopWidgets />
+      <ShaderLayer target="shadow" />
       {preview && <div className="tile-preview" style={{ left: preview.x, top: preview.y, width: preview.w, height: preview.h }} />}
       {windows.map((w) => (
         <Window key={w.id} win={w} focused={w.id === focused} />
@@ -166,6 +170,7 @@ export function Desktop() {
       <Spotlight />
       <Launchpad />
       <GlobalContextMenu />
+      <ShaderLayer target="overlay" />
       <div className="brightness" style={{ opacity: 1 - brightness }} />
     </div>
   )
