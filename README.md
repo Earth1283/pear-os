@@ -40,6 +40,7 @@ One-time setup: Settings → Pages → Source: **GitHub Actions**.
 - **Music:** plays the audio in PearDrive (`/Music` or anywhere else). Titles, artists, albums and cover art come from the files' ID3 tags. Dropping files onto the Music window uploads them to `/Music`.
 - **Terminal:** a real shell on the host (pty plus xterm.js).
 - **Activity Monitor:** the host's real processes. You can quit your own.
+- **Windows 98 download:** Boot Camp can fetch the Windows 98 SE disc from archive.org through `pearosd` (browsers can't do it directly, because archive.org sends no CORS headers). The endpoint only talks to `https://*.archive.org/download/…`. See *Windows 98* below.
 - **Sapphari:** browses the real web through a rewriting proxy. Pages run in a sandboxed iframe with an opaque origin, so they can't reach the PearOS API. Private, LAN and loopback addresses are blocked unless you pass `--allow-private`.
 - **TLS:** HTTPS with a self-signed cert generated on first run (stored in `~/.config/pearosd/`). Use `--cert`/`--key` for a real one, or `--no-tls` behind your own TLS proxy.
 
@@ -85,7 +86,8 @@ Open **Boot Camp Assistant** (Spotlight, Launchpad, or *Applications*). It walks
 
 Boot Camp's second option is the actual Windows 98, running in [v86](https://github.com/copy/v86), an x86 emulator written in Rust and WebAssembly.
 
-- **Bring your own ISO.** Pear does not ship Windows. Choose your disc image in Boot Camp; it is copied into your browser's IndexedDB and never uploaded. Without an ISO, Windows 98 stays unavailable and Windows 95 (the simulated one) is the choice.
+- **Get a disc image.** Pear does not ship Windows. Either choose your own ISO in Boot Camp (it is copied into your browser's IndexedDB and never uploaded), or, when running `pearosd`, pick **Download from archive.org** and the server fetches Windows 98 SE (625 MB) for you and streams it into IndexedDB with a real progress bar. On the static GitHub Pages build there is no server, so only your own ISO works. Windows 98 is still copyrighted software: Setup will ask for a product key, and Boot Camp links to the disc's archive.org page, which lists the one for that disc.
+- **First run:** the disc opens a startup menu that defaults to *Boot from Hard Disk*, which is empty. Press **2** (Boot from CD-ROM) within 10 seconds, then Enter at Setup's welcome screen.
 - **The progress bars are real.** Boot Camp downloads the emulator and its BIOS (`v86.wasm`, `seabios.bin`, `vgabios.bin`, about 2 MB) with streamed byte counts, then copies your ISO in 8 MB chunks with MB/s and an ETA. Both are stored locally, so Windows 98 also starts offline.
 - **Setup runs for real,** so expect 30 to 60 minutes. The machine is saved (RAM, CPU and every disk block the guest wrote) every 5 minutes and whenever you press *Return to Pear OS*, and the next boot resumes it. The hard disk is sparse (0.5 to 2 GB, from the partition slider), so a save is tens of MB, not the whole disk.
 - **Controls:** click the screen to capture the mouse (Esc releases it). The toolbar has *Ctrl+Alt+Del*, *Save* and *Return to Pear OS*. Shutting down inside Windows 98 stops at "It's now safe to turn off your computer"; use *Return to Pear OS* from there.

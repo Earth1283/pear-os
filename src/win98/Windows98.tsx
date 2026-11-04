@@ -17,6 +17,7 @@ export function Windows98() {
   const stage = useRef<HTMLDivElement>(null)
   const machine = useRef<Machine | null>(null)
   const lastSave = useRef(0)
+  const fitRef = useRef<() => void>(() => undefined)
   const [status, setStatus] = useState('Starting…')
   const [error, setError] = useState<string | null>(null)
   const [booted, setBooted] = useState(false)
@@ -24,18 +25,31 @@ export function Windows98() {
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState('')
   const [canForce, setCanForce] = useState(false)
-  const [dims, setDims] = useState<[number, number]>([640, 480])
 
+  /**
+   * Scale the emulated screen to fill the stage.
+   *
+   * v86's own `screen_set_scale` is not used: in text mode it applies the zoom twice (a CSS transform and a wider
+   * box), and its `screen-set-size` event reports 80x25 *characters* there, which looks like 16x if read as pixels.
+   * Instead v86 stays at 1:1 and one CSS transform scales the whole container, text or graphics alike.
+   */
   const fit = useCallback(() => {
     const m = machine.current
     const box = stage.current
-    if (!m || !box) return
-    const [w, h] = dims
-    const s0 = Math.min(box.clientWidth / w, box.clientHeight / h)
+    const root = screen.current
+    if (!m || !box || !root) return
+    m.emulator.screen_set_scale(1, 1)
+    // Layout sizes ignore transforms, so this is the natural size of whichever mode is showing.
+    const w = root.offsetWidth
+    const h = root.offsetHeight
+    if (!w || !h) return
+    const s0 = Math.min((box.clientWidth - 16) / w, (box.clientHeight - 44) / h)
     // Whole-number scaling stays crisp; below 2x it is the best we can do.
-    const s = s0 >= 2 ? Math.floor(s0) : Math.max(0.5, s0)
-    m.emulator.screen_set_scale(s, s)
-  }, [dims])
+    const s = s0 >= 2 ? Math.floor(s0) : Math.max(0.4, s0)
+    root.style.transform = s === 1 ? '' : `scale(${s})`
+    const canvas = root.querySelector('canvas')
+    if (canvas) canvas.style.imageRendering = Number.isInteger(s) ? 'pixelated' : 'auto'
+  }, [])
 
   // Boot (or resume) the machine.
   useEffect(() => {
@@ -49,7 +63,9 @@ export function Windows98() {
         machine.current = m
         setResumed(m.resumed)
         setBooted(true)
-        m.emulator.add_listener('screen-set-size', (size: number[]) => size[0] && size[1] && setDims([size[0], size[1]]))
+        // The mode (text or graphics) and size change at runtime; refit once the DOM has caught up.
+        m.emulator.add_listener('screen-set-size', () => requestAnimationFrame(() => fitRef.current()))
+        fitRef.current()
       })
       .catch((e) => {
         if (!ctl.signal.aborted) setError(e instanceof Error ? e.message : String(e))
@@ -62,6 +78,7 @@ export function Windows98() {
   }, [])
 
   useEffect(() => {
+    fitRef.current = fit
     fit()
     window.addEventListener('resize', fit)
     return () => window.removeEventListener('resize', fit)

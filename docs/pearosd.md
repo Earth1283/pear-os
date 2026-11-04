@@ -143,7 +143,7 @@ server {
 
 - **`client_max_body_size 0`** lets you upload files of any size to PearDrive.
 - **`proxy_read_timeout 1d`** keeps idle terminals connected.
-- **`proxy_buffering off`** and **`proxy_request_buffering off`** stream downloads and uploads instead of buffering them on disk.
+- **`proxy_buffering off`** and **`proxy_request_buffering off`** stream downloads and uploads instead of buffering them on disk. This matters for the Windows 98 disc (625 MB) that Boot Camp downloads through `pearosd`.
 
 ### Tailscale
 
@@ -270,6 +270,11 @@ The named volume keeps PearDrive, the shell history and the self-signed certific
   - Blocks private, loopback, link-local, CGNAT and cloud-metadata addresses, both IP literals and hostnames that resolve to them, unless you pass `--allow-private`.
   - Proxied pages are served with `Content-Security-Policy: sandbox` and shown in a sandboxed iframe, so they get an opaque origin. They authenticate with a per-session URL token, never the login cookie, so a website you open in Sapphari can't reach the shell or file APIs.
   - Remote cookies are kept on the server and shared by all sessions.
+- **Disc image download (`/api/download`):** exists so Boot Camp can fetch Windows 98 from the Internet Archive, which browsers cannot do themselves (archive.org sends no CORS headers). It is not a general proxy.
+  - Needs a logged-in session, like every other API call.
+  - Only `https` URLs on `archive.org` or a subdomain, with no credentials or custom port, and the first URL must be a `/download/…` link. Every redirect hop is checked against the same rule, so a redirect to anywhere else is refused.
+  - Uses the same resolver as the web proxy, so private and loopback addresses are blocked unless you pass `--allow-private`.
+  - Has no overall timeout (a disc takes minutes), but a connection that stalls for 30 seconds is dropped.
 
 ## What the web proxy can and can't do
 
@@ -332,6 +337,7 @@ Everything is under `/api` and needs the session cookie, except `health`, `login
 | POST | `/api/fs/rename` | `{ from, to }` | |
 | POST | `/api/fs/trash` | `{ path }` | Moves it to `.Trash` inside PearDrive |
 | POST | `/api/fs/delete` | `{ path }` | Deletes it permanently |
+| GET | `/api/download` | `?url=https://archive.org/download/…` | Streams that file from archive.org, passing through `Content-Length` and `Range`. Anything else is refused with 403 |
 | GET | `/api/music/library` | | Every audio file in PearDrive (`mp3 m4a aac flac wav ogg opus`), skipping hidden folders and symlinks |
 | GET | `/api/sys` | | Hostname, OS, kernel, CPU, memory, disk, uptime, load |
 | GET | `/api/procs` | | The top 200 processes by CPU |

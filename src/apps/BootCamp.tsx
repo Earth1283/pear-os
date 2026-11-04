@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useBootCamp, restartMac, type Version } from '../lib/bootcamp'
 import { AppIcon } from '../components/icons'
 import type { Win } from '../store'
-import { deleteMachine, downloadSupport, formatBytes, formatEta, hasSupport, isoInfo, saveIso, savedMachine, wipe, type Progress } from '../lib/v86store'
+import { useBackend } from '../lib/backend'
+import { ARCHIVE_ISO, archiveEndpoint, deleteMachine, downloadIso, downloadSupport, formatBytes, formatEta, hasSupport, isoInfo, saveIso, savedMachine, wipe, type Progress } from '../lib/v86store'
 
 type Step = 'intro' | 'tasks' | 'iso' | 'partition' | 'download' | 'copy' | 'ready' | 'installed' | 'removing'
 
@@ -74,6 +75,9 @@ export function BootCamp({ win }: { win: Win }) {
   const [getDrivers, setGetDrivers] = useState(true)
   const [iso, setIso] = useState(DEFAULT_ISO)
   const [isoFile, setIsoFile] = useState<File | null>(null)
+  // Windows 98 can come from the user's own file, or (with pearosd) straight from the Internet Archive.
+  const [source, setSource] = useState<'file' | 'archive'>('file')
+  const hasBackend = useBackend((s) => s.present)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const real = ver === '98'
@@ -151,15 +155,15 @@ export function BootCamp({ win }: { win: Win }) {
 
   // Real copy (Windows 98): the ISO goes into this browser's storage, chunk by chunk.
   useEffect(() => {
-    if (step !== 'copy' || !real || !isoFile) return
+    if (step !== 'copy' || !real || (source === 'file' && !isoFile)) return
     const ctl = new AbortController()
     abort.current = ctl
     deleteMachine()
-      .then(() => saveIso(isoFile, setLive, ctl.signal))
+      .then(() => (source === 'archive' ? downloadIso(archiveEndpoint(ARCHIVE_ISO.url), ARCHIVE_ISO.name, setLive, ctl.signal) : saveIso(isoFile!, setLive, ctl.signal)))
       .then(() => !ctl.signal.aborted && setStep('ready'))
       .catch((e) => !ctl.signal.aborted && setErr(e instanceof Error ? e.message : String(e)))
     return () => ctl.abort()
-  }, [step, real, isoFile, attempt])
+  }, [step, real, isoFile, source, attempt])
 
   // What happens when a fake bar fills up.
   useEffect(() => {
@@ -295,17 +299,43 @@ export function BootCamp({ win }: { win: Win }) {
               <input type="radio" name="ver" checked={ver === '98'} onChange={() => setVer('98')} />
               <span>
                 <b>Windows 98</b>
-                <small>Real, in an emulator. Bring your own ISO.</small>
+                <small>Real, in an emulator. Needs a disc image.</small>
               </span>
             </label>
           </div>
+          {real && (
+            <div className="bc-seg2" role="radiogroup" aria-label="Where the disc image comes from">
+              <label className={`bc-opt ${source === 'file' ? 'on' : ''}`}>
+                <input type="radio" name="src" checked={source === 'file'} onChange={() => setSource('file')} />
+                <span>
+                  <b>Use my own file</b>
+                  <small>Pick an ISO from this computer.</small>
+                </span>
+              </label>
+              <label className={`bc-opt ${source === 'archive' ? 'on' : ''} ${hasBackend ? '' : 'off'}`}>
+                <input type="radio" name="src" checked={source === 'archive'} disabled={!hasBackend} onChange={() => setSource('archive')} />
+                <span>
+                  <b>Download from archive.org</b>
+                  <small>{hasBackend ? 'Windows 98 SE, 625 MB, fetched by pearosd.' : 'Needs pearosd: browsers cannot download from archive.org themselves.'}</small>
+                </span>
+              </label>
+            </div>
+          )}
           <div className="bc-row">
             <span className="bc-label">ISO Image:</span>
             <div className="bc-field">
               <AppIcon app="bootcamp" size={20} />
-              <span>{real ? (isoFile ? `${isoFile.name} (${formatBytes(isoFile.size)})` : 'No file chosen') : iso}</span>
+              <span>
+                {real
+                  ? source === 'archive'
+                    ? `${ARCHIVE_ISO.name} (archive.org)`
+                    : isoFile
+                      ? `${isoFile.name} (${formatBytes(isoFile.size)})`
+                      : 'No file chosen'
+                  : iso}
+              </span>
             </div>
-            <button className="bc-btn" onClick={() => fileRef.current?.click()}>
+            <button className="bc-btn" disabled={real && source === 'archive'} onClick={() => fileRef.current?.click()}>
               Choose…
             </button>
             <input
@@ -329,7 +359,17 @@ export function BootCamp({ win }: { win: Win }) {
           </div>
           <p className="bc-dim">
             {real
-              ? 'Your ISO is copied into this browser’s storage. It is never uploaded anywhere, and Pear does not ship Windows. Setup runs for real and takes a while.'
+              ? source === 'archive'
+                ? (
+                    <>
+                      pearosd downloads the disc from the Internet Archive and streams it into this browser’s storage. Setup will ask for a product key: the one for this disc is listed on its{' '}
+                      <a className="bc-link" href={ARCHIVE_ISO.page} target="_blank" rel="noopener noreferrer">
+                        archive.org page
+                      </a>
+                      .
+                    </>
+                  )
+                : 'Your ISO is copied into this browser’s storage. It is never uploaded anywhere, and Pear does not ship Windows. Setup runs for real and takes a while.'
               : iso === DEFAULT_ISO
                 ? 'Found "Win95_OSR2.iso" in Downloads. It was there the whole time.'
                 : `"${iso}" will be treated as Windows 95. We do not check. Nobody checked in 1995 either.`}
@@ -337,7 +377,7 @@ export function BootCamp({ win }: { win: Win }) {
         </>
       )
       back = 'tasks'
-      next = { label: 'Continue', run: () => setStep('partition'), disabled: real && !isoFile }
+      next = { label: 'Continue', run: () => setStep('partition'), disabled: real && source === 'file' && !isoFile }
       break
     case 'partition':
       heading = 'Create a Partition for Windows'
@@ -414,14 +454,16 @@ export function BootCamp({ win }: { win: Win }) {
       back = null
       break
     case 'copy':
-      heading = real ? 'Copying Windows Files' : 'Installing Windows'
+      heading = real ? (source === 'archive' ? 'Downloading Windows 98' : 'Copying Windows Files') : 'Installing Windows'
       body = real ? (
         <>
           <p>
-            Copying <code>{isoFile?.name ?? 'the Windows disc'}</code> into this browser…
+            {source === 'archive' ? 'Downloading ' : 'Copying '}
+            <code>{source === 'archive' ? ARCHIVE_ISO.name : (isoFile?.name ?? 'the Windows disc')}</code>
+            {source === 'archive' ? ' from archive.org, via pearosd…' : ' into this browser…'}
           </p>
           <RealBar p={live} what="Copy progress" />
-          {err ? errorBlock : <p className="bc-dim">Do not close this tab. A disc image is a lot of bytes, and every one of them is being written by hand.</p>}
+          {err ? errorBlock : <p className="bc-dim">{source === 'archive' ? 'Do not close this tab. It is 625 MB, and each piece is saved as it arrives, so this works on a slow connection too.' : 'Do not close this tab. A disc image is a lot of bytes, and every one of them is being written by hand.'}</p>}
         </>
       ) : (
         <>
@@ -440,6 +482,15 @@ export function BootCamp({ win }: { win: Win }) {
           <p>The Windows disc is in place and a {windowsGB.toFixed(1)} GB disk is ready for it.</p>
           <p>Your Mac needs to restart so that Windows Setup can begin. This is the real Windows 98 Setup, so it will ask real questions and take a real while (expect 30 to 60 minutes).</p>
           <p className="bc-dim">Progress is saved automatically, and again whenever you return to Pear OS, so you can stop and resume.</p>
+          {source === 'archive' && (
+            <p className="bc-dim">
+              Setup will ask for a product key. Keep the{' '}
+              <a className="bc-link" href={ARCHIVE_ISO.page} target="_blank" rel="noopener noreferrer">
+                archive.org page
+              </a>{' '}
+              open in another tab.
+            </p>
+          )}
         </>
       ) : (
         <>

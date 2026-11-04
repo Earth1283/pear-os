@@ -23,6 +23,8 @@ const SANDBOX: &str = "sandbox allow-scripts allow-forms allow-popups allow-moda
 
 pub struct Proxy {
     client: reqwest::Client,
+    /// For big downloads (disc images): same private-address protection, but no total timeout.
+    download: reqwest::Client,
     allow_private: bool,
 }
 
@@ -68,7 +70,24 @@ impl Proxy {
             .dns_resolver(Arc::new(SafeResolver { allow_private }))
             .build()
             .expect("http client");
-        Self { client, allow_private }
+        let download = reqwest::Client::builder()
+            .user_agent(UA)
+            .redirect(reqwest::redirect::Policy::none())
+            .connect_timeout(Duration::from_secs(10))
+            // A 600 MB disc image takes minutes, so there is no overall timeout. A stalled connection still dies.
+            .read_timeout(Duration::from_secs(30))
+            // Pass bytes through untouched so Content-Length stays truthful.
+            .gzip(false)
+            .brotli(false)
+            .deflate(false)
+            .dns_resolver(Arc::new(SafeResolver { allow_private }))
+            .build()
+            .expect("download client");
+        Self { client, download, allow_private }
+    }
+
+    pub fn download_client(&self) -> &reqwest::Client {
+        &self.download
     }
 
     fn literal_blocked(&self, url: &Url) -> bool {

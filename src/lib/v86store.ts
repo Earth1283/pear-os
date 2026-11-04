@@ -159,6 +159,60 @@ export async function saveIso(file: File, onProgress: (p: Progress) => void, sig
   await put('iso:meta', { name: file.name, size: file.size, chunks } satisfies IsoMeta)
 }
 
+/** The Windows 98 SE disc on the Internet Archive. pearosd fetches it, because browsers are not allowed to. */
+export const ARCHIVE_ISO = {
+  name: 'Windows 98 Second Edition.iso',
+  url: 'https://archive.org/download/windows-98-se-isofile/Windows%2098%20Second%20Edition.iso',
+  /** The item page. It lists the product key Setup asks for, so Boot Camp points there instead of repeating it. */
+  page: 'https://archive.org/details/windows-98-se-isofile',
+}
+
+/** What pearosd's download endpoint is called for a given archive.org URL. */
+export const archiveEndpoint = (url: string) => `/api/download?url=${encodeURIComponent(url)}`
+
+/**
+ * Streams a disc image from `url` into IndexedDB as it arrives, so only one chunk is ever held in memory and the
+ * progress bar reports bytes that actually landed. Stores it the same way saveIso does.
+ */
+export async function downloadIso(url: string, name: string, onProgress: (p: Progress) => void, signal?: AbortSignal) {
+  await deleteIso()
+  const res = await fetch(url, { signal, credentials: 'same-origin', cache: 'no-store' })
+  if (!res.ok) throw new Error((await res.text().catch(() => '')).trim() || `The server said ${res.status}.`)
+  if (!res.body) throw new Error('This browser cannot stream downloads.')
+  const total = Number(res.headers.get('content-length')) || 0
+
+  // Fail early and clearly if the disc cannot fit, instead of half way through.
+  const est = await navigator.storage?.estimate?.().catch(() => undefined)
+  if (total && est?.quota && est.usage !== undefined && est.quota - est.usage < total * 1.05) {
+    throw new Error(`This browser will only let this site store ${formatBytes(est.quota - est.usage)} more, and the disc is ${formatBytes(total)}.`)
+  }
+
+  const tick = meter()
+  const reader = res.body.getReader()
+  let pending: Uint8Array<ArrayBuffer>[] = []
+  let pendingBytes = 0
+  let loaded = 0
+  let chunks = 0
+  const flush = async () => {
+    if (!pendingBytes) return
+    await put(`iso:${chunks++}`, new Blob(pending))
+    pending = []
+    pendingBytes = 0
+  }
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    pending.push(value as Uint8Array<ArrayBuffer>)
+    pendingBytes += value.length
+    loaded += value.length
+    onProgress({ label: name, index: 0, count: 1, loaded, total: Math.max(total, loaded), doneAll: loaded, totalAll: Math.max(total, loaded), speed: tick(value.length) })
+    if (pendingBytes >= CHUNK) await flush()
+  }
+  await flush()
+  if (total && loaded !== total) throw new Error(`The download stopped at ${formatBytes(loaded)} of ${formatBytes(total)}. Try again.`)
+  await put('iso:meta', { name, size: loaded, chunks } satisfies IsoMeta)
+}
+
 export async function isoInfo() {
   return get<IsoMeta>('iso:meta')
 }
