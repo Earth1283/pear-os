@@ -147,6 +147,7 @@ export function fileMenu(path: string): MenuEntry[] {
   const locked = path.startsWith('/Applications') || path.startsWith('/System') || path === '/'
   const done = () => os().bumpFs()
   const textish = node.type === 'file' && node.kind === 'text'
+  const imageish = node.type === 'file' && node.kind === 'image'
   return [
     { label: 'Open', run: () => openPath(path) },
     ...(node.type === 'file' && node.kind !== 'app'
@@ -155,6 +156,7 @@ export function fileMenu(path: string): MenuEntry[] {
             label: 'Open With',
             submenu: [
               ...(textish ? [{ label: 'TextEdit (default)', run: () => openPath(path) }, 'sep' as const] : []),
+              ...(imageish ? [{ label: 'Preview (default)', run: () => openPath(path) }, 'sep' as const] : []),
               { label: 'Sapphari', run: () => os().openApp('safari', { props: { url: `file://${path}` } }) },
               { label: 'Terminal', run: () => os().openApp('terminal', { forceNew: true }) },
               'sep' as const,
@@ -234,7 +236,7 @@ export function fileMenu(path: string): MenuEntry[] {
     },
     {
       label: 'Quick Look',
-      run: () => (textish ? openPath(path) : toast('Quick Look', `Quickly looked at “${name}”. It looked back.`)),
+      run: () => (textish || imageish ? openPath(path) : toast('Quick Look', `Quickly looked at “${name}”. It looked back.`)),
     },
     'sep',
     { label: 'Copy', run: () => copy(path) },
@@ -252,7 +254,7 @@ export function fileMenu(path: string): MenuEntry[] {
     {
       label: 'Quick Actions',
       submenu: [
-        { label: 'Rotate Left', run: () => toast('Quick Actions', `“${name}” rotated 90°. You can't tell, but it did.`) },
+        { label: 'Rotate Left', run: () => (imageish ? openPath(path) : toast('Quick Actions', `“${name}” rotated 90°. You can't tell, but it did.`)) },
         { label: 'Create PDF', run: () => addNode(dir, `${name}.pdf`, { type: 'file', kind: 'binary', size: 48_000, modified: Date.now() }) !== null && done() },
         'sep',
         { label: 'Customize…', disabled: true },

@@ -6,6 +6,7 @@ import { GPU_MIN_SCALE, MandelbrotGL, gpuInfo } from '../lib/gpu'
 import { APPS } from './registry'
 import { LaptopArt, PearLogo, AppIcon } from '../components/icons'
 import { menu } from '../lib/menu'
+import { A11Y_DEFAULTS, speak, useA11y, type A11ySettings, type ColorFilter, type Invert, type ZoomModifier } from '../lib/a11y'
 import { procs as realProcs, useBackend, formatBytes as fmtBytes, type RealProc } from '../lib/backend'
 
 export function About() {
@@ -450,6 +451,190 @@ function UpdatePane() {
   )
 }
 
+function useVoices() {
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>(() => ('speechSynthesis' in window ? speechSynthesis.getVoices() : []))
+  useEffect(() => {
+    if (!('speechSynthesis' in window)) return
+    const on = () => setVoices(speechSynthesis.getVoices())
+    speechSynthesis.addEventListener('voiceschanged', on)
+    return () => speechSynthesis.removeEventListener('voiceschanged', on)
+  }, [])
+  return voices
+}
+
+function AccessibilityPane() {
+  const a = useA11y()
+  const voices = useVoices()
+  const set = a.set
+  const tog = (k: { [K in keyof A11ySettings]: A11ySettings[K] extends boolean ? K : never }[keyof A11ySettings]) => <Toggle on={a[k]} onChange={(v) => set(k, v)} />
+  const range = (k: 'displayContrast' | 'filterIntensity' | 'pointerSize' | 'rate', min: number, max: number, step = 0.01) => (
+    <input type="range" min={min} max={max} step={step} value={a[k]} onChange={(e) => set(k, +e.target.value)} aria-label={k} />
+  )
+  const canSpeak = 'speechSynthesis' in window
+  const mod = { ctrl: '⌃ Control', alt: '⌥ Option', meta: '⌘ Command' }
+  return (
+    <>
+      <p className="set-intro">Personalize PearOS in ways that work for you. These are real: they change how this whole screen looks, sounds and behaves, and they're remembered on this browser.</p>
+
+      <h4 className="set-head">Vision · Display</h4>
+      <div className="set-card">
+        <Row label="Reduce motion" sub="Turns off animations and the moving wallpaper">
+          {tog('reduceMotion')}
+        </Row>
+        <Row label="Reduce transparency" sub="Makes menus, the Dock and sidebars solid">
+          {tog('reduceTransparency')}
+        </Row>
+        <Row label="Increase contrast" sub="Darker borders and text on everything">
+          {tog('increaseContrast')}
+        </Row>
+        <Row label="Display contrast">
+          {range('displayContrast', 1, 2)}
+        </Row>
+        <Row label="Invert colors" sub="Smart Invert keeps photos, video and app icons looking normal">
+          <select value={a.invert} onChange={(e) => set('invert', e.target.value as Invert)}>
+            <option value="off">Off</option>
+            <option value="smart">Smart Invert</option>
+            <option value="classic">Classic Invert</option>
+          </select>
+        </Row>
+        <Row label="Color filters" sub="Helps tell apart colors that are hard to distinguish">
+          <select value={a.colorFilter} onChange={(e) => set('colorFilter', e.target.value as ColorFilter)}>
+            <option value="off">Off</option>
+            <option value="grayscale">Grayscale</option>
+            <option value="protanopia">Red/Green filter (Protanopia)</option>
+            <option value="deuteranopia">Green/Red filter (Deuteranopia)</option>
+            <option value="tritanopia">Blue/Yellow filter (Tritanopia)</option>
+            <option value="tint">Color Tint</option>
+          </select>
+        </Row>
+        {a.colorFilter !== 'off' && (
+          <Row label="Filter intensity">
+            {range('filterIntensity', 0, 1)}
+          </Row>
+        )}
+        {a.colorFilter === 'tint' && (
+          <Row label="Tint color">
+            <input type="color" value={a.tint} onChange={(e) => set('tint', e.target.value)} className="set-color" />
+          </Row>
+        )}
+      </div>
+
+      <h4 className="set-head">Vision · Pointer</h4>
+      <div className="set-card">
+        <Row label="Pointer size">
+          {range('pointerSize', 1, 4)}
+        </Row>
+        <Row label="Shake mouse pointer to locate" sub="Wiggle the mouse quickly and the pointer gets big for a moment">
+          {tog('shakeToLocate')}
+        </Row>
+        <Row label="Pointer outline color">
+          <input type="color" value={a.pointerOutline} onChange={(e) => set('pointerOutline', e.target.value)} className="set-color" />
+        </Row>
+        <Row label="Pointer fill color">
+          <input type="color" value={a.pointerFill} onChange={(e) => set('pointerFill', e.target.value)} className="set-color" />
+          <button
+            className="btn small"
+            disabled={a.pointerFill === A11Y_DEFAULTS.pointerFill && a.pointerOutline === A11Y_DEFAULTS.pointerOutline}
+            onClick={() => {
+              set('pointerFill', A11Y_DEFAULTS.pointerFill)
+              set('pointerOutline', A11Y_DEFAULTS.pointerOutline)
+            }}
+          >
+            Reset
+          </button>
+        </Row>
+      </div>
+
+      <h4 className="set-head">Vision · Zoom</h4>
+      <div className="set-card">
+        <Row label="Use keyboard shortcuts to zoom" sub="⌥⌘8 toggles zoom, ⌥⌘= zooms in, ⌥⌘− zooms out (Ctrl works in place of ⌘)">
+          {tog('zoomKeys')}
+        </Row>
+        <Row label="Use scroll gesture with modifier keys to zoom" sub={`Hold ${mod[a.zoomModifier]} and scroll. The view follows the pointer.`}>
+          <select value={a.zoomModifier} onChange={(e) => set('zoomModifier', e.target.value as ZoomModifier)} disabled={!a.zoomScroll}>
+            <option value="ctrl">⌃ Control</option>
+            <option value="alt">⌥ Option</option>
+            <option value="meta">⌘ Command</option>
+          </select>
+          {tog('zoomScroll')}
+        </Row>
+        <Row label="Current zoom" sub={a.zoom > 1 ? 'Zoomed in' : 'Not zoomed'}>
+          <span className="small">{Math.round(a.zoom * 100)}%</span>
+          <button className="btn small" disabled={a.zoom <= 1} onClick={() => useA11y.setState({ zoom: 1 })}>
+            Reset
+          </button>
+        </Row>
+        <Row label="Hover Text" sub="Hold ⌘ (or Ctrl) and point at something to see it in large type">
+          {tog('hoverText')}
+        </Row>
+      </div>
+
+      <h4 className="set-head">Vision · Spoken Content</h4>
+      <div className="set-card">
+        {!canSpeak && <Row label="Speech isn't available" sub="This browser doesn't support speech synthesis." />}
+        <Row label="Speak selection" sub="Press ⌥Esc to hear the selected text, or whatever's under the pointer">
+          {tog('speakSelection')}
+        </Row>
+        <Row label="Speak items under the pointer" sub="Reads out buttons, labels and text as you point at them">
+          {tog('speakPointer')}
+        </Row>
+        <Row label="Speak announcements" sub="Reads notifications aloud as they arrive">
+          {tog('speakAnnouncements')}
+        </Row>
+        <Row label="System voice">
+          <select value={a.voice} onChange={(e) => set('voice', e.target.value)} disabled={!canSpeak}>
+            <option value="">System default</option>
+            {voices.map((v) => (
+              <option key={v.voiceURI} value={v.voiceURI}>
+                {v.name} ({v.lang})
+              </option>
+            ))}
+          </select>
+          <button className="btn small" disabled={!canSpeak} onClick={() => speak('Hello. This is how PearOS sounds when it reads things to you.')}>
+            Play
+          </button>
+        </Row>
+        <Row label="Speaking rate">
+          {range('rate', 0.5, 2)}
+        </Row>
+      </div>
+
+      <h4 className="set-head">Hearing</h4>
+      <div className="set-card">
+        <Row label="Flash the screen when an alert occurs" sub="Every notification flashes the display">
+          {tog('flashAlerts')}
+          <button className="btn small" onClick={() => os().notify({ app: 'settings', title: 'Test Alert', body: 'This is what an alert looks like. And sounds like, if you turned on announcements.' })}>
+            Test
+          </button>
+        </Row>
+        <Row label="Play stereo audio as mono" sub="Music plays the same thing out of both speakers">
+          {tog('monoAudio')}
+        </Row>
+      </div>
+
+      <h4 className="set-head">Motor · Keyboard</h4>
+      <div className="set-card">
+        <Row label="Keyboard navigation" sub="Use Tab to move focus between controls, with a clear focus ring">
+          {tog('keyboardNav')}
+        </Row>
+        <Row label="Accessibility Shortcut" sub="⌥⌘F5 opens this pane from anywhere" />
+      </div>
+
+      <div className="set-actions">
+        <button
+          className="btn"
+          onClick={() => {
+            a.reset()
+            useA11y.setState({ zoom: 1 })
+          }}
+        >
+          Restore Defaults
+        </button>
+      </div>
+    </>
+  )
+}
+
 export function Settings({ win }: { win: Win }) {
   const [pane, setPane] = useState<PaneId>((win.props.pane as PaneId) ?? 'appearance')
   const [q, setQ] = useState('')
@@ -652,6 +837,9 @@ export function Settings({ win }: { win: Win }) {
       break
     case 'update':
       body = <UpdatePane />
+      break
+    case 'accessibility':
+      body = <AccessibilityPane />
       break
     case 'wifi':
       body = (

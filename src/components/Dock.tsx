@@ -37,6 +37,8 @@ export function Dock() {
     for (const [k, el] of Object.entries(refs.current)) if (el) centers.current[k] = el.getBoundingClientRect().left + el.offsetWidth / 2
   }
   const runningSet = new Set(running.split(','))
+  // Running apps that aren't kept in the Dock get their own section, like on the real thing.
+  const extras = [...runningSet].filter((id): id is AppId => !!id && id in APPS && !DOCK_APPS.includes(id as AppId) && !APPS[id as AppId].hidden && id !== 'trash')
 
   const scaleFor = (id: string) => {
     if (!magnify || mouseX === null) return 1
@@ -82,6 +84,8 @@ export function Dock() {
     >
       <div className="dock glass" onPointerEnter={() => mouseX === null && capture()} onPointerMove={(e) => setMouseX(e.clientX)} onPointerLeave={() => setMouseX(null)} style={{ height: size + 16 }}>
         {DOCK_APPS.map(item)}
+        {extras.length > 0 && <div className="dock-sep" onContextMenu={menu(dockSeparatorMenu)} />}
+        {extras.map(item)}
         <div className="dock-sep" onContextMenu={menu(dockSeparatorMenu)} />
         {item('trash')}
       </div>

@@ -6,7 +6,7 @@ import { Terminal } from './Terminal'
 import { Calculator, Notes, TextEdit } from './Productivity'
 import { Intelligence, Mirroring, Passwords, Safari } from './Sequel'
 import { About, ActivityMonitor, Fractals, Settings } from './System'
-import { Preview } from './Drive'
+import { Preview, previewMenus } from './Preview'
 import { Music } from './Music'
 
 const Nothing = () => null
@@ -26,7 +26,18 @@ export const APPS: Record<AppId, AppDef> = {
   activity: { name: 'Activity Monitor', component: ActivityMonitor, w: 820, h: 560, minW: 560, singleton: true, chrome: 'overlay' },
   fractals: { name: 'Fractals', component: Fractals, w: 820, h: 560, minW: 400, chrome: 'overlay' },
   settings: { name: 'System Settings', component: Settings, w: 780, h: 580, minW: 640, minH: 400, singleton: true, chrome: 'overlay' },
-  preview: { name: 'Preview', component: Preview, w: 760, h: 540, minW: 240, minH: 180 },
+  preview: {
+    name: 'Preview',
+    component: Preview,
+    w: 860,
+    h: 620,
+    minW: 460,
+    minH: 320,
+    chrome: 'overlay',
+    get menus() {
+      return previewMenus()
+    },
+  },
   about: { name: 'About This Pear', component: About, w: 300, h: 580, singleton: true, resizable: false, chrome: 'overlay' },
   trash: { name: 'Trash', component: Nothing, w: 0, h: 0, hidden: true },
 }
@@ -34,4 +45,4 @@ export const APPS: Record<AppId, AppDef> = {
 registerSpecs(APPS)
 
 export const DOCK_APPS: AppId[] = ['finder', 'launchpad', 'safari', 'music', 'notes', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'settings']
-export const LAUNCHPAD_APPS: AppId[] = ['finder', 'safari', 'music', 'notes', 'textedit', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'settings']
+export const LAUNCHPAD_APPS: AppId[] = ['finder', 'safari', 'music', 'notes', 'textedit', 'preview', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'settings']

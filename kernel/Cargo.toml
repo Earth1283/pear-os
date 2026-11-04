@@ -8,7 +8,7 @@ description = "The PearOS kernel. Compiled to WebAssembly for absolutely no good
 crate-type = ["cdylib"]
 
 [profile.release]
-opt-level = "s"
+opt-level = 3
 lto = true
 codegen-units = 1
 panic = "abort"

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useA11y } from '../lib/a11y'
 import { useOS } from '../store'
 import { renderMandelbrot, DEFAULT_VIEW, kernelReady } from '../kernel'
 import { GPU_MIN_SCALE, MandelbrotGL, WaveRenderer, gpuInfo, type WavePalette } from '../lib/gpu'
@@ -88,14 +89,15 @@ function LiveWaves({ dark, blur }: { dark: boolean; blur: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null)
   const r = useRef<WaveRenderer | null>(null)
   const motion = useOS((s) => s.liveWallpaper)
+  const reduce = useA11y((s) => s.reduceMotion)
   useEffect(() => {
-    const still = !motion || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const still = !motion || reduce
     const w = new WaveRenderer(ref.current!, blur ? 0.06 : 0.75, !still)
     r.current = w
     w.setPalette(dark ? DARK : LIGHT, dark)
     w.loop()
     return () => w.dispose()
-  }, [blur, motion])
+  }, [blur, motion, reduce])
   useEffect(() => {
     r.current?.setPalette(dark ? DARK : LIGHT, dark)
   }, [dark])

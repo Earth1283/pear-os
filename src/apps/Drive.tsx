@@ -230,26 +230,3 @@ export function DriveView({ rel, view, q, onOpenDir, setView }: { rel: string; v
     </div>
   )
 }
-
-export function Preview({ win }: { win: { id: string; props: Record<string, unknown> } }) {
-  const rel = win.props.drive as string
-  const name = rel.split('/').pop() ?? ''
-  const kind = kindFor(name)
-  const src = drive.url(rel)
-  useEffect(() => {
-    os().setTitle(win.id, name)
-  }, [name])
-  return (
-    <div className="preview" data-drag>
-      {kind === 'image' ? (
-        <img src={src} alt={name} draggable={false} />
-      ) : kind === 'video' ? (
-        <video src={src} controls autoPlay />
-      ) : kind === 'audio' ? (
-        <audio src={src} controls autoPlay />
-      ) : (
-        <iframe src={src} title={name} sandbox="" />
-      )}
-    </div>
-  )
-}

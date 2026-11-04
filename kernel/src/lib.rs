@@ -1,3 +1,5 @@
+mod imaging;
+
 use std::cell::RefCell;
 
 const VERSION: &str = "Pearnel Kernel Version 24.1.0: Tue Sep 16 09:41:00 PDT 2025; root:pnu-11215.1.10~2/RELEASE_WASM32 wasm32";

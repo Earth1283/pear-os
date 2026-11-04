@@ -14,7 +14,7 @@ export function openPath(path: string) {
     case 'text':
       return os().openApp('textedit', { props: { path: abs } })
     case 'image':
-      return os().notify({ app: 'finder', title: 'Preview', body: `"${name}" could not be opened because Preview is busy previewing other things.` })
+      return os().openApp('preview', { props: { path: abs }, forceNew: true })
     case 'archive':
       return os().notify({ app: 'finder', title: 'Archive Utility', body: `Expanding "${name}"… Estimated time remaining: about 3 days.` })
     case 'disk':

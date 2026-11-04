@@ -11,6 +11,11 @@ interface PearnelExports {
   password_strength(ptr: number, len: number): number
   kernel_version_ptr(): number
   kernel_version_len(): number
+  img_adjust(ptr: number, w: number, h: number, params: number): void
+  img_histogram(ptr: number, len: number): number
+  img_auto_levels(): number
+  img_flood_mask(ptr: number, w: number, h: number, x: number, y: number, tol: number, countOut: number): number
+  img_apply_mask(ptr: number, w: number, h: number): void
 }
 
 let k: PearnelExports | null = null
@@ -103,4 +108,81 @@ export function renderMandelbrot(canvas: HTMLCanvasElement, v: FractalView): num
   const img = new ImageData(new Uint8ClampedArray(px), w, h)
   canvas.getContext('2d')!.putImageData(img, 0, 0)
   return performance.now() - t0
+}
+
+// ---- Imaging (Preview) --------------------------------------------------------------------------
+// Pixels are copied into linear memory, processed in place, and copied back out. The colour maths
+// mirrors the WebGL shader in lib/imaging.ts; this path runs when there's no GPU (or the image is
+// bigger than the GPU's max texture).
+
+function withPixels<T>(data: Uint8ClampedArray, fn: (ptr: number) => T, writeBack = false): T {
+  if (!k) throw new Error('kernel not booted')
+  const ptr = k.alloc(data.length)
+  new Uint8Array(k.memory.buffer, ptr, data.length).set(data)
+  try {
+    const out = fn(ptr)
+    if (writeBack) data.set(new Uint8Array(k.memory.buffer, ptr, data.length))
+    return out
+  } finally {
+    k.dealloc(ptr, data.length)
+  }
+}
+
+export function kernelAdjust(img: ImageData, params: Float32Array) {
+  if (!k) throw new Error('kernel not booted')
+  const pp = k.alloc(params.byteLength)
+  new Float32Array(k.memory.buffer, pp, params.length).set(params)
+  try {
+    withPixels(img.data, (ptr) => k!.img_adjust(ptr, img.width, img.height, pp), true)
+  } finally {
+    k.dealloc(pp, params.byteLength)
+  }
+}
+
+/** 1024 bins: R, G, B and luma, 256 each. */
+export function kernelHistogram(img: ImageData): Uint32Array {
+  if (!k) return new Uint32Array(1024)
+  const ptr = withPixels(img.data, (p) => k!.img_histogram(p, img.data.length))
+  return new Uint32Array(k.memory.buffer, ptr, 1024).slice()
+}
+
+/** [black, white, gamma] for the most recent histogram. */
+export function kernelAutoLevels(): [number, number, number] {
+  if (!k) return [0, 1, 1]
+  const v = new Float32Array(k.memory.buffer, k.img_auto_levels(), 3)
+  return [v[0], v[1], v[2]]
+}
+
+// Instant Alpha re-runs the flood fill on every pointer move, so the image being worked on stays
+// resident in linear memory instead of being copied in each time.
+let resident: { img: ImageData; ptr: number } | null = null
+function residentPtr(img: ImageData) {
+  if (resident?.img === img) return resident.ptr
+  releaseResident()
+  const ptr = k!.alloc(img.data.length)
+  new Uint8Array(k!.memory.buffer, ptr, img.data.length).set(img.data)
+  resident = { img, ptr }
+  return ptr
+}
+export function releaseResident() {
+  if (resident && k) k.dealloc(resident.ptr, resident.img.data.length)
+  resident = null
+}
+
+export function kernelFloodMask(img: ImageData, x: number, y: number, tol: number): { mask: Uint8Array; count: number } {
+  if (!k) throw new Error('kernel not booted')
+  const px = residentPtr(img)
+  const cp = k.alloc(4)
+  try {
+    const ptr = k.img_flood_mask(px, img.width, img.height, x, y, tol, cp)
+    const count = new Uint32Array(k.memory.buffer, cp, 1)[0]
+    return { mask: new Uint8Array(k.memory.buffer, ptr, img.width * img.height), count }
+  } finally {
+    k.dealloc(cp, 4)
+  }
+}
+
+/** Knocks out the pixels selected by the last kernelFloodMask call (on the same image). */
+export function kernelApplyMask(img: ImageData) {
+  withPixels(img.data, (p) => k!.img_apply_mask(p, img.width, img.height), true)
 }

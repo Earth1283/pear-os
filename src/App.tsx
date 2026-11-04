@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useOS } from './store'
 import { Desktop } from './components/Desktop'
+import { A11yLayer } from './components/Accessibility'
 import { BootScreen, LoginScreen, PanicScreen, PowerScreen, ShutdownScreen, SleepScreen } from './components/Screens'
 
 export default function App() {
@@ -14,6 +15,15 @@ export default function App() {
     document.addEventListener('contextmenu', block)
     return () => document.removeEventListener('contextmenu', block)
   }, [])
+  return (
+    <>
+      <A11yLayer />
+      <Screen phase={phase} />
+    </>
+  )
+}
+
+function Screen({ phase }: { phase: ReturnType<typeof useOS.getState>['phase'] }) {
   switch (phase) {
     case 'off':
       return <PowerScreen />

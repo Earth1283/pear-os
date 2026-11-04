@@ -354,6 +354,44 @@ export function AppIcon({ app, size = 52 }: { app: AppId; size?: number }) {
         </>
       )
       break
+    case 'preview':
+      body = (
+        <>
+          <defs>
+            <linearGradient id={g('bg')} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#fdfdfd" />
+              <stop offset="1" stopColor="#dcdde2" />
+            </linearGradient>
+            <linearGradient id={g('sky')} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#5ab8ff" />
+              <stop offset="1" stopColor="#bfe6ff" />
+            </linearGradient>
+            <linearGradient id={g('glass')} x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#ffffff" stopOpacity=".75" />
+              <stop offset="1" stopColor="#bde3ff" stopOpacity=".25" />
+            </linearGradient>
+            <clipPath id={g('photo')}>
+              <rect x="22" y="24" width="50" height="40" rx="2" />
+            </clipPath>
+          </defs>
+          <Squircle fill={u('bg')} />
+          <g transform="rotate(-8 50 50)">
+            <rect x="24" y="30" width="54" height="44" rx="3" fill="#fff" stroke="rgba(0,0,0,.12)" strokeWidth=".6" />
+          </g>
+          <rect x="19" y="21" width="56" height="46" rx="3" fill="#fff" stroke="rgba(0,0,0,.14)" strokeWidth=".6" />
+          <g clipPath={u('photo')}>
+            <rect x="22" y="24" width="50" height="40" fill={u('sky')} />
+            <circle cx="60" cy="34" r="5" fill="#ffe066" />
+            <path d="M22 64 L38 42 L48 54 L56 46 L72 64Z" fill="#3fa14a" />
+            <path d="M22 64 L38 42 L43 48 L30 64Z" fill="#2f7f3a" />
+          </g>
+          <path d="M66 70 L80 84" stroke="#3a3a3c" strokeWidth="7" strokeLinecap="round" />
+          <path d="M66 70 L80 84" stroke="#6e6e73" strokeWidth="3.4" strokeLinecap="round" />
+          <circle cx="58" cy="62" r="14" fill={u('glass')} stroke="#48484a" strokeWidth="3.6" />
+          <path d="M50 56a10 10 0 0 1 9-4" stroke="#fff" strokeWidth="2" strokeLinecap="round" fill="none" opacity=".9" />
+        </>
+      )
+      break
     case 'about':
     default:
       body = (

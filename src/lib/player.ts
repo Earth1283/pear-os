@@ -154,8 +154,23 @@ function ensureAudio() {
   analyser.connect(ctx.destination)
   ctx.createMediaElementSource(el).connect(master)
   master.gain.value = useOS.getState().volume ** 2
+  applyMono()
   if (ctx.state === 'suspended') void ctx.resume()
   return ctx
+}
+
+// Accessibility › Audio › Play stereo audio as mono: fold everything into one channel at the
+// master gain; the destination then plays that channel out of both speakers.
+let mono = false
+function applyMono() {
+  if (!master) return
+  master.channelCount = mono ? 1 : 2
+  master.channelCountMode = mono ? 'explicit' : 'max'
+  master.channelInterpretation = 'speakers'
+}
+export function setMonoAudio(on: boolean) {
+  mono = on
+  applyMono()
 }
 
 useOS.subscribe((s, prev) => {
