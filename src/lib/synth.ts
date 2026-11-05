@@ -1,7 +1,11 @@
-// Pear Radio: four endless, procedurally generated stations. Everything is synthesised with
-// WebAudio at play time (no samples, no assets), so Music works even without a PearDrive.
+// Pear Radio: endless, procedurally generated stations. Everything is synthesised with WebAudio
+// at play time (no samples, no assets), so Music works even without a PearDrive. The talk stations
+// lay speech synthesis over a quiet bed.
 
-export type StationId = 'lofi' | 'panic' | 'arcade' | 'waltz'
+import { dmesg, lkml, lkmlRaw, marine, news, numbers, startTalk, type Show } from './talk'
+
+export type StationId = 'lofi' | 'panic' | 'arcade' | 'waltz' | 'numbers' | 'news' | 'dmesg' | 'marine' | 'lkml' | 'lkmlraw'
+type BedId = 'lofi' | 'panic' | 'arcade' | 'waltz' | 'shortwave'
 
 export interface Station {
   id: StationId
@@ -9,6 +13,11 @@ export interface Station {
   artist: string
   blurb: string
   hue: number
+  /** Talk stations read this aloud over the bed. */
+  show?: Show
+  bed?: BedId
+  /** Bed loudness, so the voice sits on top. */
+  level?: number
 }
 
 export const STATIONS: Station[] = [
@@ -16,6 +25,12 @@ export const STATIONS: Station[] = [
   { id: 'panic', title: 'Kernel Panic Ambient', artist: 'Pear Radio', blurb: 'Slow pads and distant beeps. Everything is fine.', hue: 262 },
   { id: 'arcade', title: 'Orchard Arcade', artist: 'Pear Radio', blurb: 'Square waves for the 8-bit pear in all of us.', hue: 142 },
   { id: 'waltz', title: 'Beach Ball Waltz', artist: 'Pear Radio', blurb: 'A music box in three-quarter time. It spins.', hue: 340 },
+  { id: 'numbers', title: 'Lima Echo Four Seven', artist: 'Pear Radio', blurb: 'Groups of five digits. Nobody will say who they are for.', hue: 200, show: numbers, bed: 'shortwave', level: 1 },
+  { id: 'news', title: 'Pear News Network', artist: 'Pear Radio', blurb: 'All the news that is fit to compile, over gentle panic.', hue: 8, show: news, bed: 'panic', level: 0.7 },
+  { id: 'dmesg', title: 'Radio Free Kernel', artist: 'Pear Radio', blurb: 'The boot log, read aloud with feeling, over chiptunes.', hue: 100, show: dmesg, bed: 'arcade', level: 0.3 },
+  { id: 'marine', title: 'The Marine Forecast', artist: 'Pear Radio', blurb: 'Gale 8 later. Segfaults at times. Visibility good, occasionally poor.', hue: 225, show: marine, bed: 'waltz', level: 0.55 },
+  { id: 'lkml', title: 'LKML Radio', artist: 'Pear Radio', blurb: 'Real rants from the kernel mailing list, read aloud by a robot that has never had a merge conflict.', hue: 175, show: lkml, bed: 'lofi', level: 0.3 },
+  { id: 'lkmlraw', title: 'LKML After Dark', artist: 'Pear Radio', blurb: 'The same list, nothing bleeped, nothing left out. Parental advisory: it is mostly Linus.', hue: 0, show: lkmlRaw, bed: 'panic', level: 0.45 },
 ]
 
 export const stationById = (id: string) => STATIONS.find((s) => s.id === id)
@@ -364,7 +379,23 @@ const waltz: Preset = {
   },
 }
 
-const PRESETS: Record<StationId, Preset> = { lofi, panic, arcade, waltz }
+// ───────────────────────── shortwave ─────────────────────────
+
+const shortwave: Preset = {
+  bpm: 60,
+  stepsPerBeat: 4,
+  beats: 4,
+  swing: 0.5,
+  step({ rig, t, step, bar, sd, r }) {
+    noiseHit(rig, t, sd * 1.3, 0.02 + r() * 0.03, 'bandpass', 1200 + r() * 2800, 0.5)
+    if (r() < 0.03) noiseHit(rig, t, 0.12, 0.12, 'bandpass', 600 + r() * 3000, 8)
+    if (r() < 0.04) note(rig, { t, dur: 0.05 + r() * 0.2, freq: 700 + Math.floor(r() * 5) * 90, type: 'sine', gain: 0.025, attack: 0.004, release: 0.03 })
+    // Every eighth bar the interval signal plays: four notes, a music box with a secret.
+    if (bar % 8 === 7 && step % 4 === 0) musicBox(rig, t, [76, 72, 79, 67][step / 4], 0.05)
+  },
+}
+
+const PRESETS: Record<BedId, Preset> = { lofi, panic, arcade, waltz, shortwave }
 
 function stepTime(p: Preset, base: number, stepAbs: number, sd: number) {
   const step = stepAbs % (p.stepsPerBeat * p.beats)
@@ -373,7 +404,7 @@ function stepTime(p: Preset, base: number, stepAbs: number, sd: number) {
 }
 
 /** Schedules every step whose start time is before `until`, starting from `state.next`. */
-function run(rig: Rig, id: StationId, state: { next: number; t0: number; r: () => number; mem: Record<string, unknown> }, until: number) {
+function run(rig: Rig, id: BedId, state: { next: number; t0: number; r: () => number; mem: Record<string, unknown> }, until: number) {
   const p = PRESETS[id]
   const sd = 60 / p.bpm / p.stepsPerBeat
   const perBar = p.stepsPerBeat * p.beats
@@ -390,18 +421,22 @@ export interface StationHandle {
   stop(): void
 }
 
-export function startStation(ctx: AudioContext, out: AudioNode, id: StationId): StationHandle {
+export function startStation(ctx: AudioContext, out: AudioNode, id: StationId, getVolume: () => number = () => 1): StationHandle {
+  const st = stationById(id)
+  const bed = st?.bed ?? (id as BedId)
   const fade = ctx.createGain()
-  fade.gain.value = 1
+  fade.gain.value = st?.level ?? 1
   fade.connect(out)
   const rig = makeRig(ctx, fade)
   const state = { next: 0, t0: ctx.currentTime + 0.1, r: Math.random, mem: {} as Record<string, unknown> }
-  const tick = () => run(rig, id, state, ctx.currentTime + 0.8)
+  const tick = () => run(rig, bed, state, ctx.currentTime + 0.8)
   tick()
   const timer = setInterval(tick, 150)
+  const talk = st?.show ? startTalk(st.show, getVolume) : null
   return {
     stop() {
       clearInterval(timer)
+      talk?.stop()
       const now = ctx.currentTime
       fade.gain.cancelScheduledValues(now)
       fade.gain.setValueAtTime(fade.gain.value, now)
@@ -412,7 +447,7 @@ export function startStation(ctx: AudioContext, out: AudioNode, id: StationId): 
 }
 
 /** Renders a station offline. Used by tests and handy for exporting a loop. */
-export async function renderStation(id: StationId, seconds: number, sampleRate = 44100) {
+export async function renderStation(id: BedId, seconds: number, sampleRate = 44100) {
   const ctx = new OfflineAudioContext(2, Math.ceil(seconds * sampleRate), sampleRate)
   const rig = makeRig(ctx, ctx.destination)
   const state = { next: 0, t0: 0.05, r: mulberry32(1234), mem: {} as Record<string, unknown> }

@@ -199,7 +199,7 @@ let stationElapsed = 0
 function startStationAudio(id: StationId) {
   stopStationAudio()
   const c = ensureAudio()
-  station = startStation(c, master!, id)
+  station = startStation(c, master!, id, () => useOS.getState().volume)
   stationStartedAt = performance.now()
 }
 

@@ -247,7 +247,9 @@ function RadioView() {
     <div className="m-page scroll">
       <header className="m-page-head">
         <h1>Pear Radio</h1>
-        <p>Four endless stations, composed live by your browser. No two minutes are the same.</p>
+        <p>
+          {STATIONS.length} endless stations, made live by your browser. {STATIONS.filter((s) => s.show).length} of them talk. No two minutes are the same.
+        </p>
       </header>
       <div className="m-stations">
         {STATIONS.map((s, i) => {
