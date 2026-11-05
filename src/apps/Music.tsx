@@ -5,7 +5,8 @@ import { bumpDrive, drive, formatBytes, useBackend } from '../lib/backend'
 import { menu, type MenuEntry } from '../lib/menu'
 import { STATIONS } from '../lib/synth'
 import { AUDIO_EXT, STATION_TRACKS, formatTime, usePlayer, useCurrent, type Track } from '../lib/player'
-import { Art, Eq, Scrub, Visualizer, trackHue } from '../components/MusicBits'
+import { Art, Eq, Lyrics, Scrub, Visualizer, trackHue } from '../components/MusicBits'
+import { useSpoken } from '../lib/captions'
 
 type View = 'now' | 'radio' | 'songs' | 'albums' | 'artists' | 'favorites'
 type SourceFilter = 'all' | 'drive' | 'local'
@@ -49,6 +50,7 @@ function Lcd() {
   const duration = usePlayer((s) => s.duration)
   const buffering = usePlayer((s) => s.buffering)
   const live = cur?.source === 'station'
+  const spoken = useSpoken()
   return (
     <div className="m-lcd" data-nodrag>
       <Art track={cur} size={38} radius={5} />
@@ -57,8 +59,14 @@ function Lcd() {
           <>
             <div className="m-lcd-title">{cur.title}</div>
             <div className="m-lcd-sub">
-              {cur.artist}
-              {cur.album && cur.source !== 'station' ? ` — ${cur.album}` : ''}
+              {live && spoken ? (
+                spoken
+              ) : (
+                <>
+                  {cur.artist}
+                  {cur.album && !live ? ` — ${cur.album}` : ''}
+                </>
+              )}
             </div>
             <div className="m-lcd-time">
               <span>{live ? formatTime(position) : formatTime(position)}</span>
@@ -221,6 +229,7 @@ function NowPlaying() {
           </button>
         </div>
         <Visualizer className="m-now-viz" hue={trackHue(cur)} bars={52} />
+        <Lyrics />
         {upNext.length > 0 && (
           <div className="m-upnext">
             <div className="m-upnext-head">Up Next</div>

@@ -5,6 +5,7 @@ import { refreshSys, useBackend } from '../lib/backend'
 import { kernelTaskCpu } from '../kernel'
 import { menu, type MenuEntry } from '../lib/menu'
 import { useCurrent, usePlayer, formatTime } from '../lib/player'
+import { useSpoken } from '../lib/captions'
 import { Art } from './MusicBits'
 
 interface Def {
@@ -332,6 +333,7 @@ function SystemWidget({ size }: { size: WidgetSize }) {
 
 function MusicWidget({ size }: { size: WidgetSize }) {
   const cur = useCurrent()
+  const spoken = useSpoken()
   const playing = usePlayer((s) => s.playing)
   const position = usePlayer((s) => s.position)
   const duration = usePlayer((s) => s.duration)
@@ -354,7 +356,7 @@ function MusicWidget({ size }: { size: WidgetSize }) {
     </div>
   )
   const title = cur?.title ?? 'Not Playing'
-  const sub = cur ? cur.artist : 'Open Music'
+  const sub = cur?.source === 'station' && spoken ? spoken : cur ? cur.artist : 'Open Music'
   const bar = <div className="wd-prog">{<i style={{ width: live ? '100%' : duration ? `${(position / duration) * 100}%` : '0%' }} className={live ? 'live' : ''} />}</div>
   if (size === 'small') {
     return (

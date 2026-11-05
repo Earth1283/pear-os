@@ -1,8 +1,10 @@
 // Talk stations: endless scripts read aloud by the browser's speech synthesiser.
 
+import { useCaptions } from './captions'
 import { RANTS, SIGN_OFF, UNFILTERED, type Rant } from './lkml'
 
-export type Beat = string | number
+/** Spoken text, seconds of silence, or a byline (spoken, and starts a new caption page). */
+export type Beat = string | number | { head: string }
 
 export interface Show {
   rate: number
@@ -154,7 +156,7 @@ function read(text: string, raw: boolean): Beat[] {
 const LEAD = ['From the archive.', 'Another one from the archive.', 'Reading from the mailing list.', 'And from the mailing list.']
 
 function attribution(rant: Rant, r: () => number): Beat[] {
-  return [rant.when ? `${rant.by}, ${rant.when}.` : pick(LEAD, r), 0.8]
+  return [{ head: rant.when ? `${rant.by}, ${rant.when}.` : pick(LEAD, r) }, 0.8]
 }
 
 function rantShow(pool: Rant[], raw: boolean, intro: string): Show {
@@ -209,7 +211,10 @@ export function startTalk(show: Show, getVolume: () => number, r: () => number =
     const v = getVolume()
     if (v <= 0.001) return later(1, next)
 
-    const u = new SpeechSynthesisUtterance(b)
+    const head = typeof b === 'object'
+    const text = head ? b.head : b
+    useCaptions.getState().say(text, head)
+    const u = new SpeechSynthesisUtterance(text)
     const voice = voiceFor(show.voiceSalt)
     if (voice) u.voice = voice
     u.rate = show.rate
@@ -220,7 +225,7 @@ export function startTalk(show: Show, getVolume: () => number, r: () => number =
     u.onerror = done
     speechSynthesis.speak(u)
     // Some engines never fire onend; don't let one stall the whole broadcast.
-    later(Math.max(12, b.length * 0.35), () => {
+    later(Math.max(12, text.length * 0.35), () => {
       speechSynthesis.cancel()
       next()
     })
@@ -232,6 +237,7 @@ export function startTalk(show: Show, getVolume: () => number, r: () => number =
       stopped = true
       clearTimeout(timer)
       speechSynthesis.cancel()
+      useCaptions.getState().clear()
     },
   }
 }

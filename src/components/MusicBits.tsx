@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AudioLines, Music2 } from 'lucide-react'
 import { SPECTRUM_BINS, readSpectrum, type Track } from '../lib/player'
+import { useCaptions } from '../lib/captions'
 
 function hash(s: string) {
   let h = 2166136261
@@ -24,6 +25,21 @@ export function Art({ track, size, radius }: { track: Pick<Track, 'art' | 'hue' 
       aria-hidden
     >
       <Glyph size={Math.round(size * 0.42)} strokeWidth={1.8} />
+    </div>
+  )
+}
+
+/** Live captions for the talk stations: the rant so far, with the line being spoken at full strength. */
+export function Lyrics() {
+  const lines = useCaptions((s) => s.lines)
+  if (!lines.length) return null
+  return (
+    <div className="m-lyrics" aria-hidden>
+      {lines.map((l, i) => (
+        <p key={l.id} className={`${l.head ? 'head' : ''} ${i === lines.length - 1 ? 'now' : ''}`}>
+          {l.text}
+        </p>
+      ))}
     </div>
   )
 }

@@ -6,6 +6,7 @@ import type { AppId } from '../apps/ids'
 import { AppIcon } from './icons'
 import { calc, formatNumber } from '../kernel'
 import { STATION_TRACKS, useCurrent, usePlayer } from '../lib/player'
+import { useSpoken } from '../lib/captions'
 import { Art, Eq } from './MusicBits'
 
 export function Spotlight() {
@@ -168,6 +169,7 @@ function Tile({ on, icon, label, sub, onClick }: { on: boolean; icon: React.Reac
 
 function NowPlayingCard() {
   const cur = useCurrent()
+  const spoken = useSpoken()
   const playing = usePlayer((s) => s.playing)
   const p = usePlayer.getState()
   return (
@@ -176,7 +178,7 @@ function NowPlayingCard() {
         <Art track={cur} size={44} radius={7} />
         <span className="cc-text">
           <b>{cur?.title ?? 'Not Playing'}</b>
-          <small>{cur ? cur.artist : 'Music'}</small>
+          <small>{cur?.source === 'station' && spoken ? spoken : cur ? cur.artist : 'Music'}</small>
         </span>
         {cur && playing && <Eq playing />}
       </button>

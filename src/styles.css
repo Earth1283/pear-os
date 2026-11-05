@@ -3915,6 +3915,44 @@ input[type='range']::-moz-range-progress {
 .m-now-head h3 span {
   color: var(--fg3);
 }
+.m-lyrics {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--sel);
+  overflow: hidden;
+}
+.m-lyrics p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--fg2);
+  opacity: 0.55;
+  transition: opacity 0.4s, color 0.4s;
+}
+.m-lyrics p.head {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--fg3);
+  opacity: 1;
+}
+.m-lyrics p.now:not(.head) {
+  color: var(--fg);
+  opacity: 1;
+  animation: m-lyric-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+@keyframes m-lyric-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+}
 .m-viz {
   display: block;
   width: 100%;
