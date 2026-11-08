@@ -17,4 +17,8 @@ export type AppId =
   | 'about'
   | 'preview'
   | 'bootcamp'
+  | 'photobooth'
+  | 'mail'
+  | 'diskutility'
+  | 'softwareupdate'
   | 'trash'

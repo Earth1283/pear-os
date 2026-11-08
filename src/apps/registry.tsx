@@ -10,6 +10,10 @@ import { Preview, previewMenus } from './Preview'
 import { Music } from './Music'
 import { ChessGame, chessMenus } from './Chess'
 import { BootCamp } from './BootCamp'
+import { PhotoBooth } from './PhotoBooth'
+import { Mail } from './Mail'
+import { DiskUtility } from './DiskUtility'
+import { SoftwareUpdate } from './SoftwareUpdate'
 
 const Nothing = () => null
 
@@ -53,11 +57,15 @@ export const APPS: Record<AppId, AppDef> = {
     },
   },
   bootcamp: { name: 'Boot Camp Assistant', component: BootCamp, w: 640, h: 470, singleton: true, resizable: false },
+  photobooth: { name: 'Photo Booth', component: PhotoBooth, w: 780, h: 600, minW: 560, minH: 460, singleton: true },
+  mail: { name: 'Mail', component: Mail, w: 1040, h: 640, minW: 760, minH: 420, singleton: true, chrome: 'overlay' },
+  diskutility: { name: 'Disk Utility', component: DiskUtility, w: 860, h: 560, minW: 640, minH: 420, singleton: true, chrome: 'overlay' },
+  softwareupdate: { name: 'Software Update', component: SoftwareUpdate, w: 580, h: 460, minW: 480, minH: 380, singleton: true },
   about: { name: 'About This Pear', component: About, w: 300, h: 580, singleton: true, resizable: false, chrome: 'overlay' },
   trash: { name: 'Trash', component: Nothing, w: 0, h: 0, hidden: true },
 }
 
 registerSpecs(APPS)
 
-export const DOCK_APPS: AppId[] = ['finder', 'launchpad', 'safari', 'music', 'chess', 'notes', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'settings']
-export const LAUNCHPAD_APPS: AppId[] = ['finder', 'safari', 'music', 'chess', 'notes', 'textedit', 'preview', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'bootcamp', 'settings']
+export const DOCK_APPS: AppId[] = ['finder', 'launchpad', 'safari', 'mail', 'music', 'chess', 'notes', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'settings']
+export const LAUNCHPAD_APPS: AppId[] = ['finder', 'safari', 'music', 'chess', 'notes', 'textedit', 'preview', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'photobooth', 'mail', 'diskutility', 'softwareupdate', 'bootcamp', 'settings']

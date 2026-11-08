@@ -1,4 +1,5 @@
 mod imaging;
+mod junk;
 
 use std::cell::RefCell;
 
@@ -287,6 +288,11 @@ pub unsafe extern "C" fn password_strength(ptr: *const u8, len: usize) -> u32 {
         _ => 3,
     };
     ((length_score + classes) / 2).min(4)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn junk_score(ptr: *const u8, len: usize) -> f64 {
+    junk::score(str_from(ptr, len))
 }
 
 #[cfg(test)]

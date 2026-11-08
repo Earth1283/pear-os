@@ -47,6 +47,10 @@ export const root: DirNode = d({
     'Activity Monitor.app': app('activity'),
     'Fractals.app': app('fractals'),
     'Boot Camp Assistant.app': app('bootcamp'),
+    'Photo Booth.app': app('photobooth'),
+    'Mail.app': app('mail'),
+    'Disk Utility.app': app('diskutility'),
+    'Software Update.app': app('softwareupdate'),
     'System Settings.app': app('settings'),
   }),
   System: d({

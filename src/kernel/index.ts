@@ -9,6 +9,7 @@ interface PearnelExports {
   kernel_task_cpu(t: number): number
   entropy(): number
   password_strength(ptr: number, len: number): number
+  junk_score(ptr: number, len: number): number
   kernel_version_ptr(): number
   kernel_version_len(): number
   img_adjust(ptr: number, w: number, h: number, params: number): void
@@ -185,4 +186,9 @@ export function kernelFloodMask(img: ImageData, x: number, y: number, tol: numbe
 /** Knocks out the pixels selected by the last kernelFloodMask call (on the same image). */
 export function kernelApplyMask(img: ImageData) {
   withPixels(img.data, (p) => k!.img_apply_mask(p, img.width, img.height), true)
+}
+
+export function junkScore(text: string): number | null {
+  if (!k) return null
+  return withString(text, (p, l) => k!.junk_score(p, l))
 }

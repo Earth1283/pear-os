@@ -66,6 +66,11 @@ Full setup guide (downloads, reverse proxies, systemd, Docker, troubleshooting):
 - **Widgets**: Clock, Calendar, Weather (forecast by vibes), Activity (real CPU, memory and disk with `pearosd`, simulated without), Music and Notes. Drag them around the desktop, resize them from the right-click menu, and add or remove them with *Edit Widgets…*. Layout is saved in your browser.
 - Music stops when you shut down, restart, panic, log out or quit it. It pauses when you sleep, and keeps playing on the lock screen, like the real thing.
 
+## Photo Booth and Mail
+
+- **Photo Booth** uses your real camera (HTTPS or localhost only; browsers insist). 18 effects run as one WebGL2 shader on your GPU: the classics (Bulge, Twirl, Thermal Camera, Pop Art…) and a cursed second page (Corporate Headshot, Low Battery, Video Call 2020, Deep Fried, Witness Protection, Liquid Glass, Security Camera with a burned-in timestamp). Take one photo or four, with a 3-2-1 countdown and flash. Photos are real JPEGs in `~/Pictures/Photo Booth Library` and open in Preview. They last until you close the tab, unless you right-click one and *Save to PearDrive*. The camera turns off when you close the window.
+- **Mail** has an inbox. Some of it is real: the sign-in alert names your actual browser, OS and time zone, PearCloud quotes your browser's real storage quota, and Software Update's email names the commit you're running. The Junk folder is decided by `junk_score` in the Rust kernel, and the compose sheet has a live Junk-o-meter for your draft. Pear ID sends a verification code every few minutes. It expires after 30 seconds, for real. *Send* puts mail in the Outbox, where it waits forever (there's no mail server); open it and choose *Send with Your Real Mail App* to hand it to `mailto:`.
+
 ## Boot Camp: install Windows 95
 
 Open **Boot Camp Assistant** (Spotlight, Launchpad, or *Applications*). It walks through the real flow: pick an ISO, size the partition, then "download" the support software over a 56k modem (the progress bar stalls at 99% and falls back to 62%). Restart when it asks.
@@ -98,6 +103,7 @@ Boot Camp's second option is the actual Windows 98, running in [v86](https://git
 | `calc` | Calculator, Math Notes, Spotlight, `calc` in Terminal |
 | `render_mandelbrot` | Fractals app and the Mandelbrot wallpaper |
 | `password_strength` | Passwords → Strength Checker |
+| `junk_score` | Mail → Junk folder and the compose Junk-o-meter |
 | `kernel_task_cpu`, `entropy` | Activity Monitor |
 | `kernel_version_*` | `uname -a`, About |
 

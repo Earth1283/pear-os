@@ -452,6 +452,108 @@ export function AppIcon({ app, size = 52 }: { app: AppId; size?: number }) {
         </>
       )
       break
+    case 'photobooth':
+      body = (
+        <>
+          <defs>
+            <linearGradient id={g('b')} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#e0353f" />
+              <stop offset="1" stopColor="#8e0b1d" />
+            </linearGradient>
+            <linearGradient id={g('fold')} x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stopColor="#000" stopOpacity=".28" />
+              <stop offset=".5" stopColor="#fff" stopOpacity=".14" />
+              <stop offset="1" stopColor="#000" stopOpacity=".28" />
+            </linearGradient>
+            <clipPath id={g('c')}>
+              <rect x="7" y="7" width="86" height="86" rx="20" />
+            </clipPath>
+          </defs>
+          <Squircle fill={u('b')} />
+          <g clipPath={u('c')}>
+            {[7, 21, 35, 49, 63, 77].map((x) => (
+              <rect key={x} x={x} y="7" width="14" height="86" fill={u('fold')} />
+            ))}
+            <path d="M7 7h86v10c-14 6-29 6-43 0S21 11 7 17z" fill="#6d0614" />
+          </g>
+          <g transform="rotate(-7 50 56)">
+            <rect x="35" y="22" width="30" height="66" rx="2" fill="#fff" />
+            {[25, 46, 67].map((y, i) => (
+              <g key={y}>
+                <rect x="38" y={y} width="24" height="18" fill={['#79c7ff', '#ffd27a', '#a3e48f'][i]} />
+                <circle cx="46" cy={y + 7} r="1.4" fill="#222" />
+                <circle cx="54" cy={y + 7} r="1.4" fill="#222" />
+                <path d={`M45 ${y + 11.5}q5 ${i === 1 ? -3 : 4} 10 0`} stroke="#222" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+              </g>
+            ))}
+          </g>
+        </>
+      )
+      break
+    case 'mail':
+      body = (
+        <>
+          <defs>
+            <linearGradient id={g('b')} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#4fc3ff" />
+              <stop offset="1" stopColor="#0a6cf0" />
+            </linearGradient>
+            <linearGradient id={g('e')} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#ffffff" />
+              <stop offset="1" stopColor="#dfe8f3" />
+            </linearGradient>
+          </defs>
+          <Squircle fill={u('b')} />
+          <rect x="20" y="30" width="60" height="42" rx="5" fill={u('e')} />
+          <path d="M21 32l29 22 29-22" stroke="#9fb3c9" strokeWidth="2.6" fill="none" strokeLinejoin="round" />
+          <path d="M21 70l20-17M79 70L59 53" stroke="#c4d2e1" strokeWidth="2" />
+        </>
+      )
+      break
+    case 'diskutility':
+      body = (
+        <>
+          <defs>
+            <linearGradient id={g('b')} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#f4f4f6" />
+              <stop offset="1" stopColor="#c3c5cc" />
+            </linearGradient>
+            <radialGradient id={g('p')} cx=".4" cy=".35" r=".8">
+              <stop offset="0" stopColor="#ffffff" />
+              <stop offset=".55" stopColor="#bcc2cc" />
+              <stop offset="1" stopColor="#7d8591" />
+            </radialGradient>
+          </defs>
+          <Squircle fill={u('b')} />
+          <rect x="18" y="20" width="64" height="60" rx="6" fill="#3a3d44" />
+          <circle cx="46" cy="50" r="23" fill={u('p')} />
+          <circle cx="46" cy="50" r="4" fill="#3a3d44" />
+          <path d="M71 26L52 52" stroke="#e8e8ea" strokeWidth="3.4" strokeLinecap="round" />
+          <circle cx="71" cy="26" r="4" fill="#e8e8ea" />
+          <path d="M28 82c0-10 8-12 14-6s14 6 16-6" stroke="#ff453a" strokeWidth="4" fill="none" strokeLinecap="round" />
+          <circle cx="58" cy="68" r="5" fill="#d0d3d9" stroke="#8a8f99" strokeWidth="1.5" />
+        </>
+      )
+      break
+    case 'softwareupdate':
+      body = (
+        <>
+          <defs>
+            <linearGradient id={g('b')} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#5b5d66" />
+              <stop offset="1" stopColor="#2a2b31" />
+            </linearGradient>
+          </defs>
+          <Squircle fill={u('b')} />
+          <path d={GEAR_BIG} fill="#8e9099" />
+          <circle cx="50" cy="50" r="22" fill="#3a3c43" />
+          <path d="M37 52a13 13 0 0 1 22-11" stroke="#30d158" strokeWidth="5" fill="none" strokeLinecap="round" />
+          <path d="M63 48a13 13 0 0 1-22 11" stroke="#30d158" strokeWidth="5" fill="none" strokeLinecap="round" />
+          <path d="M60 32l1 10-10-1z" fill="#30d158" />
+          <path d="M40 68l-1-10 10 1z" fill="#30d158" />
+        </>
+      )
+      break
     case 'about':
     default:
       body = (
