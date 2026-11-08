@@ -6,6 +6,7 @@ import { junkScore } from '../kernel'
 import { gpuInfo } from '../lib/gpu'
 import { formatBytes } from '../lib/fs'
 import { menu } from '../lib/menu'
+import { buildReport, useScreenTime } from '../lib/screenTime'
 import './Mail.css'
 
 type Box = 'inbox' | 'sent' | 'outbox' | 'drafts' | 'trash'
@@ -27,7 +28,7 @@ interface Msg {
   invite?: boolean
   code?: { value: string; expires: number }
   unsubscribe?: boolean
-  link?: 'softwareupdate' | 'chess'
+  link?: 'softwareupdate' | 'chess' | 'screentime'
   junk?: boolean
   notJunk?: boolean
 }
@@ -56,13 +57,21 @@ function place() {
   return tz ? `in the ${tz.replace(/_/g, ' ')} time zone` : 'in an unknown time zone'
 }
 
+function screenTimeMsg(ago = 3): Msg | null {
+  const r = buildReport(useScreenTime.getState().data)
+  if (!r) return null
+  return { id: nid(), box: 'inbox', from: 'Screen Time', addr: 'screentime@pear', to: ME, subject: r.subject, body: r.body, time: Date.now() - ago * min, read: false, flagged: false, link: 'screentime', summary: r.summary }
+}
+
 function seed(): Msg[] {
   const now = Date.now()
   const m = (o: Partial<Msg> & Pick<Msg, 'from' | 'addr' | 'subject' | 'body'>, ago: number): Msg => ({ id: nid(), box: 'inbox', to: ME, time: now - ago * min, read: true, flagged: false, ...o })
   const build = __PEAR_BUILD__
   const short = build.sha ? build.sha.slice(0, 7) : 'unknown'
   const built = build.date ? new Date(build.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'an unknown date'
+  const report = screenTimeMsg()
   return [
+    ...(report ? [report] : []),
     m(
       {
         from: 'Pear ID',
@@ -267,6 +276,12 @@ const resendTimers = new Map<ReturnType<typeof setTimeout>, string>()
 function deliver(m: Msg) {
   useMail.getState().add(m)
   os().notify({ app: 'mail', title: m.from, body: m.subject })
+}
+
+export function sendScreenTimeReport() {
+  if (!useMail.getState().seeded) return
+  const m = screenTimeMsg(0)
+  if (m) deliver(m)
 }
 
 function when(t: number) {
@@ -624,8 +639,8 @@ export function Mail() {
             )}
             {cur.link && (
               <div className="mail-actions">
-                <button className="btn primary" onClick={() => os().openApp(cur.link!)}>
-                  {cur.link === 'chess' ? 'Rematch' : 'Open Software Update'}
+                <button className="btn primary" onClick={() => (cur.link === 'screentime' ? os().openApp('settings', { props: { pane: 'screentime' } }) : os().openApp(cur.link as 'chess' | 'softwareupdate'))}>
+                  {cur.link === 'chess' ? 'Rematch' : cur.link === 'screentime' ? 'Open Screen Time' : 'Open Software Update'}
                 </button>
               </div>
             )}

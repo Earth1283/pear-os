@@ -153,6 +153,7 @@ function gather(): Occluder[] {
   const n = wins.length
   wins.forEach(({ el }, i) => push(el, 4 + Math.min(n - 1 - i, 10) * 1.5, 11))
   document.querySelectorAll('.desk-widgets .widget').forEach((el) => push(el, 2, 18))
+  document.querySelectorAll('.desk-stickies .sticky').forEach((el) => push(el, 2.4, 3))
   return out.slice(0, MAX_OCCLUDERS)
 }
 

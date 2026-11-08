@@ -2,6 +2,8 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './apps/registry'
 import './lib/notesSync'
+import './lib/stickiesSync'
+import './lib/screenTimeSync'
 import App from './App'
 import './styles.css'
 

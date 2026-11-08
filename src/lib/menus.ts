@@ -6,6 +6,7 @@ import { TOOLS } from './writingTools'
 import { openPath } from '../apps/open'
 import { HOME, addNode, cloneNode, formatBytes, mkdir, moveToTrash, normalise, parentOf, remove, resolve, sizeOf, toggleTag } from './fs'
 import { replaceInField, type Field, type MenuEntry } from './menu'
+import { lastContextPoint, useStickies } from './stickies'
 
 const say = (text: string) => {
   if (!('speechSynthesis' in window) || !text.trim()) return
@@ -322,6 +323,7 @@ export function desktopMenu(): MenuEntry[] {
     'sep',
     { label: 'Change Wallpaper…', run: () => os().openApp('settings', { props: { pane: 'wallpaper' } }) },
     { label: 'Edit Widgets…', run: () => openGallery('desktop') },
+    { label: 'New Sticky', run: () => useStickies.getState().add(lastContextPoint()) },
     'sep',
     { label: 'Use Stacks', run: () => toast('Stacks', 'Your desktop is now organised into one stack called “Everything”.') },
     {

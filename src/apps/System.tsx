@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Accessibility, Bell, Bluetooth, Cpu, Hand, Info, LayoutGrid, Lock, Monitor, Moon, Palette, RefreshCw, Search, Sparkles, Wifi, Image, Battery, ZoomIn, ZoomOut, Gauge, Blend } from 'lucide-react'
+import { Accessibility, Bell, Bluetooth, Cpu, Hand, Info, LayoutGrid, Lock, Monitor, Moon, Palette, RefreshCw, Search, Sparkles, Wifi, Image, Battery, ZoomIn, ZoomOut, Gauge, Blend, Hourglass } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useOS, os, type Win, type Wallpaper } from '../store'
 import { kernelTaskCpu, entropy, renderMandelbrot, DEFAULT_VIEW, type FractalView, kernelVersion } from '../kernel'
@@ -11,6 +11,7 @@ import { A11Y_DEFAULTS, speak, useA11y, type A11ySettings, type ColorFilter, typ
 import { PRESETS, PRESET_ORDER } from '../lib/shaderPresets'
 import { shaderStats, useShaders, type ShaderTarget } from '../lib/shaders'
 import { altitudeDegrees, formatHour, moonName, skyAt, type Body, type SkyState } from '../lib/sky'
+import { ScreenTimePane } from './ScreenTimePane'
 import { procs as realProcs, useBackend, formatBytes as fmtBytes, type RealProc } from '../lib/backend'
 
 export function About() {
@@ -383,6 +384,7 @@ export function Fractals() {
   )
 }
 
+
 const PANES = [
   { id: 'account', label: 'Pear User', sub: 'Pear Account', icon: null },
   { id: 'sep1' },
@@ -400,6 +402,7 @@ const PANES = [
   { id: 'sep3' },
   { id: 'notifications', label: 'Notifications', icon: Bell, color: '#ff3b30' },
   { id: 'focus', label: 'Focus', icon: Moon, color: '#5e5ce6' },
+  { id: 'screentime', label: 'Screen Time', icon: Hourglass, color: '#5e5ce6' },
   { id: 'sep4' },
   { id: 'battery', label: 'Battery', icon: Battery, color: '#30d158' },
   { id: 'privacy', label: 'Privacy & Security', icon: Hand, color: '#0a84ff' },
@@ -978,6 +981,9 @@ export function Settings({ win }: { win: Win }) {
       break
     case 'shaders':
       body = <ShadersPane />
+      break
+    case 'screentime':
+      body = <ScreenTimePane />
       break
     case 'accessibility':
       body = <AccessibilityPane />

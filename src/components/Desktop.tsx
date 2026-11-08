@@ -8,6 +8,7 @@ import { Window } from './Window'
 import { ControlCenter, Launchpad, Notifications, Spotlight } from './Overlays'
 import { NotificationCenter } from './Center'
 import { DesktopWidgets, WidgetGallery } from './Widgets'
+import { Stickies } from './Stickies'
 import { GlobalContextMenu } from './ContextMenu'
 import { isTextField, menu, openContextMenu } from '../lib/menu'
 import { desktopMenu, fileMenu, selectionMenu, textMenu, windowChromeMenu, windowFallbackMenu } from '../lib/menus'
@@ -16,8 +17,9 @@ import { DiskIcon, FileIcon, FolderIcon } from './icons'
 import { HOME, listDir, resolve } from '../lib/fs'
 import { openPath } from '../apps/open'
 import { preloadApps } from '../apps/registry'
+import { shameToast, useScreenTime } from '../lib/screenTime'
 
-const JOKES: { app: Parameters<ReturnType<typeof os>['notify']>[0]['app']; title: string; body: string; actions?: string[] }[] = [
+const JOKES: { app: Parameters<ReturnType<typeof os>['notify']>[0]['app']; title: string; body: string | (() => string); actions?: string[] }[] = [
   { app: 'intelligence', title: 'Pear Intelligence', body: 'Pear Intelligence is ready. Unfortunately, so are we.' },
   { app: 'settings', title: 'Software Update', body: 'PearOS Sequel 15.0.1 is ready to install. It fixes the bugs in 15.0 and adds new, more interesting ones.', actions: ['Later', 'Try Tonight'] },
   { app: 'finder', title: 'Storage Almost Full', body: "You've used 7.9 GB of 8 GB. Upgrade to 16 GB for only $200 (it's like 32 GB)." },
@@ -25,7 +27,7 @@ const JOKES: { app: Parameters<ReturnType<typeof os>['notify']>[0]['app']; title
   { app: 'mirroring', title: 'pPhone Mirroring', body: 'Your pPhone is nearby. We can tell. It is in your pocket and you are ignoring it.' },
   { app: 'settings', title: 'Background Items Added', body: '"Pear Updater Updater" can run in the background. You can manage this in Login Items & Extensions & Background & Foreground Items.' },
   { app: 'activity', title: 'Activity Monitor', body: 'kernel_task is now using 412% CPU to keep your PearBook cool. It is not working.' },
-  { app: 'about', title: 'Screen Time', body: 'Your screen time was up 340% last week, averaging 14 hours a day in this browser tab.' },
+  { app: 'settings', title: 'Screen Time', body: () => shameToast(useScreenTime.getState().data) },
 ]
 
 function useJokeNotifications() {
@@ -36,7 +38,7 @@ function useJokeNotifications() {
       os().notify({
         app: j.app,
         title: j.title,
-        body: j.body,
+        body: typeof j.body === 'function' ? j.body() : j.body,
         actions: j.actions?.map((label) => ({
           label,
           run: () => setTimeout(() => os().notify({ app: j.app, title: j.title, body: "OK! We'll ask again in 5 minutes. And every 5 minutes after that." }), 600),
@@ -178,6 +180,7 @@ export function Desktop() {
       <ShaderLayer target="sky" />
       <DesktopIcons />
       <DesktopWidgets />
+      <Stickies />
       <ShaderLayer target="shadow" />
       <TilePreview />
       <Windows />
