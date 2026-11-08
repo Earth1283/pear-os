@@ -6,6 +6,7 @@ import { FileIcon, FolderIcon } from '../components/icons'
 import { menu, type MenuEntry } from '../lib/menu'
 import type { FileKind } from '../lib/fs'
 import { playDriveFile } from '../lib/player'
+import { RenameField, useEnterToRename } from '../components/RenameField'
 
 export const join = (dir: string, name: string) => `${dir.replace(/\/$/, '')}/${name}`
 
@@ -34,7 +35,7 @@ export function openDriveFile(rel: string) {
 
 const fail = (e: unknown) => os().notify({ app: 'finder', title: 'PearDrive', body: e instanceof Error ? e.message : String(e) })
 
-export function DriveView({ rel, view, q, onOpenDir, setView }: { rel: string; view: 'grid' | 'list'; q: string; onOpenDir: (rel: string) => void; setView: (v: 'grid' | 'list') => void }) {
+export function DriveView({ rel, view, q, active, onOpenDir, setView }: { rel: string; view: 'grid' | 'list'; q: string; active: boolean; onOpenDir: (rel: string) => void; setView: (v: 'grid' | 'list') => void }) {
   const version = useBackend((s) => s.driveVersion)
   const root = useBackend((s) => s.sys?.root)
   const free = useBackend((s) => (s.sys?.diskFree != null ? `, ${formatBytes(s.sys.diskFree)} available on ${s.sys.hostname}` : ''))
@@ -85,9 +86,17 @@ export function DriveView({ rel, view, q, onOpenDir, setView }: { rel: string; v
     }
   }
 
+  useEnterToRename(active && renaming === null, sel, setRenaming)
+  useEffect(() => {
+    setSel(null)
+    setRenaming(null)
+  }, [rel])
+
   const commitRename = async (from: string, to: string) => {
     setRenaming(null)
-    if (!to || to === from || to.includes('/')) return
+    to = to.trim()
+    if (!to || to === from) return
+    if (to.includes('/')) return fail(new Error('Names can’t contain “/”. The slash is reserved for paths, and for fan fiction.'))
     try {
       await drive.rename(join(rel, from), join(rel, to))
       setSel(to)
@@ -108,7 +117,7 @@ export function DriveView({ rel, view, q, onOpenDir, setView }: { rel: string; v
         : { label: 'Move to Trash', shortcut: '⌘⌫', run: () => drive.trash(p).then(bumpDrive, fail) },
       'sep',
       { label: 'Get Info', shortcut: '⌘I', run: () => os().notify({ app: 'finder', title: `${e.name} Info`, body: `${e.dir ? 'Folder' : kindFor(e.name)} · ${formatBytes(e.size)} · Modified ${new Date(e.modified).toLocaleString()} · ${root ?? 'PearDrive'}${p}` }) },
-      { label: 'Rename', run: () => setRenaming(e.name) },
+      { label: 'Rename', shortcut: '↩', run: () => setRenaming(e.name) },
       'sep',
       { label: 'Copy Path', run: () => navigator.clipboard?.writeText(`${root ?? ''}${p}`) },
     ]
@@ -128,19 +137,7 @@ export function DriveView({ rel, view, q, onOpenDir, setView }: { rel: string; v
   const icon = (e: DriveEntry, size: number) => (e.dir ? <FolderIcon size={size} /> : <FileIcon size={size} kind={kindFor(e.name)} ext={e.name.includes('.') ? e.name.split('.').pop()! : ''} />)
   const label = (e: DriveEntry) =>
     renaming === e.name ? (
-      <input
-        className="rename-field"
-        autoFocus
-        defaultValue={e.name}
-        onFocus={(ev) => ev.target.setSelectionRange(0, e.dir ? e.name.length : Math.max(0, e.name.lastIndexOf('.')) || e.name.length)}
-        onClick={(ev) => ev.stopPropagation()}
-        onPointerDown={(ev) => ev.stopPropagation()}
-        onBlur={(ev) => commitRename(e.name, ev.target.value.trim())}
-        onKeyDown={(ev) => {
-          if (ev.key === 'Enter') (ev.target as HTMLInputElement).blur()
-          if (ev.key === 'Escape') setRenaming(null)
-        }}
-      />
+      <RenameField name={e.name} dir={e.dir} onDone={(to) => commitRename(e.name, to)} onCancel={() => setRenaming(null)} />
     ) : (
       e.name
     )

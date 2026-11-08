@@ -4,7 +4,7 @@ import { APPS, DOCK_APPS } from '../apps/registry'
 import type { AppId } from '../apps/ids'
 import { TOOLS } from './writingTools'
 import { openPath } from '../apps/open'
-import { HOME, addNode, cloneNode, formatBytes, mkdir, moveToTrash, normalise, parentOf, remove, resolve, sizeOf, toggleTag } from './fs'
+import { HOME, addNode, canRename, cloneNode, formatBytes, mkdir, moveToTrash, normalise, parentOf, remove, resolve, sizeOf, toggleTag } from './fs'
 import { replaceInField, type Field, type MenuEntry } from './menu'
 import { lastContextPoint, useStickies } from './stickies'
 
@@ -140,7 +140,7 @@ function kindOf(path: string) {
   return n.kind === 'app' ? 'Application' : `${n.kind[0].toUpperCase()}${n.kind.slice(1)} document`
 }
 
-export function fileMenu(path: string): MenuEntry[] {
+export function fileMenu(path: string, opts: { rename?: () => void } = {}): MenuEntry[] {
   const node = resolve(path)
   if (!node) return []
   const { dir, name } = parentOf(path)
@@ -208,7 +208,7 @@ export function fileMenu(path: string): MenuEntry[] {
           `${kindOf(path)} · ${formatBytes(sizeOf(node))} · Modified ${new Date(node.modified).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · Where: ${dir}`,
         ),
     },
-    { label: 'Rename', disabled: true },
+    { label: 'Rename', shortcut: '↩', disabled: !opts.rename || !canRename(path), run: opts.rename },
     {
       label: `Compress “${truncate(name, 20)}”`,
       disabled: locked,

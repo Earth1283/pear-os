@@ -638,12 +638,14 @@ export function FolderIcon({ size = 64, tint = '#3fa0f5' }: { size?: number; tin
         </linearGradient>
       </defs>
       <path d="M8 22a6 6 0 0 1 6-6h21c2.4 0 3.7.8 5.3 2.6l2.9 3.4H86a6 6 0 0 1 6 6v50a6 6 0 0 1-6 6H14a6 6 0 0 1-6-6z" fill={`url(#${uid}b)`} />
-      <rect x="13" y="29" width="74" height="30" rx="2.5" fill="#e8e8ee" />
-      <rect x="15" y="32" width="70" height="30" rx="2.5" fill="#fff" />
-      <path d="M8 40a6 6 0 0 1 6-6h72a6 6 0 0 1 6 6v40a6 6 0 0 1-6 6H14a6 6 0 0 1-6-6z" fill={`url(#${uid}f)`} />
-      <rect x="8" y="34" width="84" height="8" rx="6" fill={`url(#${uid}s)`} opacity=".5" />
-      <path d="M14.5 34.6h71" stroke="#fff" strokeOpacity=".7" strokeWidth="1.4" strokeLinecap="round" />
-      <path d="M8.6 78.5v1.5a6 6 0 0 0 6 6h70.8a6 6 0 0 0 6-6v-1.5" fill="none" stroke={mix(tint, '#000', 0.35)} strokeOpacity=".35" strokeWidth="1" />
+      <rect className="fold-paper back" x="13" y="29" width="74" height="30" rx="2.5" fill="#e8e8ee" />
+      <rect className="fold-paper" x="15" y="32" width="70" height="30" rx="2.5" fill="#fff" />
+      <g className="fold-front">
+        <path d="M8 40a6 6 0 0 1 6-6h72a6 6 0 0 1 6 6v40a6 6 0 0 1-6 6H14a6 6 0 0 1-6-6z" fill={`url(#${uid}f)`} />
+        <rect x="8" y="34" width="84" height="8" rx="6" fill={`url(#${uid}s)`} opacity=".5" />
+        <path d="M14.5 34.6h71" stroke="#fff" strokeOpacity=".7" strokeWidth="1.4" strokeLinecap="round" />
+        <path d="M8.6 78.5v1.5a6 6 0 0 0 6 6h70.8a6 6 0 0 0 6-6v-1.5" fill="none" stroke={mix(tint, '#000', 0.35)} strokeOpacity=".35" strokeWidth="1" />
+      </g>
     </svg>
   )
 }

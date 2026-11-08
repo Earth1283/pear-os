@@ -1,6 +1,7 @@
 import { compile, cssSize, release } from './gpu'
 import { skyAt } from './sky'
 import { useShaders } from './shaders'
+import { MAX_GUSTS, SLANT, windField } from './wind'
 
 const LOW_H = 216
 
@@ -10,6 +11,10 @@ precision highp int;
 const float LH = 216.0;
 const float HZ = 86.0 / 216.0;
 const int HZT = 86;
+const float SLANT = ${SLANT.toFixed(3)};
+uniform vec2 low;
+uniform vec4 gusts[${MAX_GUSTS}];
+uniform float wBase;
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 float vnoise(vec2 p) {
@@ -30,10 +35,27 @@ float ridge(float x, float seed, float base, float amp, float freq) {
   float n = fbm(vec2(x * freq + seed, seed * 1.7));
   return base + amp * pow(clamp((n - 0.15) / 0.7, 0.0, 1.0), 1.5);
 }
+float windAt(vec2 s) {
+  float w = wBase;
+  for (int i = 0; i < ${MAX_GUSTS}; i++) {
+    vec4 g = gusts[i];
+    float d = (s.x - g.x - SLANT * (s.y - 0.5)) / g.z;
+    w += g.y * exp(-d * d);
+  }
+  return w;
+}
+vec3 pal(vec3 a, vec3 b, vec3 c, vec3 d, float v, float dith) {
+  float s = clamp(v, 0.0, 0.999) * 4.0 + (dith - 0.5) * 0.9;
+  return s < 1.0 ? a : (s < 2.0 ? b : (s < 3.0 ? c : d));
+}
+float landAt(float x) {
+  float hl = 34.0 * exp(-pow(x / (0.3 * low.x), 2.0));
+  float hr = 43.0 * exp(-pow((low.x - x) / (0.26 * low.x), 2.0));
+  return floor(max(hl, hr) + 2.0 * vnoise(vec2(x * 0.1, 2.0)));
+}
 `
 
 const SCENE_FRAG = `${COMMON}
-uniform vec2 low;
 layout(location = 0) out vec4 oA;
 layout(location = 1) out vec4 oD;
 
@@ -46,11 +68,6 @@ const float M_WATER = 5.0;
 void put(vec3 alb, float mat, float depth, vec2 n) {
   oA = vec4(alb, 1.0);
   oD = vec4(mat / 8.0, depth, n * 0.5 + 0.5);
-}
-
-vec3 pal(vec3 a, vec3 b, vec3 c, vec3 d, float v, float dith) {
-  float s = clamp(v, 0.0, 0.999) * 4.0 + (dith - 0.5) * 0.9;
-  return s < 1.0 ? a : (s < 2.0 ? b : (s < 3.0 ? c : d));
 }
 
 void mountain(vec2 q, ivec2 tx, float seed, float base, float amp, float freq, vec3 a, vec3 b, vec3 c, vec3 d, float depth, float snow) {
@@ -68,12 +85,6 @@ void mountain(vec2 q, ivec2 tx, float seed, float base, float amp, float freq, v
   } else {
     put(pal(a, b, c, d, v, dith), M_ROCK, depth, n);
   }
-}
-
-float landAt(float x) {
-  float hl = 34.0 * exp(-pow(x / (0.3 * low.x), 2.0));
-  float hr = 43.0 * exp(-pow((low.x - x) / (0.26 * low.x), 2.0));
-  return floor(max(hl, hr) + 2.0 * vnoise(vec2(x * 0.1, 2.0)));
 }
 
 void main() {
@@ -99,21 +110,40 @@ void main() {
     put(pal(vec3(0.04, 0.09, 0.06), vec3(0.06, 0.13, 0.08), vec3(0.09, 0.18, 0.10), vec3(0.14, 0.24, 0.12), v, dith), M_LAND, 1.0, vec2(0.0, 1.0));
   }
 
+}`
+
+const PINE_FRAG = `${COMMON}
+uniform sampler2D uAlb;
+uniform sampler2D uDat;
+uniform float t;
+layout(location = 0) out vec4 oA;
+layout(location = 1) out vec4 oD;
+
+void main() {
+  ivec2 tx = ivec2(gl_FragCoord.xy);
+  oA = texelFetch(uAlb, tx, 0);
+  oD = texelFetch(uDat, tx, 0);
+  float fx = float(tx.x);
+  float dith = bayer(tx);
   for (int i = 0; i < 12; i++) {
     float fi = float(i);
     float cluster = i < 6 ? 0.02 + 0.055 * fi : 0.8 + 0.04 * (fi - 6.0);
     float x0 = floor(low.x * (cluster + 0.03 * hash(vec2(fi, 1.0))));
     float ht = 26.0 + floor(hash(vec2(fi, 2.0)) * 20.0);
-    float dy = float(tx.y) - (landAt(x0) - 2.0);
+    float foot = landAt(x0) - 2.0;
+    float dy = float(tx.y) - foot;
     if (dy >= 0.0 && dy < ht) {
+      float w = windAt(vec2(x0 / low.x, 1.0 - (foot + ht * 0.5) / LH));
+      float sway = clamp(w, -1.6, 1.6) * 4.5 + sin(t * (1.7 + hash(vec2(fi, 4.0))) + fi * 2.1) * min(abs(w), 1.0) * 0.9;
       float r = ht - 1.0 - dy;
       float hw = floor(1.0 + r * 0.28 + (mod(r, 5.0) < 2.0 ? 1.0 : 0.0));
       if (dy < 3.0) hw = min(hw, 1.0);
-      float dx = fx - x0;
+      float dx = fx - x0 - floor(sway * pow(dy / ht, 1.7) + 0.5);
       if (abs(dx) <= hw) {
         float side = dx < 0.0 ? 1.0 : 0.0;
         float v = 0.25 + 0.35 * side + 0.3 * vnoise(vec2(fx * 0.5, float(tx.y) * 0.4));
-        put(pal(vec3(0.02, 0.07, 0.05), vec3(0.04, 0.11, 0.07), vec3(0.06, 0.16, 0.10), vec3(0.10, 0.22, 0.13), v, dith), M_PINE, 1.0, vec2(dx < 0.0 ? -0.7 : 0.7, 0.7));
+        oA = vec4(pal(vec3(0.02, 0.07, 0.05), vec3(0.04, 0.11, 0.07), vec3(0.06, 0.16, 0.10), vec3(0.10, 0.22, 0.13), v, dith), 1.0);
+        oD = vec4(3.0 / 8.0, 1.0, vec2(dx < 0.0 ? -0.7 : 0.7, 0.7) * 0.5 + 0.5);
       }
     }
   }
@@ -125,8 +155,8 @@ out vec4 o;
 uniform sampler2D uAlb;
 uniform sampler2D uDat;
 uniform vec2 res;
-uniform vec2 low;
 uniform float t;
+uniform float cloud;
 uniform vec3 sun;
 uniform vec3 moon;
 uniform float night;
@@ -165,7 +195,7 @@ vec3 skyPix(ivec2 tx) {
   float star = step(0.9935, hash(vec2(tx))) * (0.6 + 0.4 * sin(t * 2.0 + hash(vec2(tx) + 3.0) * 40.0));
   col += vec3(star) * pow(night, 2.0) * smoothstep(HZ + 0.02, 0.6, q.y);
 
-  vec2 cp = vec2(q.x * ASP * 3.4 + t * 0.006, q.y * 9.0);
+  vec2 cp = vec2(q.x * ASP * 3.4 - cloud, q.y * 9.0);
   float band = smoothstep(0.5, 0.6, q.y) * (1.0 - smoothstep(0.82, 0.98, q.y));
   float th = 0.62 + (1.0 - band) * 0.4;
   float cl = fbm(cp);
@@ -201,7 +231,7 @@ vec3 skySmooth(vec2 q) {
   float star = step(0.994, r) * smoothstep(0.35, 0.0, length(g)) * (0.6 + 0.4 * sin(t * 2.0 + r * 4000.0));
   col += vec3(star) * pow(night, 2.0) * smoothstep(HZ + 0.02, 0.6, q.y);
 
-  vec2 cp = vec2(q.x * ASP * 3.4 + t * 0.006, q.y * 9.0);
+  vec2 cp = vec2(q.x * ASP * 3.4 - cloud, q.y * 9.0);
   float band = smoothstep(0.5, 0.6, q.y) * (1.0 - smoothstep(0.82, 0.98, q.y));
   float cl = fbm(cp);
   float dens = smoothstep(0.5, 0.8, cl) * band;
@@ -239,27 +269,40 @@ vec3 litAt(ivec2 tx, vec2 q, bool hq) {
   return mix(c, HZC, clamp(mist, 0.0, 1.0));
 }
 
-vec3 glitter(vec3 b, vec3 col, ivec2 tx, float d, float k, float seed) {
+vec3 glitter(vec3 b, vec3 col, ivec2 tx, float d, float k, float seed, float paw) {
   float bx = bodyTexel(b).x;
-  float w = 2.0 + 24.0 * k;
+  float w = 2.0 + 24.0 * k + 10.0 * paw;
   float path = exp(-pow((float(tx.x) - bx) / w, 2.0)) * (1.0 - 0.4 * k);
-  float flick = hash(vec2(tx) + floor(t * 3.0 + hash(vec2(tx.y, seed)) * 6.0) * 7.0 + seed);
-  float spark = step(1.0 - path * 0.45 * b.z, flick);
+  float flick = hash(vec2(tx) + floor(t * (3.0 + 5.0 * paw) + hash(vec2(tx.y, seed)) * 6.0) * 7.0 + seed);
+  float spark = step(1.0 - path * (0.45 + 0.35 * paw) * b.z, flick);
   return col * spark * 1.5;
+}
+
+float catsPaw(vec2 s, float wl, float k) {
+  float blot = vnoise(vec2(s.x * ASP * 26.0 - wl * t * 1.4, (HZ - s.y) * 90.0 / (0.25 + k)));
+  return smoothstep(0.12, 0.8, abs(wl)) * (0.45 + 0.55 * blot);
+}
+
+vec3 ruffle(vec3 col, vec3 deep, float paw, float k) {
+  return mix(col, deep + vec3(0.04, 0.07, 0.1) * (AMB + SUNL * 0.4), 0.5 * paw * (1.0 - 0.4 * k));
 }
 
 vec3 water(ivec2 tx) {
   float d = float(HZT - 1 - tx.y);
   float k = d / float(HZT);
-  float wob = sin(d * 0.7 + t * 1.1) * (0.4 + 2.6 * k) + (vnoise(vec2(d * 0.4, t * 0.3)) - 0.5) * 6.0 * k;
+  vec2 sp = (vec2(tx) + 0.5) / low;
+  float wl = windAt(vec2(sp.x, 1.0 - sp.y));
+  float paw = catsPaw(sp, wl, k);
+  float wob = (sin(d * 0.7 + t * 1.1) * (0.4 + 2.6 * k) + (vnoise(vec2(d * 0.4, t * 0.3)) - 0.5) * 6.0 * k) * (1.0 + 1.8 * paw);
   ivec2 m = ivec2(clamp(tx.x + int(floor(wob + 0.5)), 0, int(low.x) - 1), min(2 * HZT - 1 - tx.y, int(LH) - 1));
   vec3 refl = litAt(m, (vec2(m) + 0.5) / low, hqSky > 0.5);
   vec3 deep = mix(vec3(0.05, 0.2, 0.26), vec3(0.02, 0.09, 0.14), k) * (AMB * 1.3 + 0.05);
   vec3 col = mix(deep, refl * 0.95, mix(0.9, 0.4, pow(k, 0.6)));
-  float dash = step(0.8, vnoise(vec2(float(tx.x) * 0.09 + t * 0.25 * (1.0 + k), d * 1.3)));
+  col = ruffle(col, deep, paw, k);
+  float dash = step(0.8 - 0.22 * paw, vnoise(vec2(float(tx.x) * 0.09 + t * 0.25 * (1.0 + k) - wl * t * 0.6, d * 1.3)));
   col += dash * (SUNL * 0.12 + AMB * 0.12) * (0.3 + k);
-  col += glitter(sun, SUNC, tx, d, k, 0.0);
-  col += glitter(moon, vec3(0.7, 0.8, 1.0), tx, d, k, 11.0) * 1.2;
+  col += glitter(sun, SUNC, tx, d, k, 0.0, paw);
+  col += glitter(moon, vec3(0.7, 0.8, 1.0), tx, d, k, 11.0, paw) * 1.2;
   if (d < 1.0) col = mix(col, HZC, 0.35);
   return col;
 }
@@ -275,12 +318,14 @@ vec3 glitterHQ(vec3 b, vec3 col, vec2 q, float k, float seed) {
 vec3 waterHQ(vec2 q) {
   float d = HZ - q.y;
   float k = d / HZ;
-  float rx = (vnoise(vec2(q.x * ASP * 10.0, q.y * 140.0 + t * 0.35)) - 0.5) * 0.02 * (0.3 + k);
-  float ry = (vnoise(vec2(q.x * ASP * 40.0 + 5.0, q.y * 60.0 - t * 0.25)) - 0.5) * 0.012 * k;
+  float wl = windAt(vec2(q.x, 1.0 - q.y));
+  float paw = catsPaw(q, wl, k);
+  float rx = (vnoise(vec2(q.x * ASP * 10.0 - wl * t * 0.8, q.y * 140.0 + t * 0.35)) - 0.5) * 0.02 * (0.3 + k) * (1.0 + 2.2 * paw);
+  float ry = (vnoise(vec2(q.x * ASP * 40.0 + 5.0, q.y * 60.0 - t * 0.25)) - 0.5) * 0.012 * k * (1.0 + 2.0 * paw);
   vec2 mq = clamp(vec2(q.x + rx, HZ + d + ry), 0.0, 0.999);
   vec3 refl = litAt(ivec2(mq * low), mq, hqSky > 0.5);
   vec3 deep = mix(vec3(0.05, 0.2, 0.26), vec3(0.02, 0.09, 0.14), k) * (AMB * 1.3 + 0.05);
-  vec3 col = mix(deep, refl * 0.95, mix(0.9, 0.4, pow(k, 0.6)));
+  vec3 col = ruffle(mix(deep, refl * 0.95, mix(0.9, 0.4, pow(k, 0.6))), deep, paw, k);
   col += glitterHQ(sun, SUNC, q, k, 0.0);
   col += glitterHQ(moon, vec3(0.7, 0.8, 1.0), q, k, 11.0) * 1.2;
   col += exp(-d * 400.0) * 0.12 * (AMB + SUNL * 0.5);
@@ -338,10 +383,12 @@ void main() {
 export class LakeRenderer {
   private gl: WebGL2RenderingContext
   private scene: ReturnType<typeof compile>
+  private pines: ReturnType<typeof compile>
   private light: ReturnType<typeof compile>
   private textures: WebGLTexture[] = []
-  private fbo: WebGLFramebuffer | null = null
+  private fbos: WebGLFramebuffer[] = []
   private lowW = 0
+  private stillPines = false
   private raf = 0
   private timer = 0
   private last = 0
@@ -359,6 +406,7 @@ export class LakeRenderer {
     if (!gl) throw new Error('webgl2 unavailable')
     this.gl = gl
     this.scene = compile(gl, SCENE_FRAG)
+    this.pines = compile(gl, PINE_FRAG)
     this.light = compile(gl, LIGHT_FRAG)
     this.size = cssSize(canvas, () => {
       if (!this.animate) this.draw(performance.now())
@@ -384,22 +432,28 @@ export class LakeRenderer {
     const lowW = Math.max(64, Math.round((LOW_H * this.size.w) / Math.max(1, this.size.h)))
     if (lowW === this.lowW) return
     this.lowW = lowW
+    this.stillPines = false
     this.textures.forEach((t) => gl.deleteTexture(t))
-    if (this.fbo) gl.deleteFramebuffer(this.fbo)
-    this.fbo = gl.createFramebuffer()
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo)
-    this.textures = [0, 1].map((i) => {
-      const tex = gl.createTexture()!
-      gl.bindTexture(gl.TEXTURE_2D, tex)
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, lowW, LOW_H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + i, gl.TEXTURE_2D, tex, 0)
-      return tex
+    this.fbos.forEach((f) => gl.deleteFramebuffer(f))
+    this.textures = []
+    this.fbos = [0, 1].map(() => {
+      const fbo = gl.createFramebuffer()!
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo)
+      for (const i of [0, 1]) {
+        const tex = gl.createTexture()!
+        gl.bindTexture(gl.TEXTURE_2D, tex)
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, lowW, LOW_H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + i, gl.TEXTURE_2D, tex, 0)
+        this.textures.push(tex)
+      }
+      gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1])
+      return fbo
     })
-    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1])
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbos[0])
     gl.viewport(0, 0, lowW, LOW_H)
     gl.useProgram(this.scene.prog)
     gl.uniform2f(this.scene('low'), lowW, LOW_H)
@@ -407,22 +461,52 @@ export class LakeRenderer {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
   }
 
+  private bind(a: number, d: number) {
+    const { gl } = this
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_2D, this.textures[a])
+    gl.activeTexture(gl.TEXTURE1)
+    gl.bindTexture(gl.TEXTURE_2D, this.textures[d])
+  }
+
+  private growPines(t: number) {
+    const wind = windField()
+    if (!wind.on && this.stillPines) return
+    this.stillPines = !wind.on
+    const { gl, pines: u } = this
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbos[1])
+    gl.viewport(0, 0, this.lowW, LOW_H)
+    gl.useProgram(u.prog)
+    this.bind(0, 1)
+    gl.uniform1i(u('uAlb'), 0)
+    gl.uniform1i(u('uDat'), 1)
+    gl.uniform2f(u('low'), this.lowW, LOW_H)
+    gl.uniform1f(u('t'), t)
+    gl.uniform4fv(u('gusts'), wind.gusts)
+    gl.uniform1f(u('wBase'), wind.base)
+    gl.drawArrays(gl.TRIANGLES, 0, 3)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+  }
+
   draw(now: number) {
     this.resize()
     this.buildScene()
+    const t = this.animate ? (now - this.start) / 1000 : 5
+    this.growPines(t)
     const { gl, light: u } = this
+    const wind = windField()
     const sky = skyAt(new Date(), useShaders.getState().hourOverride)
     gl.viewport(0, 0, this.canvas.width, this.canvas.height)
     gl.useProgram(u.prog)
-    gl.activeTexture(gl.TEXTURE0)
-    gl.bindTexture(gl.TEXTURE_2D, this.textures[0])
-    gl.activeTexture(gl.TEXTURE1)
-    gl.bindTexture(gl.TEXTURE_2D, this.textures[1])
+    this.bind(2, 3)
     gl.uniform1i(u('uAlb'), 0)
     gl.uniform1i(u('uDat'), 1)
     gl.uniform2f(u('res'), this.canvas.width, this.canvas.height)
     gl.uniform2f(u('low'), this.lowW, LOW_H)
-    gl.uniform1f(u('t'), this.animate ? (now - this.start) / 1000 : 5)
+    gl.uniform1f(u('t'), t)
+    gl.uniform1f(u('cloud'), wind.on ? wind.cloud : -t * 0.006)
+    gl.uniform4fv(u('gusts'), wind.gusts)
+    gl.uniform1f(u('wBase'), wind.base)
     gl.uniform3f(u('sun'), sky.sun.x, sky.sun.elev, sky.sun.strength)
     gl.uniform3f(u('moon'), sky.moon.x, sky.moon.elev, sky.moon.strength)
     gl.uniform1f(u('night'), sky.night)

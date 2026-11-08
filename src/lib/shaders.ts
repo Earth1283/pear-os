@@ -18,6 +18,7 @@ export interface ShaderSettings {
   hourOverride: number | null
   hqWater: boolean
   hqSky: boolean
+  wind: boolean
 }
 
 export const SHADER_DEFAULTS: ShaderSettings = {
@@ -29,6 +30,7 @@ export const SHADER_DEFAULTS: ShaderSettings = {
   hourOverride: null,
   hqWater: false,
   hqSky: false,
+  wind: true,
 }
 
 const KEY = 'pearos.shaders.v1'
@@ -46,6 +48,7 @@ function load(): ShaderSettings {
         hourOverride: typeof raw.hourOverride === 'number' ? Math.min(24, Math.max(0, raw.hourOverride)) : null,
         hqWater: raw.hqWater === true,
         hqSky: raw.hqSky === true,
+        wind: raw.wind !== false,
       }
     }
   } catch {
@@ -72,9 +75,9 @@ export const useShaders = create<ShaderState>((set, get) => ({
 }))
 
 function save(s: ShaderState) {
-  const { enabled, preset, intensity, targets, lighting, hourOverride, hqWater, hqSky } = s
+  const { enabled, preset, intensity, targets, lighting, hourOverride, hqWater, hqSky, wind } = s
   try {
-    localStorage.setItem(KEY, JSON.stringify({ enabled, preset, intensity, targets, lighting, hourOverride, hqWater, hqSky }))
+    localStorage.setItem(KEY, JSON.stringify({ enabled, preset, intensity, targets, lighting, hourOverride, hqWater, hqSky, wind }))
   } catch {
     return
   }

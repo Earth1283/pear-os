@@ -3,6 +3,8 @@ import { useA11y } from '../lib/a11y'
 import { useOS } from '../store'
 import { renderMandelbrot, DEFAULT_VIEW, kernelReady } from '../kernel'
 import { LakeRenderer } from '../lib/lake'
+import { useShaders } from '../lib/shaders'
+import { startWind } from '../lib/wind'
 import { GPU_MIN_SCALE, MandelbrotGL, WaveRenderer, gpuInfo, type WavePalette } from '../lib/gpu'
 
 const LIGHT: WavePalette = {
@@ -108,11 +110,18 @@ function LiveWaves({ dark, blur }: { dark: boolean; blur: boolean }) {
 function LakeWallpaper({ blur }: { blur: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null)
   const reduce = useA11y((s) => s.reduceMotion)
+  const motion = useOS((s) => s.liveWallpaper)
+  const wind = useShaders((s) => s.wind)
+  const live = motion && !reduce
   useEffect(() => {
-    const r = new LakeRenderer(ref.current!, blur ? 0.06 : 0.75, !reduce)
+    const r = new LakeRenderer(ref.current!, blur ? 0.06 : 0.75, live)
     r.loop()
     return () => r.dispose()
-  }, [blur, reduce])
+  }, [blur, live])
+  useEffect(() => {
+    if (blur || !live || !wind) return
+    return startWind()
+  }, [blur, live, wind])
   return <canvas ref={ref} className="wallpaper-canvas gpu" />
 }
 

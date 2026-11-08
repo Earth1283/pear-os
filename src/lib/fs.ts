@@ -172,6 +172,26 @@ export function moveToTrash(path: string): boolean {
   return remove(abs)
 }
 
+export function canRename(path: string) {
+  const abs = normalise(path)
+  return abs.startsWith(HOME + '/') && abs !== HOME + '/.Trash' && !!resolve(abs)
+}
+
+export function rename(path: string, to: string): { path: string } | { error: string } | null {
+  const abs = normalise(path)
+  const { dir, name } = parentOf(abs)
+  const parent = resolve(dir)
+  const next = to.trim()
+  if (!next || next === name || !parent || parent.type !== 'dir' || !parent.children[name] || !canRename(abs)) return null
+  if (next.includes('/')) return { error: 'Names can’t contain “/”. The slash is reserved for paths, and for fan fiction.' }
+  if (next === '.' || next === '..') return { error: `“${next}” is reserved by the system. It was here first.` }
+  if (parent.children[next]) return { error: `The name “${next}” is already taken. Please choose a different name.` }
+  const children = Object.fromEntries(Object.entries(parent.children).map(([k, v]) => (k === name ? [next, v] : [k, v])))
+  parent.children = children
+  parent.modified = Date.now()
+  return { path: `${dir === '/' ? '' : dir}/${next}` }
+}
+
 export function listDir(node: DirNode, showHidden = false) {
   return Object.entries(node.children)
     .filter(([name]) => showHidden || !name.startsWith('.'))

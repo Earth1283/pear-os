@@ -14,7 +14,8 @@ import { isTextField, menu, openContextMenu } from '../lib/menu'
 import { desktopMenu, fileMenu, selectionMenu, textMenu, windowChromeMenu, windowFallbackMenu } from '../lib/menus'
 import { TAG_COLORS } from './ContextMenu'
 import { DiskIcon, FileIcon, FolderIcon } from './icons'
-import { HOME, listDir, resolve } from '../lib/fs'
+import { HOME, canRename, listDir, rename, resolve } from '../lib/fs'
+import { RenameField, useEnterToRename } from './RenameField'
 import { openPath } from '../apps/open'
 import { preloadApps } from '../apps/registry'
 import { shameToast, useScreenTime } from '../lib/screenTime'
@@ -83,6 +84,18 @@ function useShortcuts() {
 function DesktopIcons() {
   useOS((s) => s.fsVersion)
   const [sel, setSel] = useState<string | null>(null)
+  const [renaming, setRenaming] = useState<string | null>(null)
+  const active = useOS((s) => s.focused === null)
+  const startRename = (p: string) => canRename(p) && setRenaming(p)
+  useEnterToRename(active && renaming === null, sel, startRename)
+  const commit = (from: string, to: string) => {
+    setRenaming(null)
+    const res = rename(from, to)
+    if (!res) return
+    if ('error' in res) return os().notify({ app: 'finder', title: 'Finder', body: res.error })
+    setSel(res.path)
+    os().bumpFs()
+  }
   const desk = resolve(HOME + '/Desktop')
   const files = desk && desk.type === 'dir' ? listDir(desk) : []
   const items = [{ name: 'Pear HD', path: '/', node: null as null | ReturnType<typeof resolve> }, ...files.map(([name, node]) => ({ name, path: `${HOME}/Desktop/${name}`, node }))]
@@ -94,23 +107,29 @@ function DesktopIcons() {
           <button
             key={it.path}
             className={`desk-icon ${sel === it.path ? 'sel' : ''}`}
+            data-heavy={it.node === null ? '' : undefined}
             onPointerDown={(e) => {
               e.stopPropagation()
+              os().focus(null)
               setSel(it.path)
             }}
             onDoubleClick={() => openPath(it.path)}
             onContextMenu={(e) => {
               setSel(it.path)
-              menu(fileMenu(it.path))(e)
+              menu(fileMenu(it.path, { rename: () => startRename(it.path) }))(e)
             }}
           >
             {it.node === null ? <DiskIcon size={60} /> : it.node?.type === 'dir' ? <FolderIcon size={60} /> : <FileIcon size={60} kind={it.node!.kind} ext={ext} />}
-            <span>
-              {it.name}
-              {(it.node?.tags ?? []).map((tg) => (
-                <i key={tg} className="tag-dot" style={{ background: TAG_COLORS[tg] }} />
-              ))}
-            </span>
+            {renaming === it.path ? (
+              <RenameField name={it.name} dir={it.node?.type === 'dir'} onDone={(to) => commit(it.path, to)} onCancel={() => setRenaming(null)} />
+            ) : (
+              <span>
+                {it.name}
+                {(it.node?.tags ?? []).map((tg) => (
+                  <i key={tg} className="tag-dot" style={{ background: TAG_COLORS[tg] }} />
+                ))}
+              </span>
+            )}
           </button>
         )
       })}

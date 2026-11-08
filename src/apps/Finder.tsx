@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { AppWindow, ChevronLeft, ChevronRight, Clock, Cloud, Download, FileText, HardDrive, LayoutGrid, List, Monitor, Radio, Search, Trash2, House } from 'lucide-react'
 import { useOS, os, type Win } from '../store'
-import { HOME, formatBytes, listDir, normalise, resolve, sizeOf } from '../lib/fs'
+import { HOME, canRename, formatBytes, listDir, normalise, rename, resolve, sizeOf } from '../lib/fs'
+import { RenameField, useEnterToRename } from '../components/RenameField'
 import { FileIcon, FolderIcon, AppIcon } from '../components/icons'
 import { TAG_COLORS } from '../components/ContextMenu'
 import { menu } from '../lib/menu'
@@ -76,6 +77,7 @@ export function Finder({ win }: { win: Win }) {
   const [idx, setIdx] = useState(0)
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const [sel, setSel] = useState<string | null>(null)
+  const [renaming, setRenaming] = useState<string | null>(null)
   const [q, setQ] = useState('')
   const [sort, setSort] = useState('')
   const path = history[idx]
@@ -97,6 +99,21 @@ export function Finder({ win }: { win: Win }) {
       ]
     : SIDEBAR
   const setTitle = useOS((s) => s.setTitle)
+  const focused = useOS((s) => s.focused === win.id)
+  const startRename = (p: string) => canRename(p) && setRenaming(p)
+  useEnterToRename(focused && !isDrive && renaming === null, sel, startRename)
+  const commit = (from: string, to: string) => {
+    setRenaming(null)
+    const res = rename(from, to)
+    if (!res) return
+    if ('error' in res) return os().notify({ app: 'finder', title: 'Finder', body: res.error })
+    setSel(res.path)
+    os().bumpFs()
+  }
+  const nameOf = (p: string, node: NonNullable<ReturnType<typeof resolve>>) => {
+    const name = p.split('/').pop()!
+    return renaming === p ? <RenameField name={name} dir={node.type === 'dir'} onDone={(to) => commit(p, to)} onCancel={() => setRenaming(null)} /> : name
+  }
 
   useEffect(() => {
     const p = win.props.path as string | undefined
@@ -112,6 +129,7 @@ export function Finder({ win }: { win: Win }) {
     setHistory([...history.slice(0, idx + 1), next])
     setIdx(idx + 1)
     setSel(null)
+    setRenaming(null)
   }
 
   let entries: [string, ReturnType<typeof resolve>][] = []
@@ -200,7 +218,7 @@ export function Finder({ win }: { win: Win }) {
         </div>
         <div className="finder-content" onContextMenu={special || isDrive || path === 'recents' ? undefined : menu(() => folderMenu(path, { view, setView, sort, setSort }))}>
           {isDrive ? (
-            <DriveView rel={driveRel} view={view} setView={setView} q={q} onOpenDir={(r) => go('drive:' + r)} />
+            <DriveView rel={driveRel} view={view} setView={setView} q={q} active={focused} onOpenDir={(r) => go('drive:' + r)} />
           ) : special ? (
             <Special path={path} />
           ) : entries.length === 0 ? (
@@ -218,14 +236,18 @@ export function Finder({ win }: { win: Win }) {
                   onDoubleClick={() => (node!.type === 'dir' ? go(p) : openPath(p))}
                   onContextMenu={(e) => {
                     setSel(p)
-                    menu(fileMenu(p))(e)
+                    menu(fileMenu(p, { rename: () => startRename(p) }))(e)
                   }}
                 >
                   {icon(p, node!, 56)}
-                  <span>
-                    {p.split('/').pop()}
-                    {tagDots(node!)}
-                  </span>
+                  {renaming === p ? (
+                    nameOf(p, node!)
+                  ) : (
+                    <span>
+                      {p.split('/').pop()}
+                      {tagDots(node!)}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -251,14 +273,14 @@ export function Finder({ win }: { win: Win }) {
                     onDoubleClick={() => (node!.type === 'dir' ? go(p) : openPath(p))}
                     onContextMenu={(e) => {
                       setSel(p)
-                      menu(fileMenu(p))(e)
+                      menu(fileMenu(p, { rename: () => startRename(p) }))(e)
                     }}
                   >
                     <td>
                       <span className="lv-name">
                         {icon(p, node!, 18)}
-                        {p.split('/').pop()}
-                        {tagDots(node!)}
+                        {nameOf(p, node!)}
+                        {renaming !== p && tagDots(node!)}
                       </span>
                     </td>
                     <td>{new Date(node!.modified).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>

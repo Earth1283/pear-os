@@ -676,6 +676,21 @@ textarea {
 .desk-icon > svg {
   padding: 3px;
   border-radius: 6px;
+  rotate: var(--wr, none);
+  transform-origin: 50% 90%;
+}
+.desk-icon[style*='--flap'] .fold-front {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transform: skewX(calc(var(--lean) * -9deg)) scaleY(calc(1 - var(--flap) * 0.14));
+}
+.desk-icon[style*='--flap'] .fold-paper {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transform: translateY(calc(var(--flap) * -5px)) rotate(calc(var(--lean) * 5deg));
+}
+.desk-icon[style*='--flap'] .fold-paper.back {
+  transform: translateY(calc(var(--flap) * -8px)) rotate(calc(var(--lean) * -4deg));
 }
 .desk-icon span {
   max-width: 100%;

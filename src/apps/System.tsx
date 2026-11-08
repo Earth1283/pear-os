@@ -479,6 +479,7 @@ const SHADER_TARGETS: { id: ShaderTarget; label: string; sub: string }[] = [
 
 function LakeOptions() {
   const s = useShaders()
+  const live = useOS((o) => o.liveWallpaper)
   return (
     <>
       <Row label="High Quality Water" sub="Smooth ripples and a continuous reflection, instead of rows that snap to the pixel grid">
@@ -486,6 +487,9 @@ function LakeOptions() {
       </Row>
       <Row label="High Quality Sky" sub="Soft clouds, a round sun and moon and no dithering, instead of pixel-art banding">
         <Toggle on={s.hqSky} onChange={(v) => s.set('hqSky', v)} />
+      </Row>
+      <Row label="Wind" sub={live ? 'Gusts roll across the lake, bend the pines and ruffle your folders, stickies, widgets and windows. Nothing blows away. Probably.' : 'Becalmed until Dynamic wallpaper is on.'}>
+        <Toggle on={s.wind} onChange={(v) => s.set('wind', v)} />
       </Row>
     </>
   )
