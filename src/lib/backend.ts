@@ -96,7 +96,10 @@ export async function login(password: string) {
   refreshSys()
 }
 
+export const beforeLogout: (() => Promise<void>)[] = []
+
 export async function logout() {
+  await Promise.allSettled(beforeLogout.map((f) => f()))
   await post('/api/logout', {}).catch(() => {})
   useBackend.setState({ authed: false, proxyToken: null })
 }

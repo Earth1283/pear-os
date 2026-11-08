@@ -35,6 +35,7 @@ One-time setup: Settings → Pages → Source: **GitHub Actions**.
 - **Login:** the lock screen checks a real password (argon2). Sessions use an HttpOnly, SameSite=Strict cookie. Login is rate-limited, and cross-origin requests are refused.
 - **PearDrive:** a real folder in Finder. Upload by dragging files in, download, rename, trash, and edit text files in TextEdit. Paths can't escape the folder, including via `..` or symlinks.
 - **Music:** plays the audio in PearDrive (`/Music` or anywhere else). Titles, artists, albums and cover art come from the files' ID3 tags. Dropping files onto the Music window uploads them to `/Music`.
+- **Notes:** saved to `PearDrive/.pearos/notes.json` (hidden in Finder) and loaded when you log in, so they follow you between browsers. Without `pearosd` they're kept in your browser's localStorage instead.
 - **Terminal:** a real shell on the host (pty plus xterm.js).
 - **Activity Monitor:** the host's real processes. You can quit your own.
 - **Windows 98 download:** Boot Camp can fetch the Windows 98 SE disc from archive.org through `pearosd` (browsers can't do it directly, because archive.org sends no CORS headers). The endpoint only talks to `https://*.archive.org/download/…`, and keeps a copy in `PearDrive/Downloads`, so only the first install on a server waits for archive.org (`--no-download-cache` to turn that off). See *Windows 98* below.

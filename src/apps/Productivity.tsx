@@ -171,7 +171,7 @@ export function Notes() {
   const notes = useOS((s) => s.notes)
   const [active, setActive] = useState<string | null>(notes[0]?.id ?? null)
   const [q, setQ] = useState('')
-  const note = notes.find((n) => n.id === active) ?? null
+  const note = notes.find((n) => n.id === active) ?? notes[0] ?? null
   const list = notes.filter((n) => n.text.toLowerCase().includes(q.toLowerCase()))
   const hints = useMemo(() => (note ? annotate(note.text) : []), [note?.text])
 

@@ -232,6 +232,33 @@ function freeSpot(existing: WidgetInst[], size: WidgetSize): { x: number; y: num
   return { x: 18 + (existing.length % 5) * 24, y: MENU_H + 18 + (existing.length % 5) * 24 }
 }
 
+const PREFS_KEY = 'pearos.prefs.v1'
+const WALLPAPERS: Wallpaper[] = ['sequel', 'sequel-dark', 'orchard', 'graphite', 'fractal', 'lake']
+const PREF_KEYS = ['theme', 'wallpaper', 'liveWallpaper', 'fractalWallpaper', 'brightness', 'volume', 'wifi', 'bluetooth', 'dnd', 'dockMagnify', 'dockSize', 'dockAutohide'] as const
+type Prefs = Pick<State, (typeof PREF_KEYS)[number]>
+
+function loadPrefs(): Partial<Prefs> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PREFS_KEY) ?? 'null')
+    if (!raw || typeof raw !== 'object') return {}
+    const out: Partial<Prefs> = {}
+    const num = (v: unknown, lo: number, hi: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : undefined)
+    if (raw.theme === 'light' || raw.theme === 'dark') out.theme = raw.theme
+    const f = raw.fractalWallpaper
+    if (f && [f.cx, f.cy, f.scale, f.iter].every(Number.isFinite) && f.scale > 0 && [0, 1, 2].includes(f.scheme))
+      out.fractalWallpaper = { cx: f.cx, cy: f.cy, scale: f.scale, iter: Math.min(4000, Math.max(1, Math.round(f.iter))), scheme: f.scheme }
+    if (WALLPAPERS.includes(raw.wallpaper) && (raw.wallpaper !== 'fractal' || out.fractalWallpaper)) out.wallpaper = raw.wallpaper
+    out.brightness = num(raw.brightness, 0.25, 1)
+    out.volume = num(raw.volume, 0, 1)
+    out.dockSize = num(raw.dockSize, 36, 72)
+    for (const k of ['liveWallpaper', 'wifi', 'bluetooth', 'dnd', 'dockMagnify', 'dockAutohide'] as const) if (typeof raw[k] === 'boolean') out[k] = raw[k]
+    for (const k of Object.keys(out) as (keyof Prefs)[]) if (out[k] === undefined) delete out[k]
+    return out
+  } catch {
+    return {}
+  }
+}
+
 const initialNotes: Note[] = [
   {
     id: 'math',
@@ -270,6 +297,7 @@ export const useOS = create<State>((set, get) => ({
   contextMenu: null,
   dockAutohide: false,
   liveWallpaper: true,
+  ...loadPrefs(),
 
   setPhase: (phase) => set({ phase, overlay: CLOSED }),
   panic: (reason) => set({ phase: 'panic', panicReason: reason, windows: [], focused: null, toasts: [] }),
@@ -431,3 +459,12 @@ export const useOS = create<State>((set, get) => ({
 }))
 
 export const os = () => useOS.getState()
+
+useOS.subscribe((s, prev) => {
+  if (PREF_KEYS.every((k) => s[k] === prev[k])) return
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify(Object.fromEntries(PREF_KEYS.map((k) => [k, s[k]]))))
+  } catch {
+    return
+  }
+})
