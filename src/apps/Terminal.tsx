@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { os, useOS, type Win } from '../store'
 import { HOME, listDir, mkdir, normalise, resolve, writeFile, moveToTrash, formatBytes, sizeOf } from '../lib/fs'
 import { calc, formatNumber, kernelVersion } from '../kernel'
@@ -7,7 +7,8 @@ import type { AppId } from './ids'
 import { menu } from '../lib/menu'
 import { gpuInfo } from '../lib/gpu'
 import { useBackend } from '../lib/backend'
-import { RealTerminal } from './RealTerminal'
+
+const RealTerminal = lazy(() => import('./RealTerminal').then((m) => ({ default: m.RealTerminal })))
 
 type Line = { text: string; cls?: string }
 
@@ -401,5 +402,11 @@ function FakeTerminal({ win }: { win: Win }) {
 
 export function Terminal({ win }: { win: Win }) {
   const authed = useBackend((s) => s.authed)
-  return authed && !win.props.fake ? <RealTerminal win={win} /> : <FakeTerminal win={win} />
+  return authed && !win.props.fake ? (
+    <Suspense fallback={null}>
+      <RealTerminal win={win} />
+    </Suspense>
+  ) : (
+    <FakeTerminal win={win} />
+  )
 }

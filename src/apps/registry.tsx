@@ -1,19 +1,68 @@
+import { lazy, type ComponentType } from 'react'
+import { create } from 'zustand'
 import type { AppId } from './ids'
 import type { AppDef } from './types'
-import { registerSpecs } from '../store'
-import { Finder } from './Finder'
-import { Terminal } from './Terminal'
-import { Calculator, Notes, TextEdit } from './Productivity'
-import { Intelligence, Mirroring, Passwords, Safari } from './Sequel'
-import { About, ActivityMonitor, Fractals, Settings } from './System'
-import { Preview, previewMenus } from './Preview'
-import { Music } from './Music'
-import { ChessGame, chessMenus } from './Chess'
-import { BootCamp } from './BootCamp'
-import { PhotoBooth } from './PhotoBooth'
-import { Mail } from './Mail'
-import { DiskUtility } from './DiskUtility'
-import { SoftwareUpdate } from './SoftwareUpdate'
+import { registerSpecs, type Win } from '../store'
+
+export const useAppModules = create<{ loaded: number }>(() => ({ loaded: 0 }))
+
+const loaders: (() => Promise<unknown>)[] = []
+
+function chunk<M>(importer: () => Promise<M>) {
+  let mod: M | undefined
+  let pending: Promise<M> | undefined
+  const get = () =>
+    (pending ??= importer().then((m) => {
+      mod = m
+      useAppModules.setState((s) => ({ loaded: s.loaded + 1 }))
+      return m
+    }))
+  loaders.push(get)
+  return {
+    now: () => mod,
+    part: (k: keyof M) => lazy(() => get().then((m) => ({ default: m[k] as ComponentType<{ win: Win }> }))),
+  }
+}
+
+export function preloadApps() {
+  for (const get of loaders) get().catch(() => undefined)
+}
+
+const finder = chunk(() => import('./Finder'))
+const terminal = chunk(() => import('./Terminal'))
+const productivity = chunk(() => import('./Productivity'))
+const sequel = chunk(() => import('./Sequel'))
+const system = chunk(() => import('./System'))
+const preview = chunk(() => import('./Preview'))
+const music = chunk(() => import('./Music'))
+const chess = chunk(() => import('./Chess'))
+const bootcamp = chunk(() => import('./BootCamp'))
+const photobooth = chunk(() => import('./PhotoBooth'))
+const mail = chunk(() => import('./Mail'))
+const diskutility = chunk(() => import('./DiskUtility'))
+const softwareupdate = chunk(() => import('./SoftwareUpdate'))
+
+const Finder = finder.part('Finder')
+const Terminal = terminal.part('Terminal')
+const Calculator = productivity.part('Calculator')
+const Notes = productivity.part('Notes')
+const TextEdit = productivity.part('TextEdit')
+const Intelligence = sequel.part('Intelligence')
+const Mirroring = sequel.part('Mirroring')
+const Passwords = sequel.part('Passwords')
+const Safari = sequel.part('Safari')
+const About = system.part('About')
+const ActivityMonitor = system.part('ActivityMonitor')
+const Fractals = system.part('Fractals')
+const Settings = system.part('Settings')
+const Preview = preview.part('Preview')
+const Music = music.part('Music')
+const ChessGame = chess.part('ChessGame')
+const BootCamp = bootcamp.part('BootCamp')
+const PhotoBooth = photobooth.part('PhotoBooth')
+const Mail = mail.part('Mail')
+const DiskUtility = diskutility.part('DiskUtility')
+const SoftwareUpdate = softwareupdate.part('SoftwareUpdate')
 
 const Nothing = () => null
 
@@ -31,7 +80,7 @@ export const APPS: Record<AppId, AppDef> = {
     minH: 480,
     chrome: 'overlay',
     get menus() {
-      return chessMenus()
+      return chess.now()?.chessMenus()
     },
   },
   notes: { name: 'Notes', component: Notes, w: 820, h: 540, minW: 520, singleton: true, chrome: 'overlay' },
@@ -53,7 +102,7 @@ export const APPS: Record<AppId, AppDef> = {
     minH: 320,
     chrome: 'overlay',
     get menus() {
-      return previewMenus()
+      return preview.now()?.previewMenus()
     },
   },
   bootcamp: { name: 'Boot Camp Assistant', component: BootCamp, w: 640, h: 470, singleton: true, resizable: false },

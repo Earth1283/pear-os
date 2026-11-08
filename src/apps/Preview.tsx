@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   ALargeSmall,
@@ -245,7 +245,7 @@ function drawAnn(c: CanvasRenderingContext2D, a: Ann) {
   c.restore()
 }
 
-function AnnSvg({ a, hit, hidden }: { a: Ann; hit: number; hidden?: boolean }) {
+const AnnSvg = memo(function AnnSvg({ a, hit, hidden }: { a: Ann; hit: number; hidden?: boolean }) {
   let el: React.ReactNode
   let hitEl: React.ReactNode
   if (a.kind === 'text') {
@@ -294,7 +294,7 @@ function AnnSvg({ a, hit, hidden }: { a: Ann; hit: number; hidden?: boolean }) {
       {hitEl}
     </g>
   )
-}
+})
 
 function flatten(d: Snap) {
   if (!d.anns.length) return d.base

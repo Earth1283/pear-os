@@ -34,6 +34,19 @@ export function gpuInfo(): GpuInfo {
   return cached
 }
 
+export function cssSize(canvas: HTMLCanvasElement, onChange: () => void) {
+  const size = { w: canvas.clientWidth, h: canvas.clientHeight, stop: () => ro.disconnect() }
+  const ro = new ResizeObserver(([e]) => {
+    const { width, height } = e.contentRect
+    if (width === size.w && height === size.h) return
+    size.w = width
+    size.h = height
+    onChange()
+  })
+  ro.observe(canvas)
+  return size
+}
+
 export function release(canvas: HTMLCanvasElement, gl: WebGL2RenderingContext) {
   setTimeout(() => {
     if (!canvas.isConnected) gl.getExtension('WEBGL_lose_context')?.loseContext()
@@ -130,6 +143,7 @@ export class WaveRenderer {
   private last = 0
   private start = performance.now()
   private visible = () => this.loop()
+  private size: ReturnType<typeof cssSize>
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -140,6 +154,9 @@ export class WaveRenderer {
     if (!gl) throw new Error('webgl2 unavailable')
     this.gl = gl
     this.u = compile(gl, WAVES_FRAG)
+    this.size = cssSize(canvas, () => {
+      if (!this.animate) this.draw(performance.now())
+    })
     this.start -= Math.random() * 600_000
     document.addEventListener('visibilitychange', this.visible)
   }
@@ -158,8 +175,8 @@ export class WaveRenderer {
 
   private resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2) * this.scale
-    const w = Math.max(1, Math.round(this.canvas.clientWidth * dpr))
-    const h = Math.max(1, Math.round(this.canvas.clientHeight * dpr))
+    const w = Math.max(1, Math.round(this.size.w * dpr))
+    const h = Math.max(1, Math.round(this.size.h * dpr))
     if (this.canvas.width !== w || this.canvas.height !== h) {
       this.canvas.width = w
       this.canvas.height = h
@@ -189,6 +206,7 @@ export class WaveRenderer {
 
   dispose() {
     cancelAnimationFrame(this.raf)
+    this.size.stop()
     document.removeEventListener('visibilitychange', this.visible)
     release(this.canvas, this.gl)
   }

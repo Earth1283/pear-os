@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useOS, os } from '../store'
 import { APPS, DOCK_APPS } from '../apps/registry'
 import type { AppId } from '../apps/ids'
@@ -31,6 +31,22 @@ export function Dock() {
     leave.current = window.setTimeout(() => setPeek(false), 500)
   }
   const [mouseX, setMouseX] = useState<number | null>(null)
+  const pendingX = useRef<number | null>(null)
+  const frame = useRef(0)
+  const trackX = (x: number | null) => {
+    pendingX.current = x
+    if (x === null) {
+      cancelAnimationFrame(frame.current)
+      frame.current = 0
+      return setMouseX(null)
+    }
+    if (!frame.current)
+      frame.current = requestAnimationFrame(() => {
+        frame.current = 0
+        setMouseX(pendingX.current)
+      })
+  }
+  useEffect(() => () => cancelAnimationFrame(frame.current), [])
   const refs = useRef<Record<string, HTMLButtonElement | null>>({})
   const centers = useRef<Record<string, number>>({})
   const capture = () => {
@@ -82,7 +98,7 @@ export function Dock() {
       onPointerEnter={show}
       onPointerLeave={hide}
     >
-      <div className="dock glass" onPointerEnter={() => mouseX === null && capture()} onPointerMove={(e) => setMouseX(e.clientX)} onPointerLeave={() => setMouseX(null)} style={{ height: size + 16 }}>
+      <div className="dock glass" onPointerEnter={() => mouseX === null && capture()} onPointerMove={(e) => magnify && trackX(e.clientX)} onPointerLeave={() => trackX(null)} style={{ height: size + 16 }}>
         {DOCK_APPS.map(item)}
         {extras.length > 0 && <div className="dock-sep" onContextMenu={menu(dockSeparatorMenu)} />}
         {extras.map(item)}

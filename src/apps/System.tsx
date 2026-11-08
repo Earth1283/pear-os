@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Accessibility, Bell, Bluetooth, Cpu, Hand, Info, LayoutGrid, Lock, Monitor, Moon, Palette, RefreshCw, Search, Sparkles, Wifi, Image, Battery, ZoomIn, ZoomOut, Gauge, Blend } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { useOS, os, type Win, type Wallpaper } from '../store'
 import { kernelTaskCpu, entropy, renderMandelbrot, DEFAULT_VIEW, type FractalView, kernelVersion } from '../kernel'
 import { GPU_MIN_SCALE, MandelbrotGL, gpuInfo } from '../lib/gpu'
@@ -147,7 +148,7 @@ export function ActivityMonitor() {
     ])
 
   const total = Math.min(100, procs.reduce((s, p) => s + p.cpu, 0) / 8)
-  hist.current = [...hist.current.slice(-59), total]
+  const history = useMemo(() => (hist.current = [...hist.current.slice(-59), total]), [procs])
   const selected = sel !== null ? procs.find((p) => p.pid === sel) : null
 
   return (
@@ -216,7 +217,7 @@ export function ActivityMonitor() {
         </dl>
         <div className="am-graph">
           <svg viewBox="0 0 60 40" preserveAspectRatio="none">
-            <path d={'M0 40 ' + hist.current.map((v, i) => `L${i} ${40 - v * 0.4}`).join(' ') + ` L${hist.current.length - 1} 40Z`} fill="#ff453a" opacity=".8" />
+            <path d={'M0 40 ' + history.map((v, i) => `L${i} ${40 - v * 0.4}`).join(' ') + ` L${history.length - 1} 40Z`} fill="#ff453a" opacity=".8" />
           </svg>
           <small>CPU LOAD</small>
         </div>
@@ -763,7 +764,18 @@ function AccessibilityPane() {
 export function Settings({ win }: { win: Win }) {
   const [pane, setPane] = useState<PaneId>((win.props.pane as PaneId) ?? 'appearance')
   const [q, setQ] = useState('')
-  const s = useOS()
+  const s = useOS(
+    useShallow((st) => ({
+      bluetooth: st.bluetooth,
+      brightness: st.brightness,
+      dockMagnify: st.dockMagnify,
+      dockSize: st.dockSize,
+      liveWallpaper: st.liveWallpaper,
+      theme: st.theme,
+      wallpaper: st.wallpaper,
+      wifi: st.wifi,
+    })),
+  )
   const [misc, setMisc] = useState<Record<string, boolean>>({ intel: false, siri: true, notif: true, filevault: true, ff: false })
   useEffect(() => {
     if (win.props.pane) setPane(win.props.pane as PaneId)

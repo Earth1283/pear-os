@@ -15,18 +15,23 @@ export function Frame({ win, children }: { win: W95Win; children: ReactNode }) {
 
   const drag = (e: React.PointerEvent) => {
     if (e.button !== 0 || win.max || (e.target as HTMLElement).closest('button')) return
+    const el = (e.currentTarget as HTMLElement).closest('.w95-win') as HTMLElement
     const sx = e.clientX
     const sy = e.clientY
     const ox = win.x
     const oy = win.y
+    let last: { x: number; y: number } | null = null
     const move = (m: PointerEvent) => {
       const maxX = window.innerWidth - 40
       const maxY = window.innerHeight - 28 - 20
-      setRect(win.id, { x: Math.max(-win.w + 60, Math.min(maxX, ox + m.clientX - sx)), y: Math.max(0, Math.min(maxY, oy + m.clientY - sy)) })
+      last = { x: Math.max(-win.w + 60, Math.min(maxX, ox + m.clientX - sx)), y: Math.max(0, Math.min(maxY, oy + m.clientY - sy)) }
+      el.style.left = `${last.x}px`
+      el.style.top = `${last.y}px`
     }
     const up = () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
+      if (last) setRect(win.id, last)
     }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
@@ -41,6 +46,7 @@ export function Frame({ win, children }: { win: W95Win; children: ReactNode }) {
     const sy = e.clientY
     const minW = spec.minW ?? 160
     const minH = spec.minH ?? 100
+    let last: { x: number; y: number; w: number; h: number } | null = null
     const move = (m: PointerEvent) => {
       const dx = m.clientX - sx
       const dy = m.clientY - sy
@@ -55,11 +61,16 @@ export function Frame({ win, children }: { win: W95Win; children: ReactNode }) {
         h = Math.max(minH, r0.h - dy)
         y = Math.max(0, r0.y + (r0.h - h))
       }
-      setRect(win.id, { x, y, w, h })
+      last = { x, y, w, h }
+      el.style.left = `${x}px`
+      el.style.top = `${y}px`
+      el.style.width = `${w}px`
+      el.style.height = `${h}px`
     }
     const up = () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
+      if (last) setRect(win.id, last)
     }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)

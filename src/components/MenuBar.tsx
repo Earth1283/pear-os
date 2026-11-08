@@ -5,7 +5,7 @@ import { MenuList } from './ContextMenu'
 import type { MenuEntry } from '../lib/menu'
 import { openPath } from '../apps/open'
 import { logout } from '../lib/backend'
-import { APPS } from '../apps/registry'
+import { APPS, useAppModules } from '../apps/registry'
 import type { MenuDef, MenuItem } from '../apps/types'
 import { PearLogo, IntelOrb } from './icons'
 import { useCurrent, usePlayer } from '../lib/player'
@@ -31,8 +31,13 @@ function Battery() {
 function Clock() {
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000)
-    return () => clearInterval(t)
+    let t = 0
+    const tick = () => {
+      setNow(new Date())
+      t = window.setTimeout(tick, 60_000 - (Date.now() % 60_000) + 20)
+    }
+    tick()
+    return () => clearTimeout(t)
   }, [])
   const date = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
   const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
@@ -180,6 +185,7 @@ export function MenuBar() {
   const dnd = useOS((s) => s.dnd)
   const cur = useCurrent()
   const playing = usePlayer((s) => s.playing)
+  useAppModules((s) => s.loaded)
   const { setOverlay } = useOS.getState()
   const app = APPS[focusedApp]
   const menus: { key: string; label: React.ReactNode; items: MenuItem[]; bold?: boolean }[] = [

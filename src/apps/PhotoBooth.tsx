@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Camera, ChevronLeft, ChevronRight, Grid3x3, LayoutGrid, Square } from 'lucide-react'
-import { os, useOS } from '../store'
+import { os, useOS, type Win } from '../store'
 import { compile } from '../lib/gpu'
 import { HOME, addNode, mkdir, moveToTrash, resolve, type FileNode } from '../lib/fs'
 import { blobToDataURL, encode } from '../lib/imaging'
@@ -271,7 +271,7 @@ function shutterSound() {
 }
 
 
-export function PhotoBooth() {
+export function PhotoBooth({ win }: { win: Win }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const glRef = useRef<BoothGL | null>(null)
@@ -291,8 +291,8 @@ export function PhotoBooth() {
   const [attempt, setAttempt] = useState(0)
   useOS((s) => s.fsVersion)
   const authed = useBackend((s) => s.present && s.authed)
-  const state = useRef({ grid, page, effect })
-  state.current = { grid, page, effect }
+  const state = useRef({ grid, page, effect, hidden: win.minimized })
+  state.current = { grid, page, effect, hidden: win.minimized }
 
   const failCaptures = (why: string) => pending.current.splice(0).forEach((p) => p.fail(new Error(why)))
   const stopCamera = () => {
@@ -375,6 +375,7 @@ export function PhotoBooth() {
     const frame = () => {
       raf = requestAnimationFrame(frame)
       if (video.readyState < 2 || !video.videoWidth) return
+      if (state.current.hidden && !pending.current.length) return
       const dpr = Math.min(devicePixelRatio, 2)
       const w = Math.round(canvas.clientWidth * dpr)
       const h = Math.round(canvas.clientHeight * dpr)

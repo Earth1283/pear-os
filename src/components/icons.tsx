@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { memo, useId } from 'react'
 import type { AppId } from '../apps/ids'
 import type { FileKind } from '../lib/fs'
 
@@ -35,7 +35,7 @@ function Squircle({ fill, stroke }: { fill: string; stroke?: string }) {
   return <rect x="7" y="7" width="86" height="86" rx="20" fill={fill} stroke={stroke ?? 'rgba(0,0,0,.08)'} strokeWidth=".6" />
 }
 
-export function AppIcon({ app, size = 52 }: { app: AppId; size?: number }) {
+export const AppIcon = memo(function AppIcon({ app, size = 52 }: { app: AppId; size?: number }) {
   const uid = useId().replace(/:/g, '')
   const g = (n: string) => `${uid}${n}`
   const u = (n: string) => `url(#${g(n)})`
@@ -586,7 +586,7 @@ export function AppIcon({ app, size = 52 }: { app: AppId; size?: number }) {
       )}
     </svg>
   )
-}
+})
 
 export function IntelOrb({ size = 16 }: { size?: number }) {
   const uid = useId().replace(/:/g, '')

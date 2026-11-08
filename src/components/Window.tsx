@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useOS, MENU_H, tileRect, type Tile, type Win } from '../store'
 import { APPS } from '../apps/registry'
 import { WindowShader } from './ShaderLayers'
@@ -242,7 +242,9 @@ function WindowFrame({ win, focused }: { win: Win; focused: boolean }) {
         </div>
       )}
       <div className="window-body">
-        <App win={win} />
+        <Suspense fallback={null}>
+          <App win={win} />
+        </Suspense>
       </div>
       {spec.resizable !== false && EDGES.map((edge) => <div key={edge} className={`rz rz-${edge}`} onPointerDown={startResize(edge)} />)}
     </div>

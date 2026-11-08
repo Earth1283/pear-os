@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Airplay, Bluetooth, Calculator as CalcIcon, Globe, Moon, Pause, Play, Radio, Search, SkipBack, SkipForward, Sun, Volume2, Wifi, X, Contrast, MonitorSmartphone } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { useOS, os } from '../store'
 import { APPS, LAUNCHPAD_APPS } from '../apps/registry'
 import type { AppId } from '../apps/ids'
@@ -199,9 +200,12 @@ function NowPlayingCard() {
 
 export function ControlCenter() {
   const open = useOS((s) => s.overlay.controlCenter)
-  const { wifi, bluetooth, brightness, volume, theme, dnd } = useOS()
   const [airdrop, setAirdrop] = useState(true)
-  if (!open) return null
+  return open ? <ControlCenterPanel airdrop={airdrop} setAirdrop={setAirdrop} /> : null
+}
+
+function ControlCenterPanel({ airdrop, setAirdrop }: { airdrop: boolean; setAirdrop: (v: boolean) => void }) {
+  const { wifi, bluetooth, brightness, volume, theme, dnd } = useOS(useShallow((s) => ({ wifi: s.wifi, bluetooth: s.bluetooth, brightness: s.brightness, volume: s.volume, theme: s.theme, dnd: s.dnd })))
   return (
     <div className="overlay-catch" onPointerDown={() => os().setOverlay({ controlCenter: false })}>
       <div className="control-center glass" onPointerDown={(e) => e.stopPropagation()}>

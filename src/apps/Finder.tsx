@@ -135,11 +135,10 @@ export function Finder({ win }: { win: Win }) {
   if (sort) {
     const key = (p: string, n: NonNullable<ReturnType<typeof resolve>>): string | number =>
       sort === 'Size' ? -sizeOf(n) : sort === 'Date Modified' ? -n.modified : sort === 'Kind' ? (n.type === 'dir' ? ' ' : n.kind) + p : p.split('/').pop()!.toLowerCase()
-    entries = [...entries].sort(([a, an], [b, bn]) => {
-      const ka = key(a, an!)
-      const kb = key(b, bn!)
-      return ka < kb ? -1 : ka > kb ? 1 : 0
-    })
+    entries = entries
+      .map((e) => ({ e, k: key(e[0], e[1]!) }))
+      .sort((a, b) => (a.k < b.k ? -1 : a.k > b.k ? 1 : 0))
+      .map(({ e }) => e)
   }
   const tagDots = (n: NonNullable<ReturnType<typeof resolve>>) => (n.tags ?? []).map((t) => <i key={t} className="tag-dot" style={{ background: TAG_COLORS[t] }} />)
 

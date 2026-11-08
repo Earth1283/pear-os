@@ -151,6 +151,7 @@ function FractalWallpaper() {
     }
     window.addEventListener('resize', onResize)
     return () => {
+      clearTimeout(t)
       window.removeEventListener('resize', onResize)
       gl?.dispose()
     }

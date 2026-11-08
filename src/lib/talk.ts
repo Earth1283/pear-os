@@ -1,7 +1,7 @@
 // Talk stations: endless scripts read aloud by the browser's speech synthesiser.
 
 import { useCaptions } from './captions'
-import { RANTS, SIGN_OFF, UNFILTERED, type Rant } from './lkml'
+import type { Rant } from './lkml'
 
 /** Spoken text, seconds of silence, or a byline (spoken, and starts a new caption page). */
 export type Beat = string | number | { head: string }
@@ -159,12 +159,24 @@ function attribution(rant: Rant, r: () => number): Beat[] {
   return [{ head: rant.when ? `${rant.by}, ${rant.when}.` : pick(LEAD, r) }, 0.8]
 }
 
-function rantShow(pool: Rant[], raw: boolean, intro: string): Show {
+let archive: typeof import('./lkml') | undefined
+let fetching: Promise<unknown> | undefined
+
+function rantShow(raw: boolean, intro: string): Show {
   return {
     rate: raw ? 1.15 : 1.08,
     pitch: raw ? 0.72 : 0.8,
     voiceSalt: raw ? 5 : 4,
     script(r, mem) {
+      if (!archive) {
+        fetching ??= import('./lkml').then(
+          (m) => (archive = m),
+          () => (fetching = undefined),
+        )
+        return [0.3]
+      }
+      const { RANTS, SIGN_OFF, UNFILTERED } = archive
+      const pool = raw ? [...RANTS, ...UNFILTERED] : RANTS
       // A shuffled bag, so a rant doesn't come round again until all the others have.
       let bag = (mem.bag as Rant[] | undefined) ?? []
       const out: Beat[] = [4, intro, 1.5]
@@ -181,8 +193,8 @@ function rantShow(pool: Rant[], raw: boolean, intro: string): Show {
   }
 }
 
-export const lkml = rantShow(RANTS, false, 'You are listening to L K M L Radio. All rants, all the time.')
-export const lkmlRaw = rantShow([...RANTS, ...UNFILTERED], true, 'L K M L Radio, after dark. Nothing has been bleeped. You were warned.')
+export const lkml = rantShow(false, 'You are listening to L K M L Radio. All rants, all the time.')
+export const lkmlRaw = rantShow(true, 'L K M L Radio, after dark. Nothing has been bleeped. You were warned.')
 
 // ───────────────────────── speaker ─────────────────────────
 

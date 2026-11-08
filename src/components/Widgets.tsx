@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { Cloud, CloudLightning, CloudRain, CloudSun, Check, Cpu, FileText, Pause, Play, Plus, Sun, SkipBack, SkipForward, Clock as ClockIcon, Calendar as CalIcon, Music2 } from 'lucide-react'
 import { MENU_H, DOCK_ZONE, WIDGET_PX, os, useOS, type WidgetHome, type WidgetInst, type WidgetKind, type WidgetSize } from '../store'
 import { refreshSys, useBackend } from '../lib/backend'
@@ -331,12 +331,28 @@ function SystemWidget({ size }: { size: WidgetSize }) {
 
 // ───────────────────────────── Music ─────────────────────────────
 
+function MusicProgress({ live, times = false, hasTrack }: { live: boolean; times?: boolean; hasTrack: boolean }) {
+  const position = usePlayer((s) => s.position)
+  const duration = usePlayer((s) => s.duration)
+  return (
+    <>
+      <div className="wd-prog">
+        <i style={{ width: live ? '100%' : duration ? `${(position / duration) * 100}%` : '0%' }} className={live ? 'live' : ''} />
+      </div>
+      {times && (
+        <div className="wd-times">
+          <small>{hasTrack ? formatTime(position) : ''}</small>
+          <small>{live ? 'LIVE' : duration ? `-${formatTime(Math.max(0, duration - position))}` : ''}</small>
+        </div>
+      )}
+    </>
+  )
+}
+
 function MusicWidget({ size }: { size: WidgetSize }) {
   const cur = useCurrent()
   const spoken = useSpoken()
   const playing = usePlayer((s) => s.playing)
-  const position = usePlayer((s) => s.position)
-  const duration = usePlayer((s) => s.duration)
   const queue = usePlayer((s) => s.queue)
   const index = usePlayer((s) => s.index)
   const p = usePlayer.getState()
@@ -357,7 +373,6 @@ function MusicWidget({ size }: { size: WidgetSize }) {
   )
   const title = cur?.title ?? 'Not Playing'
   const sub = cur?.source === 'station' && spoken ? spoken : cur ? cur.artist : 'Open Music'
-  const bar = <div className="wd-prog">{<i style={{ width: live ? '100%' : duration ? `${(position / duration) * 100}%` : '0%' }} className={live ? 'live' : ''} />}</div>
   if (size === 'small') {
     return (
       <div className="wd-col mus">
@@ -381,11 +396,7 @@ function MusicWidget({ size }: { size: WidgetSize }) {
             <b>{title}</b>
             <small>{sub}</small>
           </div>
-          {bar}
-          <div className="wd-times">
-            <small>{cur ? formatTime(position) : ''}</small>
-            <small>{live ? 'LIVE' : duration ? `-${formatTime(Math.max(0, duration - position))}` : ''}</small>
-          </div>
+          <MusicProgress live={live} times hasTrack={!!cur} />
           {controls}
         </div>
       </div>
@@ -401,7 +412,7 @@ function MusicWidget({ size }: { size: WidgetSize }) {
         <b>{title}</b>
         <small>{sub}</small>
       </div>
-      {bar}
+      <MusicProgress live={live} hasTrack={!!cur} />
       {controls}
       {up.length > 0 && (
         <div className="wd-up">
@@ -447,7 +458,7 @@ function NotesWidget({ size }: { size: WidgetSize }) {
 
 // ───────────────────────────── frame + host ─────────────────────────────
 
-export function WidgetBody({ kind, size }: { kind: WidgetKind; size: WidgetSize }) {
+export const WidgetBody = memo(function WidgetBody({ kind, size }: { kind: WidgetKind; size: WidgetSize }) {
   switch (kind) {
     case 'clock':
       return <ClockWidget size={size} />
@@ -462,7 +473,7 @@ export function WidgetBody({ kind, size }: { kind: WidgetKind; size: WidgetSize 
     case 'notes':
       return <NotesWidget size={size} />
   }
-}
+})
 
 function openFor(kind: WidgetKind) {
   switch (kind) {

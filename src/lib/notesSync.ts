@@ -65,6 +65,20 @@ async function flush() {
   }
 }
 
+let localTimer: ReturnType<typeof setTimeout> | undefined
+let localPending = false
+
+function saveLocal() {
+  clearTimeout(localTimer)
+  if (!localPending) return
+  localPending = false
+  try {
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(useOS.getState().notes))
+  } catch {
+    return
+  }
+}
+
 function loadLocal() {
   try {
     const local = parse(JSON.parse(localStorage.getItem(LOCAL_KEY) ?? 'null'))
@@ -86,11 +100,9 @@ useOS.subscribe((s, prev) => {
     timer = setTimeout(flush, 700)
     return
   }
-  try {
-    localStorage.setItem(LOCAL_KEY, JSON.stringify(s.notes))
-  } catch {
-    return
-  }
+  localPending = true
+  clearTimeout(localTimer)
+  localTimer = setTimeout(saveLocal, 300)
 })
 
 useBackend.subscribe((b, prev) => {
@@ -102,6 +114,7 @@ useBackend.subscribe((b, prev) => {
 })
 
 addEventListener('pagehide', () => {
+  saveLocal()
   if (mode !== 'remote' || !dirty) return
   const data = body()
   if (data.length < 60_000) fetch(`/api/fs/write?path=${encodeURIComponent(NOTES_FILE)}`, { method: 'PUT', body: data, credentials: 'same-origin', keepalive: true })

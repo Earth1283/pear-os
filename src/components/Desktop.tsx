@@ -15,6 +15,7 @@ import { TAG_COLORS } from './ContextMenu'
 import { DiskIcon, FileIcon, FolderIcon } from './icons'
 import { HOME, listDir, resolve } from '../lib/fs'
 import { openPath } from '../apps/open'
+import { preloadApps } from '../apps/registry'
 
 const JOKES: { app: Parameters<ReturnType<typeof os>['notify']>[0]['app']; title: string; body: string; actions?: string[] }[] = [
   { app: 'intelligence', title: 'Pear Intelligence', body: 'Pear Intelligence is ready. Unfortunately, so are we.' },
@@ -115,15 +116,36 @@ function DesktopIcons() {
   )
 }
 
-export function Desktop() {
+function usePreloadApps() {
+  useEffect(() => {
+    const idle = window.requestIdleCallback ?? ((fn: () => void) => window.setTimeout(fn, 1))
+    const t = window.setTimeout(() => idle(preloadApps), 2000)
+    return () => clearTimeout(t)
+  }, [])
+}
+
+function TilePreview() {
+  const tilePreview = useOS((s) => s.tilePreview)
+  if (!tilePreview) return null
+  const r = tileRect(tilePreview)
+  return <div className="tile-preview" style={{ left: r.x, top: r.y, width: r.w, height: r.h }} />
+}
+
+function Windows() {
   const windows = useOS((s) => s.windows)
   const focused = useOS((s) => s.focused)
-  const tilePreview = useOS((s) => s.tilePreview)
+  return windows.map((w) => <Window key={w.id} win={w} focused={w.id === focused} />)
+}
+
+function Brightness() {
   const brightness = useOS((s) => s.brightness)
+  return <div className="brightness" style={{ opacity: 1 - brightness }} />
+}
+
+export function Desktop() {
   useJokeNotifications()
   useShortcuts()
-
-  const preview = tilePreview ? tileRect(tilePreview) : null
+  usePreloadApps()
 
   return (
     <div
@@ -157,10 +179,8 @@ export function Desktop() {
       <DesktopIcons />
       <DesktopWidgets />
       <ShaderLayer target="shadow" />
-      {preview && <div className="tile-preview" style={{ left: preview.x, top: preview.y, width: preview.w, height: preview.h }} />}
-      {windows.map((w) => (
-        <Window key={w.id} win={w} focused={w.id === focused} />
-      ))}
+      <TilePreview />
+      <Windows />
       <MenuBar />
       <Dock />
       <Notifications />
@@ -171,7 +191,7 @@ export function Desktop() {
       <Launchpad />
       <GlobalContextMenu />
       <ShaderLayer target="overlay" />
-      <div className="brightness" style={{ opacity: 1 - brightness }} />
+      <Brightness />
     </div>
   )
 }

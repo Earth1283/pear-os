@@ -36,7 +36,8 @@ const fail = (e: unknown) => os().notify({ app: 'finder', title: 'PearDrive', bo
 
 export function DriveView({ rel, view, q, onOpenDir, setView }: { rel: string; view: 'grid' | 'list'; q: string; onOpenDir: (rel: string) => void; setView: (v: 'grid' | 'list') => void }) {
   const version = useBackend((s) => s.driveVersion)
-  const sys = useBackend((s) => s.sys)
+  const root = useBackend((s) => s.sys?.root)
+  const free = useBackend((s) => (s.sys?.diskFree != null ? `, ${formatBytes(s.sys.diskFree)} available on ${s.sys.hostname}` : ''))
   const [entries, setEntries] = useState<DriveEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [sel, setSel] = useState<string | null>(null)
@@ -106,10 +107,10 @@ export function DriveView({ rel, view, q, onOpenDir, setView }: { rel: string; v
         ? { label: 'Delete Immediately…', run: () => drive.remove(p).then(bumpDrive, fail) }
         : { label: 'Move to Trash', shortcut: '⌘⌫', run: () => drive.trash(p).then(bumpDrive, fail) },
       'sep',
-      { label: 'Get Info', shortcut: '⌘I', run: () => os().notify({ app: 'finder', title: `${e.name} Info`, body: `${e.dir ? 'Folder' : kindFor(e.name)} · ${formatBytes(e.size)} · Modified ${new Date(e.modified).toLocaleString()} · ${sys?.root ?? 'PearDrive'}${p}` }) },
+      { label: 'Get Info', shortcut: '⌘I', run: () => os().notify({ app: 'finder', title: `${e.name} Info`, body: `${e.dir ? 'Folder' : kindFor(e.name)} · ${formatBytes(e.size)} · Modified ${new Date(e.modified).toLocaleString()} · ${root ?? 'PearDrive'}${p}` }) },
       { label: 'Rename', run: () => setRenaming(e.name) },
       'sep',
-      { label: 'Copy Path', run: () => navigator.clipboard?.writeText(`${sys?.root ?? ''}${p}`) },
+      { label: 'Copy Path', run: () => navigator.clipboard?.writeText(`${root ?? ''}${p}`) },
     ]
   }
 
@@ -225,7 +226,7 @@ export function DriveView({ rel, view, q, onOpenDir, setView }: { rel: string; v
         </table>
       )}
       <div className="drive-status">
-        {uploading ?? `${shown.length} items${sys?.diskFree != null ? `, ${formatBytes(sys.diskFree)} available on ${sys.hostname}` : ''}`}
+        {uploading ?? `${shown.length} items${free}`}
       </div>
     </div>
   )

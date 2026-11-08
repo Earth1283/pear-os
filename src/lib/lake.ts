@@ -1,4 +1,4 @@
-import { compile, release } from './gpu'
+import { compile, cssSize, release } from './gpu'
 import { skyAt } from './sky'
 import { useShaders } from './shaders'
 
@@ -348,6 +348,7 @@ export class LakeRenderer {
   private start = performance.now()
   private visible = () => this.loop()
   private unsub: () => void
+  private size: ReturnType<typeof cssSize>
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -359,6 +360,9 @@ export class LakeRenderer {
     this.gl = gl
     this.scene = compile(gl, SCENE_FRAG)
     this.light = compile(gl, LIGHT_FRAG)
+    this.size = cssSize(canvas, () => {
+      if (!this.animate) this.draw(performance.now())
+    })
     document.addEventListener('visibilitychange', this.visible)
     this.unsub = useShaders.subscribe(() => {
       if (!this.animate) this.draw(performance.now())
@@ -367,8 +371,8 @@ export class LakeRenderer {
 
   private resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2) * this.scale
-    const w = Math.max(1, Math.round(this.canvas.clientWidth * dpr))
-    const h = Math.max(1, Math.round(this.canvas.clientHeight * dpr))
+    const w = Math.max(1, Math.round(this.size.w * dpr))
+    const h = Math.max(1, Math.round(this.size.h * dpr))
     if (this.canvas.width !== w || this.canvas.height !== h) {
       this.canvas.width = w
       this.canvas.height = h
@@ -377,7 +381,7 @@ export class LakeRenderer {
 
   private buildScene() {
     const { gl } = this
-    const lowW = Math.max(64, Math.round((LOW_H * this.canvas.clientWidth) / Math.max(1, this.canvas.clientHeight)))
+    const lowW = Math.max(64, Math.round((LOW_H * this.size.w) / Math.max(1, this.size.h)))
     if (lowW === this.lowW) return
     this.lowW = lowW
     this.textures.forEach((t) => gl.deleteTexture(t))
@@ -449,6 +453,7 @@ export class LakeRenderer {
   dispose() {
     cancelAnimationFrame(this.raf)
     clearInterval(this.timer)
+    this.size.stop()
     this.unsub()
     document.removeEventListener('visibilitychange', this.visible)
     release(this.canvas, this.gl)

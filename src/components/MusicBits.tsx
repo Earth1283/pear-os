@@ -123,8 +123,14 @@ export function Visualizer({ bars = 48, hue = 340, className }: { bars?: number;
     const buf = new Uint8Array(SPECTRUM_BINS)
     const level = new Float32Array(bars)
     let raf = 0
+    let timer = 0
+    let drawn = false
     let w = 0
     let h = 0
+    const next = (slow: boolean) => {
+      if (slow) timer = window.setTimeout(() => (raf = requestAnimationFrame(frame)), 250)
+      else raf = requestAnimationFrame(frame)
+    }
     const size = () => {
       const dpr = window.devicePixelRatio || 1
       w = cv.clientWidth
@@ -132,14 +138,14 @@ export function Visualizer({ bars = 48, hue = 340, className }: { bars?: number;
       cv.width = Math.max(1, Math.round(w * dpr))
       cv.height = Math.max(1, Math.round(h * dpr))
       g.setTransform(dpr, 0, 0, dpr, 0, 0)
+      drawn = false
     }
     size()
     const ro = new ResizeObserver(size)
     ro.observe(cv)
 
     const frame = () => {
-      raf = requestAnimationFrame(frame)
-      if (document.hidden || !w) return
+      if (document.hidden || !w) return next(true)
       const live = readSpectrum(buf)
       let energy = 0
       for (let i = 0; i < bars; i++) {
@@ -149,8 +155,13 @@ export function Visualizer({ bars = 48, hue = 340, className }: { bars?: number;
         level[i] += (target - level[i]) * (target > level[i] ? 0.55 : 0.12)
         energy += level[i]
       }
+      if (!live && energy < 0.02) {
+        if (drawn) g.clearRect(0, 0, w, h)
+        drawn = false
+        return next(true)
+      }
       g.clearRect(0, 0, w, h)
-      if (!live && energy < 0.02) return
+      drawn = true
       const gap = Math.max(2, w / bars * 0.28)
       const bw = (w - gap * (bars - 1)) / bars
       const base = h * 0.72
@@ -172,10 +183,12 @@ export function Visualizer({ bars = 48, hue = 340, className }: { bars?: number;
         g.fill()
         g.globalAlpha = 1
       }
+      next(false)
     }
     raf = requestAnimationFrame(frame)
     return () => {
       cancelAnimationFrame(raf)
+      clearTimeout(timer)
       ro.disconnect()
     }
   }, [bars, hue])

@@ -215,7 +215,15 @@ const useMail = create<MailState>((set) => ({
   remove: (id) => set((s) => ({ msgs: s.msgs.filter((m) => m.id !== id) })),
 }))
 
-const scoreOf = (m: Msg) => junkScore(`${m.from} ${m.subject}\n${m.body}`)
+const scores = new Map<string, number>()
+const scoreOf = (m: Msg) => {
+  const text = `${m.from} ${m.subject}\n${m.body}`
+  const hit = scores.get(text)
+  if (hit !== undefined) return hit
+  const score = junkScore(text)
+  if (score !== null) scores.set(text, score)
+  return score
+}
 const isJunk = (m: Msg) => m.box === 'inbox' && !m.notJunk && (m.junk || (scoreOf(m) ?? 0) > 0.6)
 
 function inView(m: Msg, v: View) {
@@ -324,11 +332,9 @@ export function Mail() {
     }
     const first = setTimeout(() => deliver(newCode()), 45_000)
     const every = setInterval(() => deliver(newCode()), 4 * 60_000)
-    const tick = setInterval(() => setNow(Date.now()), 1000)
     return () => {
       clearTimeout(first)
       clearInterval(every)
-      clearInterval(tick)
     }
   }, [])
 
@@ -341,7 +347,19 @@ export function Mail() {
   }, [msgs, view, q])
 
   const cur = msgs.find((m) => m.id === sel) ?? null
-  const counts = (v: View) => msgs.filter((m) => inView(m, v) && (v === 'drafts' || v === 'outbox' ? true : !m.read)).length
+  const unread = useMemo(() => new Map(BOXES.map(([v]) => [v, msgs.filter((m) => inView(m, v) && (v === 'drafts' || v === 'outbox' ? true : !m.read)).length])), [msgs])
+  const counts = (v: View) => unread.get(v) ?? 0
+
+  const codeExpires = cur?.code?.expires
+  useEffect(() => {
+    setNow(Date.now())
+    if (!codeExpires || Date.now() > codeExpires) return
+    const t = setInterval(() => {
+      setNow(Date.now())
+      if (Date.now() > codeExpires) clearInterval(t)
+    }, 1000)
+    return () => clearInterval(t)
+  }, [codeExpires])
 
   useEffect(() => {
     if (sel) useMail.getState().patch(sel, { read: true })
