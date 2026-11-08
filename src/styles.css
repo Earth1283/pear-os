@@ -2094,10 +2094,6 @@ input[type='range']::-moz-range-progress {
   color: var(--fg);
   z-index: 1;
 }
-.note-wrap textarea::first-line {
-  font-size: 22px;
-  font-weight: 700;
-}
 .note-hints {
   pointer-events: none;
   z-index: 2;
@@ -3316,11 +3312,6 @@ input[type='range']::-moz-range-progress {
   .clock {
     display: none;
   }
-}
-
-.note-hints > div:first-child {
-  font-size: 22px;
-  font-weight: 700;
 }
 
 .real-terminal {
