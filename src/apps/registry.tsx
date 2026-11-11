@@ -36,6 +36,7 @@ const system = chunk(() => import('./System'))
 const preview = chunk(() => import('./Preview'))
 const music = chunk(() => import('./Music'))
 const chess = chunk(() => import('./Chess'))
+const tetris = chunk(() => import('./Tetris'))
 const bootcamp = chunk(() => import('./BootCamp'))
 const photobooth = chunk(() => import('./PhotoBooth'))
 const mail = chunk(() => import('./Mail'))
@@ -58,6 +59,7 @@ const Settings = system.part('Settings')
 const Preview = preview.part('Preview')
 const Music = music.part('Music')
 const ChessGame = chess.part('ChessGame')
+const TetrisGame = tetris.part('TetrisGame')
 const BootCamp = bootcamp.part('BootCamp')
 const PhotoBooth = photobooth.part('PhotoBooth')
 const Mail = mail.part('Mail')
@@ -81,6 +83,19 @@ export const APPS: Record<AppId, AppDef> = {
     chrome: 'overlay',
     get menus() {
       return chess.now()?.chessMenus()
+    },
+  },
+  tetris: {
+    name: 'Tetris',
+    component: TetrisGame,
+    w: 580,
+    h: 660,
+    minW: 460,
+    minH: 540,
+    singleton: true,
+    chrome: 'overlay',
+    get menus() {
+      return tetris.now()?.tetrisMenus()
     },
   },
   notes: { name: 'Notes', component: Notes, w: 820, h: 540, minW: 520, singleton: true, chrome: 'overlay' },
@@ -116,5 +131,5 @@ export const APPS: Record<AppId, AppDef> = {
 
 registerSpecs(APPS)
 
-export const DOCK_APPS: AppId[] = ['finder', 'launchpad', 'safari', 'mail', 'music', 'chess', 'notes', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'settings']
-export const LAUNCHPAD_APPS: AppId[] = ['finder', 'safari', 'music', 'chess', 'notes', 'textedit', 'preview', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'photobooth', 'mail', 'diskutility', 'softwareupdate', 'bootcamp', 'settings']
+export const DOCK_APPS: AppId[] = ['finder', 'launchpad', 'safari', 'mail', 'music', 'chess', 'tetris', 'notes', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'settings']
+export const LAUNCHPAD_APPS: AppId[] = ['finder', 'safari', 'music', 'chess', 'tetris', 'notes', 'textedit', 'preview', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'photobooth', 'mail', 'diskutility', 'softwareupdate', 'bootcamp', 'settings']

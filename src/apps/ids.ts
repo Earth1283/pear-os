@@ -4,6 +4,7 @@ export type AppId =
   | 'safari'
   | 'music'
   | 'chess'
+  | 'tetris'
   | 'notes'
   | 'textedit'
   | 'calculator'

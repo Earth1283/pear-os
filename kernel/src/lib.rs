@@ -1,5 +1,6 @@
 mod imaging;
 mod junk;
+mod tetrisai;
 
 use std::cell::RefCell;
 

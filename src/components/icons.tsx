@@ -101,6 +101,32 @@ export const AppIcon = memo(function AppIcon({ app, size = 52 }: { app: AppId; s
         </>
       )
       break
+    case 'tetris': {
+      const blocks: [number, number, string][] = [
+        [1, 0, '#bf5af2'], [2, 0, '#bf5af2'], [3, 0, '#bf5af2'], [2, 1, '#bf5af2'],
+        [0, 3, '#2f8bff'], [1, 3, '#2f8bff'], [3, 3, '#30d158'], [4, 3, '#30d158'],
+        [0, 4, '#ff9f0a'], [1, 4, '#40d0f5'], [2, 4, '#40d0f5'], [3, 4, '#ffd60a'], [4, 4, '#ffd60a'],
+      ]
+      body = (
+        <>
+          <defs>
+            <linearGradient id={g('b')} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#2b2d3c" />
+              <stop offset="1" stopColor="#0f1017" />
+            </linearGradient>
+          </defs>
+          <Squircle fill={u('b')} />
+          {blocks.map(([x, y, c]) => (
+            <g key={`${x}${y}`} transform={`translate(${21 + x * 12.4} ${20 + y * 12.4})`}>
+              <rect width="11.4" height="11.4" rx="2.2" fill={c} />
+              <rect width="11.4" height="4.8" rx="2.2" fill="#fff" opacity=".32" />
+              <rect y="8.6" width="11.4" height="2.8" rx="1.4" fill="#000" opacity=".22" />
+            </g>
+          ))}
+        </>
+      )
+      break
+    }
     case 'bootcamp':
       body = (
         <>
