@@ -100,6 +100,8 @@ export class Tetris {
   /** Label for the last clear, shown until the next one. */
   banner = ''
   clock = 0
+  /** When set the level stays put however many lines clear (the AI demo uses this). */
+  fixedLevel = false
 
   private bag: Kind[] = []
   canHold = true
@@ -357,7 +359,7 @@ export class Tetris {
     this.banner = CLEAR_NAMES[n] + (bonus ? ' · back-to-back' : '') + (this.combo > 0 ? ` · ${this.combo + 1} combo` : '')
     this.flash = { rows, at: this.clock }
     this.emit(hard ? 'tetris' : 'clear', n)
-    const lvl = Math.min(MAX_LEVEL, this.startLevel + Math.floor(this.lines / 10))
+    const lvl = this.fixedLevel ? this.level : Math.min(MAX_LEVEL, this.startLevel + Math.floor(this.lines / 10))
     if (lvl > this.level) {
       this.level = lvl
       this.emit('level', lvl)

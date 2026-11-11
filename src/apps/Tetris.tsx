@@ -2,6 +2,7 @@ import { useEffect, useReducer, useRef, useState } from 'react'
 import { Pause, Play } from 'lucide-react'
 import { os, useOS, type Win } from '../store'
 import { COLS, HIDDEN, ROT, ROWS, VISIBLE, FLASH_MS, Tetris, type Ev, type Kind } from '../lib/tetris'
+import { LEARN_SPEEDS, TetrisAgent, WATCH_SPEEDS, type Stats } from '../lib/tetrisAI'
 import type { MenuDef } from './types'
 
 const COLORS: Record<Kind, string> = {
@@ -167,13 +168,66 @@ function drawMini(canvas: HTMLCanvasElement | null, kind: Kind | null, m: number
   for (const [x, y] of cells) drawCell(ctx, ox + x * m, oy + y * m, m, COLORS[kind], dim ? 0.35 : 1)
 }
 
-type Cmd = 'new' | 'pause' | 'end' | 'ghost' | 'grid' | 'sound' | `level:${number}`
+const CHART_W = 132
+const CHART_H = 70
+const MAX_LINES = 400
+
+function drawChart(canvas: HTMLCanvasElement | null, s: Stats) {
+  const ctx = canvas?.getContext('2d')
+  if (!canvas || !ctx) return
+  const dpr = window.devicePixelRatio || 1
+  if (canvas.width !== Math.round(CHART_W * dpr)) {
+    canvas.width = Math.round(CHART_W * dpr)
+    canvas.height = Math.round(CHART_H * dpr)
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx.clearRect(0, 0, CHART_W, CHART_H)
+  const n = Math.max(30, s.mu.length)
+  const x = (i: number) => 5 + (i * (CHART_W - 10)) / (n - 1)
+  const y = (v: number) => CHART_H - 5 - (Math.min(v, MAX_LINES) / MAX_LINES) * (CHART_H - 10)
+  ctx.strokeStyle = 'rgba(127,127,127,.28)'
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  for (const v of [0, 200, 400]) {
+    ctx.moveTo(5, Math.round(y(v)) + 0.5)
+    ctx.lineTo(CHART_W - 5, Math.round(y(v)) + 0.5)
+  }
+  ctx.stroke()
+  const line = (vals: number[], color: string, width: number) => {
+    if (!vals.length) return
+    ctx.strokeStyle = color
+    ctx.lineWidth = width
+    ctx.lineJoin = 'round'
+    ctx.beginPath()
+    vals.forEach((v, i) => (i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v))))
+    ctx.stroke()
+  }
+  line(s.best, 'rgba(127,127,127,.55)', 1)
+  if (s.mu.length) {
+    ctx.fillStyle = 'rgba(10,132,255,.16)'
+    ctx.beginPath()
+    ctx.moveTo(x(0), y(0))
+    s.mu.forEach((v, i) => ctx.lineTo(x(i), y(v)))
+    ctx.lineTo(x(s.mu.length - 1), y(0))
+    ctx.fill()
+    line(s.mu, '#0a84ff', 2)
+    ctx.fillStyle = '#0a84ff'
+    ctx.beginPath()
+    ctx.arc(x(s.mu.length - 1), y(s.mu[s.mu.length - 1]), 2.6, 0, Math.PI * 2)
+    ctx.fill()
+  }
+}
+
+type Cmd = 'new' | 'pause' | 'end' | 'ghost' | 'grid' | 'sound' | 'help' | 'forget' | `level:${number}` | `learn:${number}` | `watch:${number}`
 interface Ctl {
   readonly status: Tetris['status']
   readonly ghost: boolean
   readonly grid: boolean
   readonly sound: boolean
   readonly level: number
+  readonly ai: boolean
+  readonly learn: number
+  readonly watch: number
   run(cmd: Cmd): void
 }
 const ctls = new Map<string, Ctl>()
@@ -182,6 +236,7 @@ export function tetrisMenus(): MenuDef[] {
   const c = ctls.get(os().focused ?? '')
   const run = (cmd: Cmd) => () => c?.run(cmd)
   const st = c?.status
+  const ai = !!c?.ai
   return [
     {
       title: 'Game',
@@ -195,6 +250,10 @@ export function tetrisMenus(): MenuDef[] {
         },
         'sep',
         { label: 'End Game', disabled: st !== 'playing' && st !== 'paused', action: run('end') },
+        'sep',
+        { label: 'Learning Speed', disabled: !ai, submenu: LEARN_SPEEDS.map((l, i) => ({ label: l.label, checked: c?.learn === i, action: run(`learn:${i}`) })) },
+        { label: 'Watch Speed', disabled: !ai, submenu: WATCH_SPEEDS.map((l, i) => ({ label: l.label, checked: c?.watch === i, action: run(`watch:${i}`) })) },
+        { label: 'Forget What It Learned', disabled: !ai, action: run('forget') },
       ],
     },
     {
@@ -206,8 +265,27 @@ export function tetrisMenus(): MenuDef[] {
         { label: 'Sound Effects', checked: c?.sound ?? true, action: run('sound') },
       ],
     },
+    {
+      title: 'Help',
+      items: [
+        { label: ai ? 'Stop Getting Help' : 'Get Help', action: run('help') },
+        'sep',
+        {
+          label: 'Tetris Help',
+          action: () => os().notify({ app: 'tetris', title: 'Tetris Help', body: 'Arrows move, X and Z rotate, Space drops, C holds. If that was not helpful, try Get Help.' }),
+        },
+      ],
+    },
   ]
 }
+
+const AI_QUIPS = [
+  'That was a learning experience. For me.',
+  'I regret nothing. I have no memory of this game.',
+  'The ceiling and I have agreed to disagree.',
+  'Noted. Adjusting weights. Blaming the pieces.',
+]
+const NAG = 'Please keep your hands off the keyboard. I am helping.'
 
 const QUIPS = [
   'The pile reached the ceiling. The ceiling was not consulted.',
@@ -222,6 +300,19 @@ export function TetrisGame({ win }: { win: Win }) {
   const [cell, setCell] = useState(26)
   const [, force] = useReducer((n: number) => n + 1, 0)
   const focused = useOS((s) => s.focused)
+  const [ai, setAi] = useState(false)
+  const aiRef = useRef(false)
+  const agent = useRef<TetrisAgent | null>(null)
+  agent.current ??= new TetrisAgent()
+  const bot = agent.current
+  const plan = useRef<{ piece: object; rot: number; x: number; tries: number } | null>(null)
+  const botAcc = useRef(0)
+  const restart = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const hiddenPause = useRef(false)
+  const nagged = useRef(-Infinity)
+  const announced = useRef(false)
+  const aiRecord = useRef(0)
+  const chartRef = useRef<HTMLCanvasElement>(null)
 
   const prefsRef = useRef(prefs)
   prefsRef.current = prefs
@@ -242,8 +333,15 @@ export function TetrisGame({ win }: { win: Win }) {
   const game = useRef<Tetris | null>(null)
   if (!game.current) {
     game.current = new Tetris(prefs.level, (e, n) => {
-      if (prefsRef.current.sound) sfx(e, n)
-      if (e === 'over') {
+      if (aiRef.current) {
+        if (prefsRef.current.sound && bot.watch <= 1 && (e === 'clear' || e === 'tetris')) sfx(e, n)
+      } else if (prefsRef.current.sound) sfx(e, n)
+      if (e === 'over' && aiRef.current) {
+        const g = game.current!
+        aiRecord.current = Math.max(aiRecord.current, g.lines)
+        clearTimeout(restart.current)
+        restart.current = setTimeout(() => aiRef.current && newAIGame(), 1700)
+      } else if (e === 'over') {
         overAt.current = performance.now()
         das.current = { dir: 0, t: 0, repeating: false }
         const g = game.current!
@@ -269,7 +367,9 @@ export function TetrisGame({ win }: { win: Win }) {
     raf.current = 0
     const dt = Math.min(50, now - last.current)
     last.current = now
-    if (g.status === 'playing') {
+    if (aiRef.current) {
+      if (g.status === 'playing') drive(dt)
+    } else if (g.status === 'playing') {
       const d = das.current
       if (d.dir) {
         d.t += dt
@@ -287,7 +387,7 @@ export function TetrisGame({ win }: { win: Win }) {
         }
       }
     }
-    g.update(dt, g.status === 'playing' && held.current.has('ArrowDown'))
+    g.update(dt, !aiRef.current && g.status === 'playing' && held.current.has('ArrowDown'))
     draw()
     if (g.score !== shown.current) {
       shown.current = g.score
@@ -303,7 +403,94 @@ export function TetrisGame({ win }: { win: Win }) {
     }
   }
 
+  /** One key press toward the placement the agent picked. Returns true once the piece has been dropped. */
+  const act = (pl: NonNullable<typeof plan.current>) => {
+    const p = g.cur
+    if (!p) return true
+    pl.tries++
+    if (pl.tries > 24 || pl.x < 0) return g.hardDrop()
+    if (p.rot !== pl.rot) {
+      if (!g.rotate(1)) pl.rot = p.rot
+      return false
+    }
+    let minX = COLS
+    for (const [x] of g.cells()) minX = Math.min(minX, x)
+    if (minX === pl.x) return g.hardDrop()
+    if (!g.move(minX > pl.x ? -1 : 1)) return g.hardDrop()
+    return false
+  }
+  const drive = (dt: number) => {
+    const w = WATCH_SPEEDS[bot.watch]
+    let pieces = w.perFrame
+    let presses = 0
+    if (w.step > 0) {
+      botAcc.current += dt
+      presses = Math.min(6, Math.floor(botAcc.current / w.step))
+      botAcc.current -= presses * w.step
+    }
+    for (let guard = 0; guard < 400 && g.status === 'playing' && g.cur; guard++) {
+      if (w.step > 0 && presses-- <= 0) break
+      const p = g.cur
+      let pl = plan.current
+      if (!pl || pl.piece !== p) {
+        const mv = bot.choose(g.board, p.kind)
+        pl = plan.current = { piece: p, rot: mv?.rot ?? p.rot, x: mv?.x ?? -1, tries: 0 }
+      }
+      if (act(pl) && (w.step > 0 || --pieces <= 0)) break
+    }
+  }
+
+  const newAIGame = () => {
+    clearTimeout(restart.current)
+    plan.current = null
+    botAcc.current = 0
+    shown.current = 0
+    g.fixedLevel = true
+    g.start(1)
+    force()
+    kick()
+  }
+  const startAI = async () => {
+    if (aiRef.current) return
+    aiRef.current = true
+    setAi(true)
+    held.current.clear()
+    das.current = { dir: 0, t: 0, repeating: false }
+    announced.current = false
+    aiRecord.current = 0
+    g.fixedLevel = true
+    g.stop()
+    force()
+    kick()
+    try {
+      await bot.start()
+    } catch (err) {
+      console.error('Tetris agent failed to start', err)
+      stopAI()
+      return os().notify({ app: 'intelligence', title: 'Pear Intelligence', body: 'I tried to help, but my brain would not load. Typical.' })
+    }
+    if (!aiRef.current) return
+    os().notify({
+      app: 'intelligence',
+      title: 'Pear Intelligence',
+      body: bot.resumed ? `Welcome back. I remember ${bot.stats.generation} generations of this. Unfortunately.` : 'I noticed you were struggling. I am taking over, and I am learning as I go. Please do not look at the score.',
+    })
+    newAIGame()
+  }
+  const stopAI = () => {
+    if (!aiRef.current) return
+    aiRef.current = false
+    setAi(false)
+    clearTimeout(restart.current)
+    bot.stop()
+    g.fixedLevel = false
+    g.stop()
+    force()
+    kick()
+  }
+
   const newGame = () => {
+    if (aiRef.current) stopAI()
     held.current.clear()
     das.current = { dir: 0, t: 0, repeating: false }
     shown.current = 0
@@ -315,13 +502,22 @@ export function TetrisGame({ win }: { win: Win }) {
     if (g.status === 'playing') g.pause()
     else if (g.status === 'paused') g.resume()
     else return
+    if (aiRef.current) bot.pause(g.status === 'paused')
     force()
     kick()
   }
   const run = (cmd: Cmd) => {
     if (cmd === 'new') return newGame()
+    if (cmd === 'help') return aiRef.current ? stopAI() : void startAI()
+    if (cmd === 'forget') {
+      bot.forget()
+      return aiRef.current && newAIGame()
+    }
+    if (cmd.startsWith('learn:')) return bot.setLearn(+cmd.slice(6))
+    if (cmd.startsWith('watch:')) return bot.setWatch(+cmd.slice(6))
     if (cmd === 'pause') return togglePause()
     if (cmd === 'end') {
+      if (aiRef.current) return stopAI()
       if (g.status === 'playing' || g.status === 'paused') {
         g.stop()
         force()
@@ -360,12 +556,15 @@ export function TetrisGame({ win }: { win: Win }) {
       get grid() { return prefsRef.current.grid },
       get sound() { return prefsRef.current.sound },
       get level() { return prefsRef.current.level },
+      get ai() { return aiRef.current },
+      get learn() { return bot.learn },
+      get watch() { return bot.watch },
       run: (cmd) => runRef.current(cmd),
     })
     return () => {
       ctls.delete(win.id)
     }
-  }, [win.id, g])
+  }, [win.id, g, bot])
 
   useEffect(() => {
     const el = bodyRef.current
@@ -395,7 +594,23 @@ export function TetrisGame({ win }: { win: Win }) {
     const m = Math.max(12, Math.min(24, Math.floor(cell * 0.8)))
     drawMini(holdRef.current, g.held, m, !g.canHold)
     drawMini(nextRef.current, g.status === 'idle' ? null : g.next[0], m)
+    if (ai) drawChart(chartRef.current, bot.stats)
   })
+
+  useEffect(() => {
+    const off = bot.subscribe(() => {
+      force()
+      if (bot.stats.mastered && aiRef.current && !announced.current) {
+        announced.current = true
+        os().notify({ app: 'intelligence', title: 'Pear Intelligence', body: `Mastered Tetris after ${bot.stats.generation} generations. You may have your game back. You may not have your dignity.` })
+      }
+    })
+    return () => {
+      off()
+      clearTimeout(restart.current)
+      bot.stop()
+    }
+  }, [bot])
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -410,6 +625,15 @@ export function TetrisGame({ win }: { win: Win }) {
       const handled = ['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', ' ', 'x', 'z', 'c', 'Shift', 'p', 'Escape', 'Enter'].includes(k)
       if (!handled) return
       e.preventDefault()
+      if (aiRef.current) {
+        if (e.repeat) return
+        if (k === 'p' || k === 'Escape' || ((k === 'Enter' || k === ' ') && g.status === 'paused')) return togglePause()
+        if (performance.now() - nagged.current > 25_000) {
+          nagged.current = performance.now()
+          os().notify({ app: 'intelligence', title: 'Pear Intelligence', body: NAG })
+        }
+        return
+      }
       if (e.repeat && k !== 'ArrowDown') return
       if (k === 'p' || k === 'Escape') return togglePause()
       if (k === 'Enter' || k === ' ') {
@@ -452,7 +676,7 @@ export function TetrisGame({ win }: { win: Win }) {
 
   // Stepping away pauses the game; nobody wants to lose a run to a notification.
   useEffect(() => {
-    if (focused !== win.id && g.status === 'playing') {
+    if (focused !== win.id && g.status === 'playing' && !aiRef.current) {
       g.pause()
       held.current.clear()
       das.current = { dir: 0, t: 0, repeating: false }
@@ -463,7 +687,17 @@ export function TetrisGame({ win }: { win: Win }) {
     const hide = () => {
       if (document.visibilityState === 'hidden' && g.status === 'playing') {
         g.pause()
+        if (aiRef.current) {
+          bot.pause(true)
+          hiddenPause.current = true
+        }
         force()
+      } else if (document.visibilityState === 'visible' && hiddenPause.current) {
+        hiddenPause.current = false
+        g.resume()
+        bot.pause(false)
+        force()
+        kickRef.current()
       }
     }
     document.addEventListener('visibilitychange', hide)
@@ -472,7 +706,7 @@ export function TetrisGame({ win }: { win: Win }) {
       cancelAnimationFrame(raf.current)
       raf.current = 0
     }
-  }, [g])
+  }, [g, bot])
 
   const status = g.status
   const stat = (label: string, value: string, big = false) => (
@@ -481,16 +715,31 @@ export function TetrisGame({ win }: { win: Win }) {
     </div>
   )
   const best = Math.max(prefs.best, g.score)
+  const st = bot.stats
+  const skill = st.mu.length ? Math.round(st.mu[st.mu.length - 1]) : 0
+  const aiNote = !st.running ? 'Waking up…' : st.mastered ? 'Mastered' : st.generation === 0 ? 'Starting from nothing…' : 'Learning'
 
   return (
     <div className="tetris">
       <div className="toolbar" data-drag>
         <div className="toolbar-title left">
           Tetris
-          <small>{status === 'idle' ? 'Ready' : status === 'over' ? 'Game over' : status === 'paused' ? 'Paused' : `Level ${g.level}`}</small>
+          <small>
+            {ai
+              ? status === 'paused'
+                ? 'Paused'
+                : 'Pear Intelligence is helping'
+              : status === 'idle'
+                ? 'Ready'
+                : status === 'over'
+                  ? 'Game over'
+                  : status === 'paused'
+                    ? 'Paused'
+                    : `Level ${g.level}`}
+          </small>
         </div>
-        <button className="btn small" onClick={newGame}>
-          New Game
+        <button className="btn small" onClick={ai ? stopAI : newGame}>
+          {ai ? 'Take Over' : 'New Game'}
         </button>
         <button className="tb-btn" aria-label={status === 'paused' ? 'Resume' : 'Pause'} title={status === 'paused' ? 'Resume' : 'Pause'} disabled={status !== 'playing' && status !== 'paused'} onClick={togglePause}>
           {status === 'paused' ? <Play size={14} /> : <Pause size={14} />}
@@ -501,7 +750,21 @@ export function TetrisGame({ win }: { win: Win }) {
           <canvas ref={boardRef} className="tt-board" style={{ width: COLS * cell, height: VISIBLE * cell }} aria-label="Tetris board" />
           {status !== 'playing' && (
             <div className={`tt-overlay ${status}`}>
-              {status === 'idle' && (
+              {ai && status === 'idle' && (
+                <>
+                  <h2>Hold on</h2>
+                  <p>Pear Intelligence is on its way to help.</p>
+                </>
+              )}
+              {ai && status === 'over' && (
+                <>
+                  <h2>Game Over</h2>
+                  <div className="tt-final">{g.lines}</div>
+                  <p>{g.lines === 1 ? 'line' : 'lines'}{aiRecord.current > 0 ? ` · best so far ${aiRecord.current}` : ''}</p>
+                  <p className="tt-quip">{AI_QUIPS[g.lines % AI_QUIPS.length]}</p>
+                </>
+              )}
+              {!ai && status === 'idle' && (
                 <>
                   <h2>Tetris</h2>
                   <p>Stack the pieces, clear the rows, avoid the ceiling.</p>
@@ -525,7 +788,7 @@ export function TetrisGame({ win }: { win: Win }) {
                   </button>
                 </>
               )}
-              {status === 'over' && (
+              {!ai && status === 'over' && (
                 <>
                   <h2>Game Over</h2>
                   <div className="tt-final">{g.score.toLocaleString()}</div>
@@ -552,16 +815,39 @@ export function TetrisGame({ win }: { win: Win }) {
             <h3>Next</h3>
             <canvas ref={nextRef} />
           </section>
-          <section className="tt-box">
-            <h3>Hold</h3>
-            <canvas ref={holdRef} />
-          </section>
-          <section className="tt-stats">
-            {stat('score', String(g.score).padStart(5, '0'), true)}
-            {stat('rows', String(g.lines), true)}
-            {stat('level', String(g.level))}
-            {stat('best', String(best).padStart(5, '0'))}
-          </section>
+          {ai ? (
+            <>
+              <section className="tt-stats">
+                {stat('score', String(g.score).padStart(5, '0'), true)}
+                {stat('rows', String(g.lines), true)}
+              </section>
+              <section className="tt-ai">
+                <h3>Pear Intelligence</h3>
+                <canvas ref={chartRef} style={{ width: CHART_W, height: CHART_H }} aria-label="Lines per game as it learns" />
+                <div className="tt-ai-row">
+                  generation <b>{st.generation}</b>
+                </div>
+                <div className="tt-ai-row">
+                  skill <b>{skill}</b>
+                  <i>/ {MAX_LINES} lines</i>
+                </div>
+                <div className={`tt-ai-note ${st.mastered ? 'done' : ''}`}>{aiNote}</div>
+              </section>
+            </>
+          ) : (
+            <>
+              <section className="tt-box">
+                <h3>Hold</h3>
+                <canvas ref={holdRef} />
+              </section>
+              <section className="tt-stats">
+                {stat('score', String(g.score).padStart(5, '0'), true)}
+                {stat('rows', String(g.lines), true)}
+                {stat('level', String(g.level))}
+                {stat('best', String(best).padStart(5, '0'))}
+              </section>
+            </>
+          )}
         </aside>
       </div>
     </div>

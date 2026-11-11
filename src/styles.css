@@ -7614,6 +7614,46 @@ html.lit .sticky {
 .tt-stat.big {
   font-size: 21px;
 }
+.tt-ai {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 2px;
+}
+.tt-ai h3 {
+  margin: 0 0 2px;
+  font: 500 12px var(--font);
+  color: var(--fg2);
+}
+.tt-ai canvas {
+  display: block;
+  box-sizing: border-box;
+  border: 1px solid #222;
+  background: rgba(127, 127, 127, 0.1);
+}
+.tt-ai-row {
+  font: 400 12px var(--font);
+  color: var(--fg2);
+}
+.tt-ai-row b {
+  margin-left: 4px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+.tt-ai-row i {
+  margin-left: 3px;
+  font-style: normal;
+  opacity: 0.7;
+}
+.tt-ai-note {
+  margin-top: 2px;
+  font: 600 11px var(--font);
+  color: #0a84ff;
+}
+.tt-ai-note.done {
+  color: #30d158;
+}
 html.a11y-reduce-motion .tt-banner,
 html.a11y-reduce-motion .tt-overlay {
   animation: none;

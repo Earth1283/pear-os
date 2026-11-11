@@ -105,8 +105,19 @@ Boot Camp's second option is the actual Windows 98, running in [v86](https://git
 | `render_mandelbrot` | Fractals app and the Mandelbrot wallpaper |
 | `password_strength` | Passwords → Strength Checker |
 | `junk_score` | Mail → Junk folder and the compose Junk-o-meter |
+| `ai_generation`, `ai_choose`, … | Tetris → Help → Get Help (the learning agent) |
 | `kernel_task_cpu`, `entropy` | Activity Monitor |
 | `kernel_version_*` | `uname -a`, About |
+
+## What the Tetris agent does
+
+*Help → Get Help* in Tetris hands the game to an agent that learns by playing, written in Rust (`kernel/src/tetrisai.rs`) and compiled into the kernel.
+
+- **It plays by scoring boards.** For each piece it lists every rotation and column, scores the resulting board as a weighted sum of eight features (lines cleared, holes, bumpiness, heights, row and column transitions, wells), and plays the best. What it learns is the weights. It starts with all of them at zero, which is why its first game is a pile in the left-hand corner.
+- **It learns with the cross-entropy method**, a policy-search form of reinforcement learning. Each generation it draws 12 weight vectors, plays each one on the same two piece sequences, keeps the best 3, and nudges its distribution toward them. The chart is how many lines the agent itself clears in a fresh 1,000-piece game (the ceiling is about 400). When it clears 340 or more twice in a row it counts as mastered and stops training.
+- **Learning runs in a Web Worker**, one generation at a time, so the desktop stays smooth. The page keeps a copy of the latest weights and uses it to choose every move of the game you are watching, pressing the same rotate, move and drop keys a person would. The brain is saved in your browser and picked up next time.
+- *Game → Learning Speed* sets how fast generations run (Slow to Max), *Watch Speed* sets how fast the game is played, and *Forget What It Learned* starts over. *Take Over* hands the controls back.
+- `cargo test --release heuristic_baseline` checks the simulator against a hand-tuned player. `cargo test --release cem_curve -- --ignored --nocapture` prints a learning curve.
 
 ## What the GPU does
 
@@ -127,6 +138,7 @@ Everything here goes through WebGL2, so it runs on the real GPU of whatever mach
 - Fractals: click to zoom, then "Set as Wallpaper".
 - Chess: play Stockfish 19. Losing? Open the *Additional Tools* menu (Tactical Nuke, Orbital Strike, `kill -9 stockfish`, Uno Reverse, and friends).
 - Tetris: arrow keys to move, `X`/`Z` to rotate, `Space` to drop, `C` to hold. It pauses when you switch away, and remembers your best score.
+- Tetris: open the *Help* menu and choose *Get Help*. Pear Intelligence takes the controls and learns to play from scratch while you watch (see below).
 - Activity Monitor: force quit `kernel_task`.
 - Boot Camp Assistant: install Windows 95, restart, and survive Setup. Then beat Minesweeper before the blue screen gets you.
 - Right-click anything: files (tags, duplicate, compress), the desktop, dock icons, the dock separator (autohide), window title bars (tiling), and text fields (Writing Tools, Transformations, Speech).
