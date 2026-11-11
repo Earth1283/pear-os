@@ -126,6 +126,7 @@ Everything here goes through WebGL2, so it runs on the real GPU of whatever mach
 - Notes: end a line with `=`.
 - Fractals: click to zoom, then "Set as Wallpaper".
 - Chess: play Stockfish 19. Losing? Open the *Additional Tools* menu (Tactical Nuke, Orbital Strike, `kill -9 stockfish`, Uno Reverse, and friends).
+- Tetris: arrow keys to move, `X`/`Z` to rotate, `Space` to drop, `C` to hold. It pauses when you switch away, and remembers your best score.
 - Activity Monitor: force quit `kernel_task`.
 - Boot Camp Assistant: install Windows 95, restart, and survive Setup. Then beat Minesweeper before the blue screen gets you.
 - Right-click anything: files (tags, duplicate, compress), the desktop, dock icons, the dock separator (autohide), window title bars (tiling), and text fields (Writing Tools, Transformations, Speech).
