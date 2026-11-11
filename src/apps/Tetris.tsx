@@ -5,14 +5,15 @@ import { COLS, HIDDEN, ROT, ROWS, VISIBLE, FLASH_MS, Tetris, type Ev, type Kind 
 import type { MenuDef } from './types'
 
 const COLORS: Record<Kind, string> = {
-  I: '#40d0f5',
-  O: '#ffd60a',
-  T: '#bf5af2',
-  S: '#30d158',
-  Z: '#ff453a',
-  J: '#2f8bff',
-  L: '#ff9f0a',
+  I: '#00f0f0',
+  O: '#f8e000',
+  T: '#b048f0',
+  S: '#20d040',
+  Z: '#f03030',
+  J: '#3060f0',
+  L: '#ffa500',
 }
+const OUTLINE = '#1c1c1c'
 
 const DAS = 150
 const ARR = 38
@@ -78,20 +79,12 @@ function sfx(e: Ev, n = 0) {
 }
 
 function drawCell(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, color: string, alpha = 1) {
-  const r = Math.max(2, s * 0.16)
   ctx.globalAlpha = alpha
   ctx.fillStyle = color
-  ctx.beginPath()
-  ctx.roundRect(x + 1, y + 1, s - 2, s - 2, r)
-  ctx.fill()
-  ctx.fillStyle = 'rgba(255,255,255,.34)'
-  ctx.beginPath()
-  ctx.roundRect(x + 1, y + 1, s - 2, (s - 2) * 0.42, [r, r, 0, 0])
-  ctx.fill()
-  ctx.fillStyle = 'rgba(0,0,0,.24)'
-  ctx.beginPath()
-  ctx.roundRect(x + 1, y + 1 + (s - 2) * 0.76, s - 2, (s - 2) * 0.24, [0, 0, r, r])
-  ctx.fill()
+  ctx.fillRect(x, y, s, s)
+  ctx.strokeStyle = OUTLINE
+  ctx.lineWidth = 1
+  ctx.strokeRect(x + 0.5, y + 0.5, s - 1, s - 1)
   ctx.globalAlpha = 1
 }
 
@@ -99,13 +92,10 @@ function drawBoard(ctx: CanvasRenderingContext2D, g: Tetris, s: number, grid: bo
   const W = COLS * s
   const H = VISIBLE * s
   ctx.clearRect(0, 0, W, H)
-  const bg = ctx.createLinearGradient(0, 0, 0, H)
-  bg.addColorStop(0, '#16161c')
-  bg.addColorStop(1, '#0c0c10')
-  ctx.fillStyle = bg
+  ctx.fillStyle = '#ffffff'
   ctx.fillRect(0, 0, W, H)
   if (grid) {
-    ctx.strokeStyle = 'rgba(255,255,255,.045)'
+    ctx.strokeStyle = 'rgba(0,0,0,.06)'
     ctx.lineWidth = 1
     ctx.beginPath()
     for (let i = 1; i < COLS; i++) {
@@ -121,7 +111,7 @@ function drawBoard(ctx: CanvasRenderingContext2D, g: Tetris, s: number, grid: bo
   for (let r = HIDDEN; r < ROWS; r++)
     for (let c = 0; c < COLS; c++) {
       const k = g.board[r][c]
-      if (k) drawCell(ctx, c * s, (r - HIDDEN) * s, s, COLORS[k], g.status === 'over' ? 0.55 : 1)
+      if (k) drawCell(ctx, c * s, (r - HIDDEN) * s, s, COLORS[k], g.status === 'over' ? 0.5 : 1)
     }
   const p = g.cur
   if (p && (g.status === 'playing' || g.status === 'paused')) {
@@ -133,9 +123,9 @@ function drawBoard(ctx: CanvasRenderingContext2D, g: Tetris, s: number, grid: bo
           const px = x * s
           const py = (y - HIDDEN) * s
           ctx.fillStyle = COLORS[p.kind]
-          ctx.globalAlpha = 0.14
+          ctx.globalAlpha = 0.18
           ctx.fillRect(px + 1, py + 1, s - 2, s - 2)
-          ctx.globalAlpha = 0.6
+          ctx.globalAlpha = 0.85
           ctx.strokeStyle = COLORS[p.kind]
           ctx.lineWidth = 1.5
           ctx.strokeRect(px + 1.75, py + 1.75, s - 3.5, s - 3.5)
@@ -152,12 +142,12 @@ function drawBoard(ctx: CanvasRenderingContext2D, g: Tetris, s: number, grid: bo
   }
 }
 
-function drawMini(canvas: HTMLCanvasElement | null, kinds: (Kind | null)[], m: number, dim = false) {
+function drawMini(canvas: HTMLCanvasElement | null, kind: Kind | null, m: number, dim = false) {
   const ctx = canvas?.getContext('2d')
   if (!canvas || !ctx) return
   const dpr = window.devicePixelRatio || 1
-  const cw = m * 4 + 12
-  const ch = Math.max(1, kinds.length) * m * 2.5 + 4
+  const cw = m * 5
+  const ch = m * 4
   if (canvas.width !== Math.round(cw * dpr) || canvas.height !== Math.round(ch * dpr)) {
     canvas.width = Math.round(cw * dpr)
     canvas.height = Math.round(ch * dpr)
@@ -166,18 +156,15 @@ function drawMini(canvas: HTMLCanvasElement | null, kinds: (Kind | null)[], m: n
   }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, cw, ch)
-  const slot = m * 2.5
-  kinds.forEach((k, i) => {
-    if (!k) return
-    const cells = ROT[k][0]
-    const xs = cells.map((c) => c[0])
-    const ys = cells.map((c) => c[1])
-    const w = Math.max(...xs) - Math.min(...xs) + 1
-    const h = Math.max(...ys) - Math.min(...ys) + 1
-    const ox = (cw - w * m) / 2 - Math.min(...xs) * m
-    const oy = i * slot + (slot - h * m) / 2 - Math.min(...ys) * m + 2
-    for (const [x, y] of cells) drawCell(ctx, ox + x * m, oy + y * m, m, COLORS[k], dim ? 0.35 : 1)
-  })
+  if (!kind) return
+  const cells = ROT[kind][0]
+  const xs = cells.map((c) => c[0])
+  const ys = cells.map((c) => c[1])
+  const w = Math.max(...xs) - Math.min(...xs) + 1
+  const h = Math.max(...ys) - Math.min(...ys) + 1
+  const ox = (cw - w * m) / 2 - Math.min(...xs) * m
+  const oy = (ch - h * m) / 2 - Math.min(...ys) * m
+  for (const [x, y] of cells) drawCell(ctx, ox + x * m, oy + y * m, m, COLORS[kind], dim ? 0.35 : 1)
 }
 
 type Cmd = 'new' | 'pause' | 'end' | 'ghost' | 'grid' | 'sound' | `level:${number}`
@@ -405,9 +392,9 @@ export function TetrisGame({ win }: { win: Win }) {
   }, [cell])
 
   useEffect(() => {
-    const m = Math.max(10, Math.min(20, Math.floor(cell * 0.62)))
-    drawMini(holdRef.current, [g.held], m, !g.canHold)
-    drawMini(nextRef.current, g.status === 'idle' ? [] : g.next.slice(0, 4), m)
+    const m = Math.max(12, Math.min(24, Math.floor(cell * 0.8)))
+    drawMini(holdRef.current, g.held, m, !g.canHold)
+    drawMini(nextRef.current, g.status === 'idle' ? null : g.next[0], m)
   })
 
   useEffect(() => {
@@ -488,10 +475,9 @@ export function TetrisGame({ win }: { win: Win }) {
   }, [g])
 
   const status = g.status
-  const stat = (label: string, value: string | number) => (
-    <div className="tt-stat">
-      <span>{label}</span>
-      <b>{typeof value === 'number' ? value.toLocaleString() : value}</b>
+  const stat = (label: string, value: string, big = false) => (
+    <div className={`tt-stat ${big ? 'big' : ''}`}>
+      {label} <b>{value}</b>
     </div>
   )
   const best = Math.max(prefs.best, g.score)
@@ -563,18 +549,18 @@ export function TetrisGame({ win }: { win: Win }) {
         </div>
         <aside className="tt-side">
           <section className="tt-box">
-            <h3>Hold</h3>
-            <canvas ref={holdRef} />
-          </section>
-          <section className="tt-box">
             <h3>Next</h3>
             <canvas ref={nextRef} />
           </section>
+          <section className="tt-box">
+            <h3>Hold</h3>
+            <canvas ref={holdRef} />
+          </section>
           <section className="tt-stats">
-            {stat('Score', g.score)}
-            {stat('Lines', g.lines)}
-            {stat('Level', g.level)}
-            {stat('Best', best)}
+            {stat('score', String(g.score).padStart(5, '0'), true)}
+            {stat('rows', String(g.lines), true)}
+            {stat('level', String(g.level))}
+            {stat('best', String(best).padStart(5, '0'))}
           </section>
         </aside>
       </div>
