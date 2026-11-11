@@ -139,6 +139,7 @@ Everything here goes through WebGL2, so it runs on the real GPU of whatever mach
 - Fractals: click to zoom, then "Set as Wallpaper".
 - Chess: play Stockfish 19. Losing? Open the *Additional Tools* menu (Tactical Nuke, Orbital Strike, `kill -9 stockfish`, Uno Reverse, and friends).
 - Tetris: arrow keys to move, `X`/`Z` to rotate, `Space` to drop, `C` to hold. It pauses when you switch away, and remembers your best score.
+- Tetris: *Game → Spawn Difficulty* sets how pieces are dealt, from Convenient (it hands you the piece your board wants) through Standard (the normal 7-bag) to Rooting Against You (it hands you the worst one). Scores from Convenient and Kind games don't count toward your best, and the learning agent always plays Standard.
 - Tetris: open the *Help* menu and choose *Get Help*. Pear Intelligence takes the controls and learns to play from scratch while you watch (see below).
 - Activity Monitor: force quit `kernel_task`.
 - Boot Camp Assistant: install Windows 95, restart, and survive Setup. Then beat Minesweeper before the blue screen gets you.

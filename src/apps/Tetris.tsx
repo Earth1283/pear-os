@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
 import { Pause, Play } from 'lucide-react'
 import { os, useOS, type Win } from '../store'
-import { COLS, HIDDEN, ROT, ROWS, VISIBLE, FLASH_MS, Tetris, type Ev, type Kind } from '../lib/tetris'
+import { COLS, HIDDEN, ROT, ROWS, VISIBLE, FLASH_MS, LUCK, LUCK_STANDARD, Tetris, type Ev, type Kind } from '../lib/tetris'
 import { LEARN_SPEEDS, TetrisAgent, WATCH_SPEEDS, type Stats } from '../lib/tetrisAI'
 import type { MenuDef } from './types'
 
@@ -28,11 +28,12 @@ interface Prefs {
   ghost: boolean
   grid: boolean
   sound: boolean
+  luck: number
 }
 const KEY = 'pearos.tetris.v1'
 
 function loadPrefs(): Prefs {
-  const d: Prefs = { best: 0, level: 1, ghost: true, grid: true, sound: true }
+  const d: Prefs = { best: 0, level: 1, ghost: true, grid: true, sound: true, luck: LUCK_STANDARD }
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? '{}') as Partial<Prefs>
     if (Number.isFinite(raw.best) && raw.best! > 0) d.best = Math.floor(raw.best!)
@@ -40,6 +41,7 @@ function loadPrefs(): Prefs {
     if (typeof raw.ghost === 'boolean') d.ghost = raw.ghost
     if (typeof raw.grid === 'boolean') d.grid = raw.grid
     if (typeof raw.sound === 'boolean') d.sound = raw.sound
+    if (Number.isInteger(raw.luck) && raw.luck! >= 0 && raw.luck! < LUCK.length) d.luck = raw.luck!
   } catch {
   }
   return d
@@ -227,13 +229,14 @@ function drawChart(canvas: HTMLCanvasElement | null, s: Stats) {
   ctx.fill()
 }
 
-type Cmd = 'new' | 'pause' | 'end' | 'ghost' | 'grid' | 'sound' | 'help' | 'forget' | 'bound' | `level:${number}` | `learn:${number}` | `watch:${number}`
+type Cmd = 'new' | 'pause' | 'end' | 'ghost' | 'grid' | 'sound' | 'help' | 'forget' | 'bound' | `luck:${number}` | `level:${number}` | `learn:${number}` | `watch:${number}`
 interface Ctl {
   readonly status: Tetris['status']
   readonly ghost: boolean
   readonly grid: boolean
   readonly sound: boolean
   readonly level: number
+  readonly luck: number
   readonly ai: boolean
   readonly learn: number
   readonly watch: number
@@ -260,6 +263,8 @@ export function tetrisMenus(): MenuDef[] {
         },
         'sep',
         { label: 'End Game', disabled: st !== 'playing' && st !== 'paused', action: run('end') },
+        'sep',
+        { label: 'Spawn Difficulty', disabled: ai, submenu: LUCK.map((l, i) => ({ label: l.label, checked: c?.luck === i, action: run(`luck:${i}`) })) },
         'sep',
         { label: 'Learning Speed', disabled: !ai, submenu: LEARN_SPEEDS.map((l, i) => ({ label: l.label, checked: c?.learn === i, action: run(`learn:${i}`) })) },
         { label: 'Watch Speed', disabled: !ai, submenu: WATCH_SPEEDS.map((l, i) => ({ label: l.label, checked: c?.watch === i, action: run(`watch:${i}`) })) },
@@ -357,7 +362,7 @@ export function TetrisGame({ win }: { win: Win }) {
         overAt.current = performance.now()
         das.current = { dir: 0, t: 0, repeating: false }
         const g = game.current!
-        if (g.score > prefsRef.current.best) {
+        if (g.luck >= LUCK_STANDARD && g.score > prefsRef.current.best) {
           if (prefsRef.current.best > 0) os().notify({ app: 'tetris', title: 'Tetris', body: `New high score: ${g.score.toLocaleString()}. The blocks are proud of you.` })
           setPrefs((p) => ({ ...p, best: g.score }))
         }
@@ -458,6 +463,7 @@ export function TetrisGame({ win }: { win: Win }) {
     botAcc.current = 0
     shown.current = 0
     g.fixedLevel = true
+    g.setLuck(LUCK_STANDARD)
     g.start(1)
     force()
     kick()
@@ -507,6 +513,7 @@ export function TetrisGame({ win }: { win: Win }) {
     held.current.clear()
     das.current = { dir: 0, t: 0, repeating: false }
     shown.current = 0
+    g.setLuck(prefsRef.current.luck)
     g.start(prefsRef.current.level)
     force()
     kick()
@@ -542,6 +549,12 @@ export function TetrisGame({ win }: { win: Win }) {
     if (cmd === 'ghost') return setPrefs((p) => ({ ...p, ghost: !p.ghost }))
     if (cmd === 'grid') return setPrefs((p) => ({ ...p, grid: !p.grid }))
     if (cmd === 'sound') return setPrefs((p) => ({ ...p, sound: !p.sound }))
+    if (cmd.startsWith('luck:')) {
+      const luck = +cmd.slice(5)
+      setPrefs((p) => ({ ...p, luck }))
+      if (!aiRef.current) g.setLuck(luck)
+      return
+    }
     if (cmd.startsWith('level:')) {
       const level = +cmd.slice(6)
       setPrefs((p) => ({ ...p, level }))
@@ -570,6 +583,7 @@ export function TetrisGame({ win }: { win: Win }) {
       get grid() { return prefsRef.current.grid },
       get sound() { return prefsRef.current.sound },
       get level() { return prefsRef.current.level },
+      get luck() { return prefsRef.current.luck },
       get ai() { return aiRef.current },
       get bounded() { return bot.bounded },
       get learn() { return bot.learn },

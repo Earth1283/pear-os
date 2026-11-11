@@ -19,6 +19,21 @@ const PREVIEW = 5
 
 type Cell = [number, number]
 
+/**
+ * How the next piece is chosen. `p` is the chance that the game looks at your board and hands you the piece
+ * that suits it best (`sign` 1) or worst (`sign` -1); otherwise it deals from the 7-bag as usual.
+ * The preview stays honest: a piece is chosen the moment it enters the preview, against the board as it
+ * stands after your last lock, so it cannot react to the piece you are still holding.
+ */
+export const LUCK = [
+  { label: 'Convenient', p: 0.85, sign: 1 },
+  { label: 'Kind', p: 0.4, sign: 1 },
+  { label: 'Standard', p: 0, sign: 1 },
+  { label: 'Unlucky', p: 0.4, sign: -1 },
+  { label: 'Rooting Against You', p: 1, sign: -1 },
+]
+export const LUCK_STANDARD = 2
+
 const SHAPE: Record<Kind, string[]> = {
   I: ['....', 'XXXX', '....', '....'],
   O: ['XX', 'XX'],
@@ -103,6 +118,9 @@ export class Tetris {
   /** When set the level stays put however many lines clear (the AI demo uses this). */
   fixedLevel = false
 
+  /** Index into LUCK. Only the 7-bag deals pieces when this is Standard. */
+  luck = LUCK_STANDARD
+
   private bag: Kind[] = []
   canHold = true
   private acc = 0
@@ -173,17 +191,78 @@ export class Tetris {
     return Math.max(16, 1000 * Math.pow(0.8 - l * 0.007, l))
   }
 
+  /** Changes how pieces are dealt, from the next one chosen on. */
+  setLuck(i: number) {
+    this.luck = Math.min(LUCK.length - 1, Math.max(0, i | 0))
+    if (this.luck !== LUCK_STANDARD) this.queue.length = Math.min(this.queue.length, 1)
+    this.refill()
+  }
+
   private refill() {
-    while (this.queue.length < 7 + PREVIEW) {
-      if (!this.bag.length) {
-        this.bag = [...KINDS]
-        for (let i = this.bag.length - 1; i > 0; i--) {
-          const j = Math.floor(this.rand() * (i + 1))
-          ;[this.bag[i], this.bag[j]] = [this.bag[j], this.bag[i]]
-        }
+    const { p, sign } = LUCK[this.luck]
+    // Pieces that are chosen against the board are only chosen when they are about to be shown.
+    const want = p > 0 ? 1 : 7 + PREVIEW
+    while (this.queue.length < want) this.queue.push(p > 0 && this.rand() < p ? this.pick(sign) : this.fromBag())
+  }
+
+  private fromBag() {
+    if (!this.bag.length) {
+      this.bag = [...KINDS]
+      for (let i = this.bag.length - 1; i > 0; i--) {
+        const j = Math.floor(this.rand() * (i + 1))
+        ;[this.bag[i], this.bag[j]] = [this.bag[j], this.bag[i]]
       }
-      this.queue.push(this.bag.pop()!)
     }
+    return this.bag.pop()!
+  }
+
+  /** The piece whose best landing on this board is the best (sign 1) or worst (sign -1), ties broken at random. */
+  private pick(sign: number) {
+    const rated = KINDS.map((k) => ({ k, v: sign * this.rate(k) }))
+    const top = Math.max(...rated.map((r) => r.v))
+    const best = rated.filter((r) => r.v >= top - 1e-9)
+    return best[Math.floor(this.rand() * best.length)].k
+  }
+
+  /** How good the best landing for `kind` is on the current board. Higher is easier to live with. */
+  private rate(kind: Kind) {
+    let best = -Infinity
+    for (let rot = 0; rot < 4; rot++) {
+      for (let x = -2; x < COLS; x++) {
+        if (this.collides(kind, rot, x, 0)) continue
+        let y = 0
+        while (!this.collides(kind, rot, x, y + 1)) y++
+        best = Math.max(best, this.value(kind, rot, x, y))
+      }
+    }
+    return best
+  }
+
+  /** A classic hand-tuned board score: reward lines, punish holes, bumpiness and height. A topped-out board is the worst there is. */
+  private value(kind: Kind, rot: number, px: number, py: number) {
+    const cells = ROT[kind][rot].map(([cx, cy]) => [px + cx, py + cy])
+    if (cells.every(([, y]) => y < HIDDEN)) return -1e3
+    const grid = this.board.map((r) => r.map(Boolean))
+    for (const [x, y] of cells) if (y >= 0) grid[y][x] = true
+    const kept = grid.filter((r) => !r.every(Boolean))
+    const lines = ROWS - kept.length
+    const rows = [...Array.from({ length: lines }, () => Array<boolean>(COLS).fill(false)), ...kept]
+    let holes = 0
+    let bump = 0
+    let agg = 0
+    let prev = 0
+    for (let x = 0; x < COLS; x++) {
+      let h = 0
+      for (let y = 0; y < ROWS; y++) {
+        if (rows[y][x]) {
+          if (!h) h = ROWS - y
+        } else if (h) holes++
+      }
+      agg += h
+      if (x) bump += Math.abs(h - prev)
+      prev = h
+    }
+    return 0.76 * lines - 0.36 * holes - 0.18 * bump - 0.51 * agg
   }
 
   private collides(kind: Kind, rot: number, x: number, y: number) {
