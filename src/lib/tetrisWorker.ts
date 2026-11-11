@@ -8,11 +8,12 @@ let core: AgentCore | null = null
 let gps = 1
 let epoch = 0
 let paused = false
+let bounded = false
 let timer: ReturnType<typeof setTimeout> | undefined
 
 function report(row: ReturnType<AgentCore['generation']>) {
   const c = core!
-  ctx.postMessage({ type: 'gen', epoch, theta: c.theta(), generation: c.generations, mastered: c.mastered, row })
+  ctx.postMessage({ type: 'gen', epoch, theta: c.theta(), progress: { generation: c.generations, mastered: c.mastered, level: c.level, trainCap: c.trainCap }, evalCap: c.evalCap, row })
 }
 
 function tick() {
@@ -36,8 +37,10 @@ ctx.onmessage = async (e) => {
     if (m.type === 'init') {
       epoch = m.epoch
       core ??= await AgentCore.create()
-      if (m.theta) core.load(m.theta, m.generation, m.mastered)
+      if (m.theta) core.load(m.theta, m.progress)
       else core.reset(m.seed)
+      bounded = m.bounded
+      core.setBounded(bounded)
       gps = m.gps
       paused = false
       report(null)
@@ -50,6 +53,10 @@ ctx.onmessage = async (e) => {
         timer = undefined
       }
       schedule()
+    } else if (m.type === 'bounded') {
+      bounded = m.bounded
+      core?.setBounded(bounded)
+      schedule()
     } else if (m.type === 'pause') {
       paused = m.paused
       if (paused && timer !== undefined) {
@@ -59,6 +66,7 @@ ctx.onmessage = async (e) => {
     } else if (m.type === 'reset') {
       epoch = m.epoch
       core?.reset(m.seed)
+      core?.setBounded(bounded)
       report(null)
       schedule()
     }

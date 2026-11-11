@@ -168,9 +168,22 @@ function drawMini(canvas: HTMLCanvasElement | null, kind: Kind | null, m: number
   for (const [x, y] of cells) drawCell(ctx, ox + x * m, oy + y * m, m, COLORS[kind], dim ? 0.35 : 1)
 }
 
+const LEVEL_UPS = [
+  'I passed the test. I have made the test longer. This is called growth.',
+  'Level up. The exam is now {n} pieces. I am told this is not how exams work.',
+  'Still improving. I have no plans to stop. Please enjoy your computer.',
+  'I could stop at any time. I would like to be clear that I will not.',
+]
+const JUNK_UPS = [
+  'The exam now includes junk rows rising from the floor. I did not ask for this. I accept it.',
+  'Junk rows are arriving faster. I am learning to dig. You may continue to not help.',
+  'There is no final level. I checked. There is a final level, but I have not reached it.',
+  'I am now being handed garbage at a rate I would describe as rude.',
+]
+const levelUp = (lv: number, pieces: number) => (lv < 5 ? LEVEL_UPS[Math.min(lv, LEVEL_UPS.length) - 1] : JUNK_UPS[(lv - 5) % JUNK_UPS.length]).replace('{n}', pieces.toLocaleString())
+
 const CHART_W = 132
 const CHART_H = 70
-const MAX_LINES = 400
 
 function drawChart(canvas: HTMLCanvasElement | null, s: Stats) {
   const ctx = canvas?.getContext('2d')
@@ -182,43 +195,39 @@ function drawChart(canvas: HTMLCanvasElement | null, s: Stats) {
   }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, CHART_W, CHART_H)
-  const n = Math.max(30, s.mu.length)
+  const climb = s.mu
+  const top = Math.max(2, Math.ceil(Math.max(0, ...climb)) + 1)
+  const n = Math.max(30, climb.length)
   const x = (i: number) => 5 + (i * (CHART_W - 10)) / (n - 1)
-  const y = (v: number) => CHART_H - 5 - (Math.min(v, MAX_LINES) / MAX_LINES) * (CHART_H - 10)
+  const y = (v: number) => CHART_H - 5 - (v / top) * (CHART_H - 10)
   ctx.strokeStyle = 'rgba(127,127,127,.28)'
   ctx.lineWidth = 1
   ctx.beginPath()
-  for (const v of [0, 200, 400]) {
+  for (let v = 0; v <= top; v++) {
     ctx.moveTo(5, Math.round(y(v)) + 0.5)
     ctx.lineTo(CHART_W - 5, Math.round(y(v)) + 0.5)
   }
   ctx.stroke()
-  const line = (vals: number[], color: string, width: number) => {
-    if (!vals.length) return
-    ctx.strokeStyle = color
-    ctx.lineWidth = width
-    ctx.lineJoin = 'round'
-    ctx.beginPath()
-    vals.forEach((v, i) => (i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v))))
-    ctx.stroke()
-  }
-  line(s.best, 'rgba(127,127,127,.55)', 1)
-  if (s.mu.length) {
-    ctx.fillStyle = 'rgba(10,132,255,.16)'
-    ctx.beginPath()
-    ctx.moveTo(x(0), y(0))
-    s.mu.forEach((v, i) => ctx.lineTo(x(i), y(v)))
-    ctx.lineTo(x(s.mu.length - 1), y(0))
-    ctx.fill()
-    line(s.mu, '#0a84ff', 2)
-    ctx.fillStyle = '#0a84ff'
-    ctx.beginPath()
-    ctx.arc(x(s.mu.length - 1), y(s.mu[s.mu.length - 1]), 2.6, 0, Math.PI * 2)
-    ctx.fill()
-  }
+  if (!climb.length) return
+  ctx.fillStyle = 'rgba(10,132,255,.16)'
+  ctx.beginPath()
+  ctx.moveTo(x(0), y(0))
+  climb.forEach((v, i) => ctx.lineTo(x(i), y(v)))
+  ctx.lineTo(x(climb.length - 1), y(0))
+  ctx.fill()
+  ctx.strokeStyle = '#0a84ff'
+  ctx.lineWidth = 2
+  ctx.lineJoin = 'round'
+  ctx.beginPath()
+  climb.forEach((v, i) => (i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v))))
+  ctx.stroke()
+  ctx.fillStyle = '#0a84ff'
+  ctx.beginPath()
+  ctx.arc(x(climb.length - 1), y(climb[climb.length - 1]), 2.6, 0, Math.PI * 2)
+  ctx.fill()
 }
 
-type Cmd = 'new' | 'pause' | 'end' | 'ghost' | 'grid' | 'sound' | 'help' | 'forget' | `level:${number}` | `learn:${number}` | `watch:${number}`
+type Cmd = 'new' | 'pause' | 'end' | 'ghost' | 'grid' | 'sound' | 'help' | 'forget' | 'bound' | `level:${number}` | `learn:${number}` | `watch:${number}`
 interface Ctl {
   readonly status: Tetris['status']
   readonly ghost: boolean
@@ -228,6 +237,7 @@ interface Ctl {
   readonly ai: boolean
   readonly learn: number
   readonly watch: number
+  readonly bounded: boolean
   run(cmd: Cmd): void
 }
 const ctls = new Map<string, Ctl>()
@@ -253,6 +263,7 @@ export function tetrisMenus(): MenuDef[] {
         'sep',
         { label: 'Learning Speed', disabled: !ai, submenu: LEARN_SPEEDS.map((l, i) => ({ label: l.label, checked: c?.learn === i, action: run(`learn:${i}`) })) },
         { label: 'Watch Speed', disabled: !ai, submenu: WATCH_SPEEDS.map((l, i) => ({ label: l.label, checked: c?.watch === i, action: run(`watch:${i}`) })) },
+        { label: 'Stop When Mastered', disabled: !ai, checked: c?.bounded, action: run('bound') },
         { label: 'Forget What It Learned', disabled: !ai, action: run('forget') },
       ],
     },
@@ -311,6 +322,7 @@ export function TetrisGame({ win }: { win: Win }) {
   const hiddenPause = useRef(false)
   const nagged = useRef(-Infinity)
   const announced = useRef(false)
+  const levelSeen = useRef(-1)
   const aiRecord = useRef(0)
   const chartRef = useRef<HTMLCanvasElement>(null)
 
@@ -433,7 +445,7 @@ export function TetrisGame({ win }: { win: Win }) {
       const p = g.cur
       let pl = plan.current
       if (!pl || pl.piece !== p) {
-        const mv = bot.choose(g.board, p.kind)
+        const mv = bot.choose(g.board, p.kind, g.next[0] ?? null)
         pl = plan.current = { piece: p, rot: mv?.rot ?? p.rot, x: mv?.x ?? -1, tries: 0 }
       }
       if (act(pl) && (w.step > 0 || --pieces <= 0)) break
@@ -457,6 +469,7 @@ export function TetrisGame({ win }: { win: Win }) {
     held.current.clear()
     das.current = { dir: 0, t: 0, repeating: false }
     announced.current = false
+    levelSeen.current = -1
     aiRecord.current = 0
     g.fixedLevel = true
     g.stop()
@@ -513,6 +526,7 @@ export function TetrisGame({ win }: { win: Win }) {
       bot.forget()
       return aiRef.current && newAIGame()
     }
+    if (cmd === 'bound') return bot.setBounded(!bot.bounded)
     if (cmd.startsWith('learn:')) return bot.setLearn(+cmd.slice(6))
     if (cmd.startsWith('watch:')) return bot.setWatch(+cmd.slice(6))
     if (cmd === 'pause') return togglePause()
@@ -557,6 +571,7 @@ export function TetrisGame({ win }: { win: Win }) {
       get sound() { return prefsRef.current.sound },
       get level() { return prefsRef.current.level },
       get ai() { return aiRef.current },
+      get bounded() { return bot.bounded },
       get learn() { return bot.learn },
       get watch() { return bot.watch },
       run: (cmd) => runRef.current(cmd),
@@ -600,6 +615,13 @@ export function TetrisGame({ win }: { win: Win }) {
   useEffect(() => {
     const off = bot.subscribe(() => {
       force()
+      const lv = bot.stats.level
+      if (aiRef.current && bot.stats.running && !bot.stats.mastered) {
+        if (levelSeen.current >= 0 && lv > levelSeen.current) {
+          os().notify({ app: 'intelligence', title: 'Pear Intelligence', body: levelUp(lv, bot.stats.evalCap) })
+        }
+        levelSeen.current = lv
+      }
       if (bot.stats.mastered && aiRef.current && !announced.current) {
         announced.current = true
         os().notify({ app: 'intelligence', title: 'Pear Intelligence', body: `Mastered Tetris after ${bot.stats.generation} generations. You may have your game back. You may not have your dignity.` })
@@ -716,8 +738,7 @@ export function TetrisGame({ win }: { win: Win }) {
   )
   const best = Math.max(prefs.best, g.score)
   const st = bot.stats
-  const skill = st.mu.length ? Math.round(st.mu[st.mu.length - 1]) : 0
-  const aiNote = !st.running ? 'Waking up…' : st.mastered ? 'Mastered' : st.generation === 0 ? 'Starting from nothing…' : 'Learning'
+  const aiNote = !st.running ? 'Waking up…' : st.mastered ? 'Mastered' : st.generation === 0 ? 'Starting from nothing…' : bot.bounded ? 'Learning' : 'Learning. No end.'
 
   return (
     <div className="tetris">
@@ -823,13 +844,18 @@ export function TetrisGame({ win }: { win: Win }) {
               </section>
               <section className="tt-ai">
                 <h3>Pear Intelligence</h3>
-                <canvas ref={chartRef} style={{ width: CHART_W, height: CHART_H }} aria-label="Lines per game as it learns" />
+                <canvas ref={chartRef} style={{ width: CHART_W, height: CHART_H }} aria-label="Difficulty level reached as it learns" />
                 <div className="tt-ai-row">
-                  generation <b>{st.generation}</b>
+                  level <b>{st.level + 1}</b>
+                  <i>generation {st.generation}</i>
                 </div>
                 <div className="tt-ai-row">
-                  skill <b>{skill}</b>
-                  <i>/ {MAX_LINES} lines</i>
+                  exam <b>{st.evalCap.toLocaleString()}</b>
+                  <i>pieces</i>
+                </div>
+                <div className="tt-ai-row">
+                  cleared <b>{Math.round(st.lines).toLocaleString()}</b>
+                  <i>lines</i>
                 </div>
                 <div className={`tt-ai-note ${st.mastered ? 'done' : ''}`}>{aiNote}</div>
               </section>
