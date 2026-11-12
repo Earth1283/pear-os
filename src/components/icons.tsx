@@ -1,4 +1,5 @@
 import { memo, useId } from 'react'
+import { Radio } from 'lucide-react'
 import type { AppId } from '../apps/ids'
 import type { FileKind } from '../lib/fs'
 
@@ -42,6 +43,9 @@ export const AppIcon = memo(function AppIcon({ app, size = 52 }: { app: AppId; s
   let body: React.ReactNode
 
   switch (app) {
+    case 'airpear':
+      body = <><Squircle fill="#0a84ff" /><Radio x={20} y={20} width={60} height={60} color="#fff" strokeWidth={1.5} /></>
+      break
     case 'finder':
       body = (
         <>

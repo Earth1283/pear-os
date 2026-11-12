@@ -33,6 +33,7 @@ const app = (id: AppId): FileNode => ({ type: 'file', kind: 'app', app: id, size
 export const root: DirNode = d({
   Applications: d({
     'Finder.app': app('finder'),
+    'AirPear.app': app('airpear'),
     'Sapphari.app': app('safari'),
     'Music.app': app('music'),
     'Chess.app': app('chess'),

@@ -1,5 +1,6 @@
 export type AppId =
   | 'finder'
+  | 'airpear'
   | 'launchpad'
   | 'safari'
   | 'music'

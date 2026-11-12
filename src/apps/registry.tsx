@@ -29,6 +29,7 @@ export function preloadApps() {
 }
 
 const finder = chunk(() => import('./Finder'))
+const airpear = chunk(() => import('./AirPear'))
 const terminal = chunk(() => import('./Terminal'))
 const productivity = chunk(() => import('./Productivity'))
 const sequel = chunk(() => import('./Sequel'))
@@ -44,6 +45,7 @@ const diskutility = chunk(() => import('./DiskUtility'))
 const softwareupdate = chunk(() => import('./SoftwareUpdate'))
 
 const Finder = finder.part('Finder')
+const AirPear = airpear.part('AirPearApp')
 const Terminal = terminal.part('Terminal')
 const Calculator = productivity.part('Calculator')
 const Notes = productivity.part('Notes')
@@ -69,6 +71,7 @@ const SoftwareUpdate = softwareupdate.part('SoftwareUpdate')
 const Nothing = () => null
 
 export const APPS: Record<AppId, AppDef> = {
+  airpear: { name: 'AirPear', component: AirPear, w: 820, h: 620, minW: 520, minH: 380, singleton: true, chrome: 'overlay' },
   finder: { name: 'Finder', component: Finder, w: 860, h: 520, minW: 520, minH: 300, chrome: 'overlay' },
   launchpad: { name: 'Launchpad', component: Nothing, w: 0, h: 0, hidden: true },
   safari: { name: 'Sapphari', component: Safari, w: 1040, h: 680, minW: 480, chrome: 'overlay' },
@@ -132,4 +135,4 @@ export const APPS: Record<AppId, AppDef> = {
 registerSpecs(APPS)
 
 export const DOCK_APPS: AppId[] = ['finder', 'launchpad', 'safari', 'mail', 'music', 'chess', 'tetris', 'notes', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'settings']
-export const LAUNCHPAD_APPS: AppId[] = ['finder', 'safari', 'music', 'chess', 'tetris', 'notes', 'textedit', 'preview', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'photobooth', 'mail', 'diskutility', 'softwareupdate', 'bootcamp', 'settings']
+export const LAUNCHPAD_APPS: AppId[] = ['finder', 'airpear', 'safari', 'music', 'chess', 'tetris', 'notes', 'textedit', 'preview', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'photobooth', 'mail', 'diskutility', 'softwareupdate', 'bootcamp', 'settings']

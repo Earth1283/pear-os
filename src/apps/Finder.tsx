@@ -16,7 +16,7 @@ const SIDEBAR = [
   {
     head: 'Favorites',
     items: [
-      { label: 'AirDrop', icon: Radio, path: 'airdrop' },
+      { label: 'AirPear', icon: Radio, path: 'airdrop' },
       { label: 'Recents', icon: Clock, path: 'recents' },
       { label: 'Applications', icon: AppWindow, path: '/Applications' },
       { label: 'Desktop', icon: Monitor, path: HOME + '/Desktop' },
@@ -55,8 +55,9 @@ function Special({ path }: { path: string }) {
     return (
       <div className="finder-special">
         <Radio size={64} strokeWidth={1.2} />
-        <h3>AirDrop</h3>
-        <p>Looking for people nearby… found 14 strangers on this train. All of them want to send you a picture.</p>
+        <h3>AirPear</h3>
+        <p>Send files directly to another PearOS, including over your local network.</p>
+        <button className="btn" onClick={() => os().openApp('airpear')}>Open AirPear</button>
       </div>
     )
   if (path === 'icloud')
@@ -175,7 +176,7 @@ export function Finder({ win }: { win: Win }) {
           <div key={g.head} className="sb-group">
             <div className="sb-head">{g.head}</div>
             {g.items.map((it) => (
-              <button key={it.path} className={`sb-item ${path === it.path ? 'active' : ''}`} onClick={() => go(it.path)}>
+              <button key={it.path} className={`sb-item ${path === it.path ? 'active' : ''}`} onClick={() => it.path === 'airdrop' ? os().openApp('airpear') : go(it.path)}>
                 <it.icon size={15} strokeWidth={2} />
                 <span>{it.label}</span>
               </button>

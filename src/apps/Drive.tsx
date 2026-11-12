@@ -7,6 +7,7 @@ import { menu, type MenuEntry } from '../lib/menu'
 import type { FileKind } from '../lib/fs'
 import { playDriveFile } from '../lib/player'
 import { RenameField, useEnterToRename } from '../components/RenameField'
+import { MAX_BYTES } from '../lib/airpearProtocol'
 
 export const join = (dir: string, name: string) => `${dir.replace(/\/$/, '')}/${name}`
 
@@ -111,6 +112,15 @@ export function DriveView({ rel, view, q, active, onOpenDir, setView }: { rel: s
     return [
       { label: 'Open', run: () => (e.dir ? onOpenDir(p) : openDriveFile(p)) },
       { label: 'Download', disabled: e.dir, run: () => window.open(drive.url(p, true), '_blank', 'noopener') },
+      { label: 'Send with AirPear…', disabled: e.dir || e.size > MAX_BYTES, run: async () => {
+        try {
+          const response = await fetch(drive.url(p), { credentials: 'same-origin' })
+          if (!response.ok) throw new Error('Could not read this PearDrive file.')
+          const blob = await response.blob()
+          if (blob.size > MAX_BYTES) throw new Error('AirPear supports up to 256 MiB per transfer.')
+          os().openApp('airpear', { props: { files: [new File([blob], e.name, { type: blob.type })] } })
+        } catch (error) { fail(error) }
+      } },
       'sep',
       inTrash
         ? { label: 'Delete Immediately…', run: () => drive.remove(p).then(bumpDrive, fail) }

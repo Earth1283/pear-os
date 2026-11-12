@@ -1,0 +1,88 @@
+.airpear { display: flex; height: 100%; background: var(--bg); color: var(--fg); font-size: 13px; }
+.ap-sidebar { width: 190px; min-width: 190px; display: flex; flex-direction: column; }
+.ap-sidebar .sb-item { width: 100%; }
+.ap-count { margin-left: auto; padding: 0 5px; border-radius: 5px; background: var(--sel); font-size: 11px; }
+.ap-identity { display: flex; flex-direction: column; gap: 7px; margin: 20px 15px; }
+.ap-identity label { color: var(--fg2); font-size: 11px; font-weight: 600; }
+.ap-identity input { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 5px; background: var(--field); font-size: 12px; }
+.ap-identity > span { color: var(--fg2); font-size: 11px; line-height: 1.5; }
+.ap-sidebar-note { display: flex; align-items: flex-start; gap: 7px; padding: 15px; margin-top: auto; color: var(--fg2); font-size: 11px; line-height: 1.5; }
+.ap-sidebar-note svg { flex-shrink: 0; margin-top: 2px; }
+.ap-main { display: flex; flex-direction: column; flex: 1; min-width: 0; overflow: hidden; }
+.ap-main > .toolbar { flex-shrink: 0; padding-left: 18px; }
+.ap-toolbar-note { margin-left: auto; color: var(--fg2); font-size: 11px; }
+.ap-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 24px; }
+.ap-intro { margin: 0 0 22px; }
+.ap-intro h2 { margin: 0 0 7px; font-size: 23px; letter-spacing: -.65px; font-weight: 600; }
+.ap-intro p, .ap-pair-section p { margin: 0; color: var(--fg2); font-size: 12px; line-height: 1.6; }
+.ap-drop { display: flex; align-items: center; gap: 13px; padding: 18px 15px; border: 1px dashed var(--fg3); border-radius: 9px; background: var(--bg2); }
+.ap-drop.over { border-color: var(--accent); background: var(--sel); }
+.ap-drop > svg { flex-shrink: 0; color: var(--accent); }
+.ap-drop > div { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 0; }
+.ap-drop strong { font-size: 13px; font-weight: 500; }
+.ap-drop span { font-size: 11px; color: var(--fg2); }
+.airpear .btn { color: var(--fg); white-space: nowrap; text-decoration: none; }
+.airpear .btn.primary { color: #fff; background: var(--accent); }
+.airpear button:disabled { opacity: .45; cursor: default; }
+.airpear button:focus-visible, .airpear a:focus-visible, .airpear textarea:focus-visible, .airpear input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ap-files { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 11px; color: var(--fg2); }
+.ap-files > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-files button { display: grid; place-items: center; padding: 3px; }
+.ap-section-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 25px 0 12px; }
+.airpear h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.ap-section-title > span { color: var(--fg2); font-size: 11px; }
+.ap-peers { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
+.ap-peer { position: relative; border-radius: 8px; border: 1px solid transparent; }
+.ap-peer.selected { background: var(--sel); border-color: var(--accent); }
+.ap-peer:hover { background: var(--menu-hover); }
+.ap-peer-pick { display: flex; flex-direction: column; align-items: center; width: 100%; gap: 8px; padding: 16px 8px; text-align: center; }
+.ap-peer-pick strong { width: 100%; font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-peer-pick > span:last-child { color: var(--fg2); font-size: 10px; }
+.ap-device { display: grid; place-items: center; width: 65px; height: 65px; border-radius: 50%; color: var(--accent); background: var(--bg2); border: 1px solid var(--line); }
+.ap-disconnect { position: absolute; top: 5px; right: 5px; display: grid; place-items: center; width: 23px; height: 23px; border-radius: 5px; color: var(--fg2); }
+.ap-disconnect:hover { background: var(--sel); }
+.ap-no-peers { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 30px 18px; text-align: center; }
+.ap-no-peers > svg { color: var(--fg3); }
+.ap-no-peers strong { font-weight: 500; }
+.ap-no-peers p { max-width: 310px; margin: 0; color: var(--fg2); font-size: 12px; line-height: 1.6; }
+.ap-send { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 12px; }
+.ap-send > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-footnote { margin: 22px 0 0; color: var(--fg2); font-size: 11px; line-height: 1.6; }
+.ap-error { display: flex; align-items: flex-start; gap: 10px; padding: 11px 12px; margin-bottom: 18px; border: 1px solid var(--line); border-left: 3px solid #ff9f0a; background: var(--bg2); border-radius: 5px; font-size: 12px; line-height: 1.5; }
+.ap-error span { flex: 1; }
+.ap-error button { flex-shrink: 0; padding: 2px; }
+.ap-pair-section { display: flex; align-items: flex-start; flex-direction: column; gap: 10px; padding: 18px 0; border-top: 1px solid var(--line); }
+.ap-pair-section > label { color: var(--fg2); font-size: 12px; }
+.ap-pair-section textarea { width: 100%; min-height: 74px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg2); color: var(--fg); font: 11px/1.5 var(--mono); resize: vertical; overflow-wrap: anywhere; user-select: text; }
+.ap-code .ap-section-title { width: 100%; margin: 0; }
+.ap-paired { display: flex; align-items: center; gap: 8px; padding-top: 14px; color: var(--accent); font-size: 12px; }
+.ap-paired .btn { margin-left: auto; }
+.ap-transfers { margin-top: 0; }
+.ap-transfers > h3 { margin: 24px 0 8px; }
+.ap-transfer { padding: 16px 0; border-bottom: 1px solid var(--line); }
+.ap-transfer:first-child { padding-top: 0; }
+.ap-transfer-top { display: flex; align-items: center; gap: 10px; }
+.ap-file-icon { color: var(--accent); display: grid; place-items: center; width: 35px; height: 39px; border-radius: 6px; background: var(--bg2); border: 1px solid var(--line); flex-shrink: 0; }
+.ap-transfer-top > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.ap-transfer-top strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.ap-transfer-top div > span { color: var(--fg2); font-size: 11px; }
+.ap-icon-button { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 5px; color: var(--fg2); }
+.ap-icon-button:hover { background: var(--menu-hover); color: var(--fg); }
+.ap-transfer-status { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 12px 0 6px; font-size: 11px; color: var(--fg2); }
+.ap-transfer-status svg { color: var(--accent); }
+.ap-transfer progress { display: block; width: 100%; height: 5px; border: none; border-radius: 3px; overflow: hidden; background: var(--bg3); accent-color: var(--accent); }
+.ap-transfer progress::-webkit-progress-bar { background: var(--bg3); }
+.ap-transfer progress::-webkit-progress-value { background: var(--accent); }
+.ap-transfer progress::-moz-progress-bar { background: var(--accent); }
+.ap-transfer-error { margin: 10px 0 0; font-size: 11px; line-height: 1.5; color: var(--fg2); }
+.ap-actions, .ap-downloads { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.ap-downloads { justify-content: flex-start; }
+.ap-downloads a { max-width: 100%; height: auto; min-height: 24px; padding-block: 5px; white-space: normal !important; overflow-wrap: anywhere; font-size: 12px; }
+@media (max-width: 650px) {
+  .ap-sidebar { min-width: 150px; width: 150px; }
+  .ap-scroll { padding: 18px 15px; }
+  .ap-drop { flex-wrap: wrap; }
+  .ap-drop > .btn { margin-left: 38px; }
+  .ap-intro h2 { font-size: 20px; }
+  .ap-toolbar-note { display: none; }
+}

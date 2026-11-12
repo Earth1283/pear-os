@@ -67,6 +67,18 @@ Full setup guide (downloads, reverse proxies, systemd, Docker, troubleshooting):
 - **Widgets**: Clock, Calendar, Weather (forecast by vibes), Activity (real CPU, memory and disk with `pearosd`, simulated without), Music and Notes. Drag them around the desktop, resize them from the right-click menu, and add or remove them with *Edit Widgets…*. Layout is saved in your browser.
 - Music stops when you shut down, restart, panic, log out or quit it. It pauses when you sleep, and keeps playing on the lock screen, like the real thing.
 
+## AirPear: direct file transfers
+
+Open **AirPear** from Finder’s sidebar, Launchpad, Spotlight, or Applications. Choose files, select a device, and send. The recipient accepts or declines; completed files have a **Save** button. Files and selected text also have **Share → AirPear** in their context menu, and real PearDrive files have **Send with AirPear…**.
+
+- **Between tabs:** opening AirPear in two tabs on the same site discovers them automatically. BroadcastChannel carries discovery and connection details; file bytes travel through an encrypted, reliable WebRTC data channel.
+- **Between devices with `pearosd`:** sign into the same server on both devices and open AirPear. An authenticated, same-origin WebSocket exchanges presence and WebRTC connection details. The server never relays or stores the transferred files.
+- **Without a backend:** choose **Pair a Device**. One device creates an invitation; the other pastes it and returns a reply code; the first pastes the reply. Exchange codes using your own messaging app. Invitations expire after ten minutes.
+- **LAN:** WebRTC offers direct local-network candidates as well as internet candidates discovered using Google’s public STUN server. The UI shows **Local network** when the selected candidate pair is host-to-host. Pairing still works with local candidates if STUN is unavailable. There is no TURN relay, so restrictive firewalls, guest Wi-Fi isolation, and some NAT configurations can prevent a connection.
+- **Performance and lifetime:** no peer connections are created until pairing or sending. File reads are limited to 256 KiB at a time, payload messages are at most 16 KiB, outgoing buffers use backpressure, and progress renders at most ten times per second. Each transfer supports 32 files and 256 MiB; retained incoming files also have a combined 256 MiB memory budget. Remove a received transfer to free it. Save received files before closing AirPear; closing it cancels unfinished transfers and releases its connections and downloads.
+
+`npm run test:desktop` covers protocol limits, pairing codes, backpressure, and the window manager. `npm run test:server` covers signaling identity, routing, and cleanup alongside the backend’s other tests.
+
 ## Photo Booth and Mail
 
 - **Photo Booth** uses your real camera (HTTPS or localhost only; browsers insist). 18 effects run as one WebGL2 shader on your GPU: the classics (Bulge, Twirl, Thermal Camera, Pop Art…) and a cursed second page (Corporate Headshot, Low Battery, Video Call 2020, Deep Fried, Witness Protection, Liquid Glass, Security Camera with a burned-in timestamp). Take one photo or four, with a 3-2-1 countdown and flash. Photos are real JPEGs in `~/Pictures/Photo Booth Library` and open in Preview. They last until you close the tab, unless you right-click one and *Save to PearDrive*. The camera turns off when you close the window.

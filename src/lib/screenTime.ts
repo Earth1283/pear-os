@@ -149,6 +149,7 @@ export function startScreenTime() {
 export const APP_NAMES: Record<Bucket, string> = {
   desktop: 'The Desktop',
   finder: 'Finder',
+  airpear: 'AirPear',
   launchpad: 'Launchpad',
   safari: 'Sapphari',
   music: 'Music',

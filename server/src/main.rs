@@ -1,4 +1,5 @@
 mod auth;
+mod airpear;
 mod download;
 mod files;
 mod proxy;
@@ -43,6 +44,7 @@ pub struct Args {
 }
 
 pub struct AppState {
+    pub airpear: airpear::Hub,
     pub auth: auth::Auth,
     pub root: PathBuf,
     pub sys: std::sync::Mutex<sysinfo::System>,
@@ -76,6 +78,7 @@ async fn main() {
     };
 
     let state: Shared = Arc::new(AppState {
+        airpear: airpear::Hub::default(),
         auth: auth::Auth::new(&password),
         root: root.clone(),
         sys: std::sync::Mutex::new(sysinfo::System::new_all().expect("sysinfo")),
@@ -85,6 +88,7 @@ async fn main() {
     });
 
     let protected = Router::new()
+        .route("/api/airpear", get(airpear::ws))
         .route("/api/fs/list", get(files::list))
         .route("/api/fs/read", get(files::read))
         .route("/api/fs/write", put(files::write).layer(DefaultBodyLimit::disable()))

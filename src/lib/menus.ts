@@ -7,6 +7,7 @@ import { openPath } from '../apps/open'
 import { HOME, addNode, canRename, cloneNode, formatBytes, mkdir, moveToTrash, normalise, parentOf, remove, resolve, sizeOf, toggleTag } from './fs'
 import { replaceInField, type Field, type MenuEntry } from './menu'
 import { lastContextPoint, useStickies } from './stickies'
+import { shareWithAirPear } from './airpearShare'
 
 const say = (text: string) => {
   if (!('speechSynthesis' in window) || !text.trim()) return
@@ -46,7 +47,7 @@ const servicesMenu: MenuEntry = {
 const shareMenu = (what: string): MenuEntry => ({
   label: 'Share',
   submenu: [
-    { label: 'AirDrop', run: () => toast('AirDrop', `Sending “${truncate(what)}” to 14 strangers on this train…`) },
+    { label: 'AirPear', run: () => { void shareWithAirPear(what) } },
     { label: 'Mail', run: () => toast('Mail', 'Mail needs an account. Mail has needed an account since 2003.') },
     { label: 'Messages', run: () => toast('Messages', 'Sent as a green bubble. Everyone is judging you.') },
     { label: 'Notes', run: () => os().saveNote({ id: 'n' + Date.now(), text: what, updated: Date.now() }) },
@@ -241,7 +242,7 @@ export function fileMenu(path: string, opts: { rename?: () => void } = {}): Menu
     },
     'sep',
     { label: 'Copy', run: () => copy(path) },
-    shareMenu(name),
+    shareMenu(path),
     'sep',
     {
       tags: node.tags ?? [],
