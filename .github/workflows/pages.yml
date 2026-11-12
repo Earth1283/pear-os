@@ -30,6 +30,7 @@ jobs:
         uses: actions/configure-pages@v5
 
       - run: npm ci
+      - run: npm run test:desktop
 
       - name: Build static PearOS
         run: npm run build

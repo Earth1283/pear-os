@@ -36,6 +36,7 @@ jobs:
             server
 
       - run: npm ci
+      - run: npm run test:desktop
       - run: npm run build
 
       - name: Kernel tests

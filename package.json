@@ -10,6 +10,7 @@
     "build": "tsc -p . && vite build",
     "preview": "vite preview",
     "test:kernel": "cargo test --manifest-path kernel/Cargo.toml",
+    "test:desktop": "node --test tests/mission-control.test.mjs",
     "server": "npm run build && cargo build --release --manifest-path server/Cargo.toml",
     "server:static": "npm run build && cd server && cargo zigbuild --release --target x86_64-unknown-linux-musl",
     "server:dev": "cargo run --manifest-path server/Cargo.toml -- --api-only --no-tls --bind 127.0.0.1:9092",

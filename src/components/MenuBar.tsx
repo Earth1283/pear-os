@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AudioLines, Moon, Search, SlidersHorizontal, Wifi, WifiOff } from 'lucide-react'
+import { AudioLines, LayoutGrid, Moon, Search, SlidersHorizontal, Wifi, WifiOff } from 'lucide-react'
 import { useOS, os, type Win } from '../store'
 import { MenuList } from './ContextMenu'
 import type { MenuEntry } from '../lib/menu'
@@ -71,6 +71,7 @@ const pearMenu: MenuItem[] = [
   { label: 'About This Pear', action: () => os().openApp('about') },
   'sep',
   { label: 'System Settings…', action: () => os().openApp('settings') },
+  { label: 'Mission Control', shortcut: '⌃↑', action: () => os().setOverlay({ missionControl: true }) },
   { label: 'App Store…', action: () => os().notify({ app: 'settings', title: 'App Store', body: 'The App Store is closed for renovations. Please enjoy the apps you already have.' }) },
   'sep',
   {
@@ -236,6 +237,9 @@ export function MenuBar() {
           </button>
         )}
         <Battery />
+        <button className="mb-item icon" title="Mission Control (Ctrl+↑ or F3)" aria-label="Mission Control" onClick={() => setOverlay({ missionControl: true })}>
+          <LayoutGrid size={14} strokeWidth={2.2} />
+        </button>
         <button className="mb-item icon" title={wifi ? 'Wi-Fi: PearNet (5 bars of nothing)' : 'Wi-Fi: Off'} onClick={() => os().set('wifi', !wifi)}>
           {wifi ? <Wifi size={15} strokeWidth={2.2} /> : <WifiOff size={15} strokeWidth={2.2} />}
         </button>

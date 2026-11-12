@@ -1,0 +1,116 @@
+/* Reuse the desktop's window surfaces. Only transform and opacity animate. */
+.window.space-hidden { display: none; }
+.window.mc-window {
+  transform-origin: top left;
+  pointer-events: none;
+  animation: none;
+  transition: transform .3s cubic-bezier(.2,.8,.2,1), opacity .2s;
+}
+.in-mission-control > :is(.desktop-icons, .desk-widgets, .desk-stickies, .menubar, .dock-wrap, .dock-trigger, .toasts) {
+  visibility: hidden;
+  pointer-events: none;
+}
+.mc-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 47000;
+  background: rgba(10, 15, 28, .32);
+  animation: mc-appear .22s ease-out;
+}
+.mission-control {
+  position: absolute;
+  inset: 0;
+  z-index: 49000;
+  color: #fff;
+  pointer-events: none;
+  animation: mc-appear .2s ease-out;
+}
+.mc-header {
+  position: absolute;
+  z-index: 2;
+  inset: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  height: 164px;
+  padding: 18px 28px;
+  color: var(--fg);
+  border-bottom: 1px solid var(--glass-border);
+  pointer-events: auto;
+}
+.mc-heading { display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.mc-spaces { display: flex; align-items: flex-start; justify-content: safe center; gap: 20px; flex: 1; min-width: 0; padding: 8px 5px; overflow-x: auto; scrollbar-width: thin; }
+.mc-space { position: relative; flex-shrink: 0; width: 142px; }
+.mc-space-pick { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; color: inherit; }
+.mc-mini-desktop {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 82px;
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid var(--glass-edge);
+  border-radius: 6px;
+  background: var(--sidebar);
+  box-shadow: 0 2px 5px rgba(0,0,0,.12);
+}
+.mc-mini-desktop::before { content: ''; position: absolute; inset: 0 0 auto; height: 3px; background: var(--glass-strong); }
+.mc-mini-window { position: absolute; display: grid; place-items: center; overflow: hidden; min-width: 8px; min-height: 6px; border: .5px solid var(--glass-edge); border-radius: 2px; background: var(--bg2); box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+.mc-mini-window::before { content: ''; position: absolute; inset: 0 0 auto; height: 3px; background: var(--line); }
+.mc-space.active .mc-mini-desktop { outline: 3px solid var(--accent); outline-offset: 2px; }
+.mc-space-pick:hover .mc-mini-desktop { border-color: var(--accent); }
+.mc-space-label { font-size: 12px; font-weight: 500; }
+.mc-space-remove { position: absolute; top: -6px; left: -7px; z-index: 2; display: grid; place-items: center; width: 21px; height: 21px; border-radius: 50%; color: var(--fg); background: var(--bg2); border: 1px solid var(--line); opacity: 0; }
+.mc-space:hover .mc-space-remove, .mc-space:focus-within .mc-space-remove { opacity: 1; }
+.mc-space-add { display: grid; place-items: center; flex-shrink: 0; width: 48px; height: 82px; border-radius: 6px; color: var(--fg2); border: 1px solid var(--line); }
+.mc-space-add:hover:not(:disabled) { color: var(--fg); background: var(--menu-hover); }
+.mc-space-add:disabled, .mc-footer button:disabled { opacity: .3; cursor: default; }
+.mc-space.drop-target .mc-mini-desktop, .mc-space-add.drop-target { outline: 3px solid var(--accent); outline-offset: 2px; background: var(--sel); }
+.mc-close { display: grid; place-items: center; flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%; color: var(--fg2); }
+.mc-close:hover { background: var(--menu-hover); color: var(--fg); }
+.mc-stage { position: absolute; inset: 164px 0 56px; pointer-events: auto; }
+.mc-window-target {
+  position: fixed;
+  border-radius: 11px;
+  color: inherit;
+  cursor: grab;
+  outline: 2px solid transparent;
+  outline-offset: 4px;
+}
+.mc-window-target:hover, .mc-window-target:focus-visible { outline-color: rgba(255,255,255,.9); }
+.mc-window-target.dragging { opacity: .45; cursor: grabbing; }
+.mc-window-label { position: absolute; top: calc(100% + 9px); left: 50%; display: flex; align-items: center; gap: 6px; max-width: min(100% + 50px, 260px); padding: 3px 9px 3px 5px; transform: translateX(-50%); border-radius: 6px; color: #fff; background: rgba(20,24,34,.78); font-size: 12px; font-weight: 500; white-space: nowrap; }
+.mc-window-label > span { overflow: hidden; text-overflow: ellipsis; }
+.mc-window-label > svg { flex-shrink: 0; }
+.mc-empty { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px; text-shadow: 0 1px 4px rgba(0,0,0,.4); }
+.mc-empty > span { font-size: 18px; font-weight: 500; }
+.mc-empty > small { font-size: 12px; opacity: .8; }
+.mc-empty .btn { margin-top: 8px; color: var(--fg); text-shadow: none; }
+.mc-footer { position: absolute; z-index: 2; bottom: 18px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 8px; background: rgba(20,24,34,.78); font-size: 12px; white-space: nowrap; pointer-events: auto; }
+.mc-footer button { display: grid; place-items: center; width: 22px; height: 22px; color: inherit; border-radius: 4px; }
+.mc-footer button:hover:not(:disabled) { background: rgba(255,255,255,.15); }
+.mc-hint { margin-left: 12px; color: rgba(255,255,255,.75); }
+.mc-hint > span { margin: 0 7px; }
+.mission-control button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.mission-control .mc-window-target:focus-visible { outline-color: #fff; outline-offset: 4px; }
+@keyframes mc-appear { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 800px) {
+  .mc-header { gap: 14px; padding: 18px 16px; }
+  .mc-heading { font-size: 0; gap: 0; }
+  .mc-spaces { gap: 14px; }
+  .mc-space { width: 116px; }
+  .mc-mini-desktop { height: 72px; }
+  .mc-space-add { height: 72px; width: 36px; }
+  .mc-hint { display: none; }
+}
+@media (max-height: 549px) {
+  .mc-header { height: 136px; padding-block: 8px; }
+  .mc-stage { top: 136px; }
+  .mc-mini-desktop, .mc-space-add { height: 64px; }
+}
+@media (hover: none) { .mc-space-remove { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .window.mc-window { transition: none; }
+  .mission-control, .mc-backdrop { animation: none; }
+}
+html.a11y-solid .mc-header { background: var(--bg2); backdrop-filter: none; -webkit-backdrop-filter: none; }

@@ -15,6 +15,7 @@ export interface Rect {
 
 export interface Win extends Rect {
   id: string
+  space: number
   app: AppId
   title: string
   z: number
@@ -47,6 +48,7 @@ export interface HistoryItem {
 }
 
 export interface Overlay {
+  missionControl: boolean
   spotlight: boolean
   launchpad: boolean
   controlCenter: boolean
@@ -55,7 +57,7 @@ export interface Overlay {
   menu: string | null
 }
 
-export const CLOSED: Overlay = { spotlight: false, launchpad: false, controlCenter: false, notificationCenter: false, widgetGallery: false, menu: null }
+export const CLOSED: Overlay = { missionControl: false, spotlight: false, launchpad: false, controlCenter: false, notificationCenter: false, widgetGallery: false, menu: null }
 
 export type WidgetKind = 'clock' | 'calendar' | 'weather' | 'system' | 'music' | 'notes'
 export type WidgetSize = 'small' | 'medium' | 'large'
@@ -80,12 +82,15 @@ const WIDGET_KEY = 'pearos.widgets.v1'
 
 export const MENU_H = 26
 export const DOCK_ZONE = 86
+export const MAX_SPACES = 8
 
 interface State {
   phase: Phase
   panicReason: string | null
   shutdownMode: 'off' | 'restart'
   windows: Win[]
+  spaces: number[]
+  activeSpace: number
   focused: string | null
   zTop: number
   tilePreview: Tile
@@ -117,6 +122,10 @@ interface State {
   closeApp(app: AppId): void
   focus(id: string | null): void
   minimize(id: string): void
+  switchSpace(id: number): void
+  addSpace(): number | null
+  removeSpace(id: number): void
+  moveWindowToSpace(id: string, space: number): void
   setRect(id: string, r: Partial<Rect>): void
   tileWindow(id: string, t: Tile): void
   setTitle(id: string, title: string): void
@@ -153,6 +162,20 @@ export const registerSpecs = (s: Partial<Record<AppId, AppSpec>>) => {
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 let cascade = 0
+
+const SPACES_KEY = 'pearos.spaces.v1'
+function loadSpaces(): { spaces: number[]; activeSpace: number } {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SPACES_KEY) ?? 'null')
+    if (Array.isArray(raw?.spaces) && raw.spaces.length > 0 && raw.spaces.length <= MAX_SPACES &&
+      raw.spaces.every((id: unknown) => Number.isSafeInteger(id) && (id as number) > 0) && new Set(raw.spaces).size === raw.spaces.length) {
+      return { spaces: raw.spaces, activeSpace: raw.spaces.includes(raw.activeSpace) ? raw.activeSpace : raw.spaces[0] }
+    }
+  } catch { /* Unavailable storage: start with one desktop. */ }
+  return { spaces: [1], activeSpace: 1 }
+}
+
+const frontWindow = (windows: Win[], space: number) => windows.filter((w) => !w.minimized && w.space === space).reduce<Win | undefined>((top, w) => !top || w.z > top.z ? w : top, undefined)
 
 export function tileRect(t: Tile): Rect {
   const W = window.innerWidth
@@ -274,6 +297,7 @@ export const useOS = create<State>((set, get) => ({
   panicReason: null,
   shutdownMode: 'restart',
   windows: [],
+  ...loadSpaces(),
   focused: null,
   zTop: 10,
   tilePreview: null,
@@ -307,13 +331,16 @@ export const useOS = create<State>((set, get) => ({
     const spec = specs[app] ?? { name: app, w: 640, h: 440 }
     s.closeOverlays()
     if (!opts.forceNew && !opts.props) {
-      const existing = s.windows.filter((w) => w.app === app)
+      const all = s.windows.filter((w) => w.app === app)
+      const local = all.filter((w) => w.space === s.activeSpace)
+      const existing = local.length ? local : all
       if (existing.length) {
         const top = existing.reduce((a, b) => (a.z > b.z ? a : b))
         const z = s.zTop + 1
         set({
-          windows: s.windows.map((w) => (w.app === app ? { ...w, minimized: false, z: w.id === top.id ? z : w.z } : w)),
+          windows: s.windows.map((w) => (w.app === app && w.space === top.space ? { ...w, minimized: false, z: w.id === top.id ? z : w.z } : w)),
           focused: top.id,
+          activeSpace: top.space,
           zTop: z,
         })
         return top.id
@@ -336,6 +363,7 @@ export const useOS = create<State>((set, get) => ({
     const z = s.zTop + 1
     const win: Win = {
       id,
+      space: s.activeSpace,
       app,
       title: spec.name,
       x: Math.max(10, Math.round((W - w) / 2 - 80 + off)),
@@ -356,30 +384,65 @@ export const useOS = create<State>((set, get) => ({
 
   closeWindow(id) {
     const rest = get().windows.filter((w) => w.id !== id)
-    const next = rest.filter((w) => !w.minimized).sort((a, b) => b.z - a.z)[0]
+    const next = frontWindow(rest, get().activeSpace)
     set({ windows: rest, focused: get().focused === id ? next?.id ?? null : get().focused })
   },
 
   closeApp(app) {
     quitHooks[app]?.()
     const rest = get().windows.filter((w) => w.app !== app)
-    const next = rest.filter((w) => !w.minimized).sort((a, b) => b.z - a.z)[0]
+    const next = frontWindow(rest, get().activeSpace)
     set({ windows: rest, focused: next?.id ?? null })
   },
 
   focus(id) {
     if (!id) return set({ focused: null })
     const s = get()
+    const target = s.windows.find((w) => w.id === id)
+    if (!target) return
     if (s.focused === id && s.windows.find((w) => w.id === id)?.z === s.zTop) return
     const z = s.zTop + 1
-    set({ windows: s.windows.map((w) => (w.id === id ? { ...w, z, minimized: false } : w)), focused: id, zTop: z })
+    set({ windows: s.windows.map((w) => (w.id === id ? { ...w, z, minimized: false } : w)), focused: id, zTop: z, activeSpace: target.space })
   },
 
   minimize(id) {
     const s = get()
     const windows = s.windows.map((w) => (w.id === id ? { ...w, minimized: true } : w))
-    const next = windows.filter((w) => !w.minimized).sort((a, b) => b.z - a.z)[0]
-    set({ windows, focused: next?.id ?? null })
+    const next = frontWindow(windows, s.activeSpace)
+    set({ windows, focused: s.focused === id ? next?.id ?? null : s.focused })
+  },
+
+  switchSpace(id) {
+    const s = get()
+    if (!s.spaces.includes(id) || id === s.activeSpace) return
+    set({ activeSpace: id, focused: frontWindow(s.windows, id)?.id ?? null, contextMenu: null, tilePreview: null })
+  },
+
+  addSpace() {
+    const s = get()
+    if (s.spaces.length >= MAX_SPACES) return null
+    const id = Math.max(...s.spaces) + 1
+    set({ spaces: [...s.spaces, id], activeSpace: id, focused: null })
+    return id
+  },
+
+  removeSpace(id) {
+    const s = get()
+    const index = s.spaces.indexOf(id)
+    if (index < 0 || s.spaces.length === 1) return
+    const spaces = s.spaces.filter((space) => space !== id)
+    const destination = spaces[Math.max(0, index - 1)]
+    const windows = s.windows.map((w) => w.space === id ? { ...w, space: destination } : w)
+    const activeSpace = s.activeSpace === id ? destination : s.activeSpace
+    set({ spaces, windows, activeSpace, focused: s.activeSpace === id ? frontWindow(windows, activeSpace)?.id ?? null : s.focused })
+  },
+
+  moveWindowToSpace(id, space) {
+    const s = get()
+    if (!s.spaces.includes(space)) return
+    const windows = s.windows.map((w) => w.id === id && w.space !== space ? { ...w, space } : w)
+    const focused = windows.find((w) => w.id === s.focused)
+    set({ windows, focused: focused?.space === s.activeSpace ? s.focused : frontWindow(windows, s.activeSpace)?.id ?? null })
   },
 
   setRect(id, r) {
@@ -402,7 +465,7 @@ export const useOS = create<State>((set, get) => ({
     if (w && w.title !== title) set({ windows: get().windows.map((x) => (x.id === id ? { ...x, title } : x)) })
   },
 
-  setOverlay: (o) => set({ overlay: { ...get().overlay, ...o } }),
+  setOverlay: (o) => set({ overlay: o.missionControl ? { ...CLOSED, ...o } : { ...get().overlay, ...(Object.values(o).some(Boolean) ? { missionControl: false } : {}), ...o }, contextMenu: null }),
   closeOverlays: () => {
     const o = get().overlay
     if (Object.values(o).some(Boolean)) set({ overlay: CLOSED })
@@ -461,6 +524,9 @@ export const useOS = create<State>((set, get) => ({
 export const os = () => useOS.getState()
 
 useOS.subscribe((s, prev) => {
+  if (s.spaces !== prev.spaces || s.activeSpace !== prev.activeSpace) {
+    try { localStorage.setItem(SPACES_KEY, JSON.stringify({ spaces: s.spaces, activeSpace: s.activeSpace })) } catch { /* Desktops still work without storage. */ }
+  }
   if (PREF_KEYS.every((k) => s[k] === prev[k])) return
   try {
     localStorage.setItem(PREFS_KEY, JSON.stringify(Object.fromEntries(PREF_KEYS.map((k) => [k, s[k]]))))

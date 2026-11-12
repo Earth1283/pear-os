@@ -130,6 +130,7 @@ Everything here goes through WebGL2, so it runs on the real GPU of whatever mach
 
 ## Things to try
 
+- **Mission Control:** click its menu bar icon, press `F3` or `Ctrl+↑`, or find it in Spotlight. Click a window to return to it; drag one onto a desktop in the top strip to move it. The `+` adds a desktop (up to eight), and closing a desktop moves its windows to the adjacent one. `Ctrl+←/→` switches desktops; add `Shift` to bring the focused window along. `Esc` or `Ctrl+↓` leaves the overview. Apps stay mounted across desktops, and desktop configuration is remembered in your browser. `npm run test:desktop` checks the window manager and overview layout (Node 22.18+).
 - Drag a window to a screen edge to tile it, or hover the green button.
 - `Ctrl+Space` for Spotlight, then type `2^64` or `8gb`.
 - Click the clock for Notification Center, then *Edit Widgets*. Right-click the desktop for the same.

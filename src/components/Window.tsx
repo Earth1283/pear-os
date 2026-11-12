@@ -2,6 +2,7 @@ import { memo, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useOS, MENU_H, tileRect, type Tile, type Win } from '../store'
 import { APPS } from '../apps/registry'
 import { WindowShader } from './ShaderLayers'
+import type { OverviewRect } from '../lib/missionControl'
 
 type Edge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
 const EDGES: Edge[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']
@@ -87,10 +88,17 @@ function TrafficLights({ win }: { win: Win }) {
   )
 }
 
-function WindowFrame({ win, focused }: { win: Win; focused: boolean }) {
+interface WindowProps { win: Win; focused: boolean; inactive: boolean; overviewRect?: OverviewRect }
+
+// Overview transforms change the frame, not the running app's inputs.
+const WindowContents = memo(function WindowContents({ win }: { win: Win }) {
+  const App = APPS[win.app].component
+  return <Suspense fallback={null}><App win={win} /></Suspense>
+})
+
+function WindowFrame({ win, focused, inactive, overviewRect }: WindowProps) {
   const ref = useRef<HTMLDivElement>(null)
   const spec = APPS[win.app]
-  const App = spec.component
   const { focus, setRect, tileWindow, set } = useOS.getState()
 
   const startDrag = useCallback(
@@ -208,11 +216,11 @@ function WindowFrame({ win, focused }: { win: Win; focused: boolean }) {
 
   useEffect(() => {
     const el = ref.current
-    if (!el) return
+    if (!el || overviewRect) return
     el.style.transform = `translate(${win.x}px, ${win.y}px)`
     el.style.width = `${win.w}px`
     el.style.height = `${win.h}px`
-  }, [win.x, win.y, win.w, win.h])
+  }, [win.x, win.y, win.w, win.h, overviewRect])
 
   useEffect(() => {
     if (!win.tile) return
@@ -226,8 +234,10 @@ function WindowFrame({ win, focused }: { win: Win; focused: boolean }) {
     <div
       ref={ref}
       data-win={win.id}
-      className={`window ${focused ? 'focused' : 'blurred'} chrome-${chrome} ${win.minimized ? 'minimized' : ''} ${win.tile ? 'tiled' : ''} app-${win.app}`}
-      style={{ zIndex: win.z, transform: `translate(${win.x}px, ${win.y}px)`, width: win.w, height: win.h }}
+      tabIndex={-1}
+      inert={inactive || !!overviewRect || win.minimized}
+      className={`window ${focused ? 'focused' : 'blurred'} chrome-${chrome} ${win.minimized ? 'minimized' : ''} ${inactive ? 'space-hidden' : ''} ${overviewRect ? 'mc-window' : ''} ${win.tile ? 'tiled' : ''} app-${win.app}`}
+      style={{ zIndex: overviewRect ? 48000 : win.z, transform: overviewRect ? `translate(${overviewRect.x}px, ${overviewRect.y}px) scale(${overviewRect.scale})` : `translate(${win.x}px, ${win.y}px)`, width: win.w, height: win.h }}
       onPointerDown={startDrag}
       onDoubleClick={(e) => {
         const t = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null) ?? (e.target as HTMLElement)
@@ -235,20 +245,18 @@ function WindowFrame({ win, focused }: { win: Win; focused: boolean }) {
       }}
     >
       <TrafficLights win={win} />
-      <WindowShader focused={focused} minimized={win.minimized} />
+      <WindowShader focused={focused} minimized={win.minimized || inactive} />
       {chrome === 'standard' && (
         <div className="titlebar" data-drag>
           <span className="title">{win.title}</span>
         </div>
       )}
       <div className="window-body">
-        <Suspense fallback={null}>
-          <App win={win} />
-        </Suspense>
+        <WindowContents win={win} />
       </div>
       {spec.resizable !== false && EDGES.map((edge) => <div key={edge} className={`rz rz-${edge}`} onPointerDown={startResize(edge)} />)}
     </div>
   )
 }
 
-export const Window = memo(WindowFrame, (a, b) => a.win === b.win && a.focused === b.focused)
+export const Window = memo(WindowFrame, (a, b) => a.win === b.win && a.focused === b.focused && a.inactive === b.inactive && a.overviewRect === b.overviewRect)

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useOS, os, tileRect } from '../store'
 import { Wallpaper } from './Wallpaper'
 import { ShaderLayer } from './ShaderLayers'
@@ -19,6 +19,8 @@ import { RenameField, useEnterToRename } from './RenameField'
 import { openPath } from '../apps/open'
 import { preloadApps } from '../apps/registry'
 import { shameToast, useScreenTime } from '../lib/screenTime'
+import { missionLayout } from '../lib/missionControl'
+import { MissionControl } from './MissionControl'
 
 const JOKES: { app: Parameters<ReturnType<typeof os>['notify']>[0]['app']; title: string; body: string | (() => string); actions?: string[] }[] = [
   { app: 'intelligence', title: 'Pear Intelligence', body: 'Pear Intelligence is ready. Unfortunately, so are we.' },
@@ -59,7 +61,25 @@ function useShortcuts() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const s = os()
-      if ((e.ctrlKey || e.altKey || e.metaKey) && e.code === 'Space') {
+      if (e.key === 'F3' || (e.ctrlKey && !e.altKey && !e.metaKey && e.key === 'ArrowUp')) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        s.setOverlay({ missionControl: !s.overlay.missionControl })
+      } else if (e.ctrlKey && !e.altKey && !e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        const next = s.spaces[s.spaces.indexOf(s.activeSpace) + (e.key === 'ArrowLeft' ? -1 : 1)]
+        if (next !== undefined) {
+          const moving = e.shiftKey ? s.focused : null
+          if (moving) s.moveWindowToSpace(moving, next)
+          s.switchSpace(next)
+          if (moving) s.focus(moving)
+        }
+      } else if (s.overlay.missionControl && (e.key === 'Escape' || (e.ctrlKey && e.key === 'ArrowDown'))) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        s.closeOverlays()
+      } else if ((e.ctrlKey || e.altKey || e.metaKey) && e.code === 'Space') {
         e.preventDefault()
         s.setOverlay({ spotlight: !s.overlay.spotlight, launchpad: false, controlCenter: false, notificationCenter: false, menu: null })
       } else if (e.key === 'Escape') {
@@ -76,8 +96,8 @@ function useShortcuts() {
         s.setOverlay({ launchpad: !s.overlay.launchpad })
       }
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
   }, [])
 }
 
@@ -155,7 +175,21 @@ function TilePreview() {
 function Windows() {
   const windows = useOS((s) => s.windows)
   const focused = useOS((s) => s.focused)
-  return windows.map((w) => <Window key={w.id} win={w} focused={w.id === focused} />)
+  const activeSpace = useOS((s) => s.activeSpace)
+  const overview = useOS((s) => s.overlay.missionControl)
+  const [viewport, setViewport] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }))
+  useEffect(() => {
+    if (!overview) return
+    const resize = () => setViewport({ width: window.innerWidth, height: window.innerHeight })
+    resize()
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [overview])
+  const layout = useMemo(() => overview ? missionLayout(windows.filter((w) => w.space === activeSpace && !w.minimized), viewport.width, viewport.height) : new Map(), [windows, activeSpace, overview, viewport])
+  return <>
+    {windows.map((w) => <Window key={w.id} win={w} focused={w.id === focused} inactive={w.space !== activeSpace} overviewRect={layout.get(w.id)} />)}
+    {overview && <MissionControl layout={layout} viewport={viewport} />}
+  </>
 }
 
 function Brightness() {
@@ -167,10 +201,11 @@ export function Desktop() {
   useJokeNotifications()
   useShortcuts()
   usePreloadApps()
+  const missionControl = useOS((s) => s.overlay.missionControl)
 
   return (
     <div
-      className="desktop"
+      className={`desktop ${missionControl ? 'in-mission-control' : ''}`}
       onPointerDown={() => {
         os().focus(null)
         os().closeOverlays()

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Airplay, Bluetooth, Calculator as CalcIcon, Globe, Moon, Pause, Play, Radio, Search, SkipBack, SkipForward, Sun, Volume2, Wifi, X, Contrast, MonitorSmartphone } from 'lucide-react'
+import { Airplay, Bluetooth, Calculator as CalcIcon, Globe, LayoutGrid, Moon, Pause, Play, Radio, Search, SkipBack, SkipForward, Sun, Volume2, Wifi, X, Contrast, MonitorSmartphone } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useOS, os } from '../store'
 import { APPS, LAUNCHPAD_APPS } from '../apps/registry'
@@ -38,6 +38,7 @@ export function Spotlight() {
       })
     }
     const lower = t.toLowerCase()
+    if ('mission control spaces desktops'.includes(lower)) out.push({ key: 'mission-control', icon: <LayoutGrid size={24} />, title: 'Mission Control', sub: 'Windows & Desktops', run: () => os().setOverlay({ missionControl: true }) })
     for (const id of LAUNCHPAD_APPS) {
       if (APPS[id].name.toLowerCase().includes(lower)) out.push({ key: id, icon: <AppIcon app={id} size={26} />, title: APPS[id].name, sub: 'Application', run: () => os().openApp(id) })
     }
