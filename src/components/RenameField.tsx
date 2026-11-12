@@ -47,7 +47,7 @@ export function useEnterToRename(active: boolean, sel: string | null, start: (se
     if (!active || sel === null) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Enter' || e.repeat || e.isComposing || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
-      if (typing(document.activeElement) || Object.values(os().overlay).some(Boolean)) return
+      if (typing(document.activeElement) || os().quickLook || Object.values(os().overlay).some(Boolean)) return
       e.preventDefault()
       startRef.current(sel)
     }

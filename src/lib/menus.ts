@@ -8,6 +8,7 @@ import { HOME, addNode, canRename, cloneNode, formatBytes, mkdir, moveToTrash, n
 import { replaceInField, type Field, type MenuEntry } from './menu'
 import { lastContextPoint, useStickies } from './stickies'
 import { shareWithAirPear } from './airpearShare'
+import { openVirtualQuickLook } from './quickLook'
 
 const say = (text: string) => {
   if (!('speechSynthesis' in window) || !text.trim()) return
@@ -141,7 +142,7 @@ function kindOf(path: string) {
   return n.kind === 'app' ? 'Application' : `${n.kind[0].toUpperCase()}${n.kind.slice(1)} document`
 }
 
-export function fileMenu(path: string, opts: { rename?: () => void } = {}): MenuEntry[] {
+export function fileMenu(path: string, opts: { rename?: () => void; quickLook?: () => void } = {}): MenuEntry[] {
   const node = resolve(path)
   if (!node) return []
   const { dir, name } = parentOf(path)
@@ -238,7 +239,8 @@ export function fileMenu(path: string, opts: { rename?: () => void } = {}): Menu
     },
     {
       label: 'Quick Look',
-      run: () => (textish || imageish ? openPath(path) : toast('Quick Look', `Quickly looked at “${name}”. It looked back.`)),
+      shortcut: 'Space',
+      run: opts.quickLook ?? (() => openVirtualQuickLook(path)),
     },
     'sep',
     { label: 'Copy', run: () => copy(path) },

@@ -86,7 +86,7 @@ function AirPearSession({ server, win }: { server: boolean; win: Win }) {
         <div className="ap-sidebar-note"><ShieldCheck size={15} /><span>Files travel directly.<br />Your pears stay your pears.</span></div>
       </aside>
       <section className="ap-main">
-        <header className="toolbar" data-drag><Radio size={17} /><div className="toolbar-title">{view === 'nearby' ? 'AirPear' : view === 'transfers' ? 'Transfers' : 'Pair a Device'}</div><span className="ap-toolbar-note">Peer to peer</span></header>
+        <header className="toolbar" data-drag><Radio size={17} /><div className="toolbar-title">{view === 'nearby' ? 'AirPear' : view === 'transfers' ? 'Transfers' : 'Pair a Device'}</div><span className="ap-toolbar-note">Pear to Pear</span></header>
         <div className="ap-scroll">
           {(error || snapshot.error) && <div className="ap-error" role="alert"><span>{error || snapshot.error}</span><button aria-label="Dismiss error" onClick={() => { setError(null); controller.clearError() }}><X size={14} /></button></div>}
           {view === 'nearby' && <>

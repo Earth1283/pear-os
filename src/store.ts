@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { AppId } from './apps/ids'
 import type { MenuEntry } from './lib/menu'
+import type { QuickLookSession } from './lib/quickLook'
 
 export type Phase = 'off' | 'booting' | 'bootpicker' | 'windows' | 'login' | 'desktop' | 'sleep' | 'panic' | 'shuttingdown'
 export type Tile = 'left' | 'right' | 'fill' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | null
@@ -112,6 +113,7 @@ interface State {
   launching: AppId[]
   fractalWallpaper: { cx: number; cy: number; scale: number; iter: number; scheme: 0 | 1 | 2 } | null
   contextMenu: { x: number; y: number; items: MenuEntry[] } | null
+  quickLook: QuickLookSession | null
   dockAutohide: boolean
   liveWallpaper: boolean
 
@@ -319,12 +321,13 @@ export const useOS = create<State>((set, get) => ({
   launching: [],
   fractalWallpaper: null,
   contextMenu: null,
+  quickLook: null,
   dockAutohide: false,
   liveWallpaper: true,
   ...loadPrefs(),
 
-  setPhase: (phase) => set({ phase, overlay: CLOSED }),
-  panic: (reason) => set({ phase: 'panic', panicReason: reason, windows: [], focused: null, toasts: [] }),
+  setPhase: (phase) => set({ phase, overlay: CLOSED, quickLook: null }),
+  panic: (reason) => set({ phase: 'panic', panicReason: reason, windows: [], focused: null, toasts: [], quickLook: null }),
 
   openApp(app, opts = {}) {
     const s = get()
@@ -465,11 +468,12 @@ export const useOS = create<State>((set, get) => ({
     if (w && w.title !== title) set({ windows: get().windows.map((x) => (x.id === id ? { ...x, title } : x)) })
   },
 
-  setOverlay: (o) => set({ overlay: o.missionControl ? { ...CLOSED, ...o } : { ...get().overlay, ...(Object.values(o).some(Boolean) ? { missionControl: false } : {}), ...o }, contextMenu: null }),
+  setOverlay: (o) => set({ overlay: o.missionControl ? { ...CLOSED, ...o } : { ...get().overlay, ...(Object.values(o).some(Boolean) ? { missionControl: false } : {}), ...o }, contextMenu: null, ...(Object.values(o).some(Boolean) ? { quickLook: null } : {}) }),
   closeOverlays: () => {
     const o = get().overlay
     if (Object.values(o).some(Boolean)) set({ overlay: CLOSED })
     if (get().contextMenu) set({ contextMenu: null })
+    if (get().quickLook) set({ quickLook: null })
   },
 
   notify(t) {

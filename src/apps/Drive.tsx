@@ -8,6 +8,8 @@ import type { FileKind } from '../lib/fs'
 import { playDriveFile } from '../lib/player'
 import { RenameField, useEnterToRename } from '../components/RenameField'
 import { MAX_BYTES } from '../lib/airpearProtocol'
+import { openQuickLook, type QuickLookItem } from '../lib/quickLook'
+import { useQuickLookShortcut } from '../components/useQuickLookShortcut'
 
 export const join = (dir: string, name: string) => `${dir.replace(/\/$/, '')}/${name}`
 
@@ -111,6 +113,7 @@ export function DriveView({ rel, view, q, active, onOpenDir, setView }: { rel: s
     const p = join(rel, e.name)
     return [
       { label: 'Open', run: () => (e.dir ? onOpenDir(p) : openDriveFile(p)) },
+      { label: 'Quick Look', shortcut: 'Space', run: () => quickLook(e.name) },
       { label: 'Download', disabled: e.dir, run: () => window.open(drive.url(p, true), '_blank', 'noopener') },
       { label: 'Send with AirPear…', disabled: e.dir || e.size > MAX_BYTES, run: async () => {
         try {
@@ -144,6 +147,11 @@ export function DriveView({ rel, view, q, active, onOpenDir, setView }: { rel: s
   ]
 
   const shown = (entries ?? []).filter((e) => !e.name.startsWith('.') || inTrash).filter((e) => !q || e.name.toLowerCase().includes(q.toLowerCase()))
+  const quickLook = (name: string) => {
+    const items: QuickLookItem[] = shown.map((e) => ({ source: 'drive', path: join(rel, e.name), name: e.name, dir: e.dir, kind: kindFor(e.name), size: e.size, modified: e.modified }))
+    openQuickLook(items, join(rel, name), (item) => setSel(item.name))
+  }
+  useQuickLookShortcut(active && renaming === null, sel, quickLook)
   const icon = (e: DriveEntry, size: number) => (e.dir ? <FolderIcon size={size} /> : <FileIcon size={size} kind={kindFor(e.name)} ext={e.name.includes('.') ? e.name.split('.').pop()! : ''} />)
   const label = (e: DriveEntry) =>
     renaming === e.name ? (

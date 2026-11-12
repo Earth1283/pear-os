@@ -21,6 +21,9 @@ import { preloadApps } from '../apps/registry'
 import { shameToast, useScreenTime } from '../lib/screenTime'
 import { missionLayout } from '../lib/missionControl'
 import { MissionControl } from './MissionControl'
+import { QuickLook } from './QuickLook'
+import { moveQuickLook, openVirtualQuickLook } from '../lib/quickLook'
+import { useQuickLookShortcut } from './useQuickLookShortcut'
 
 const JOKES: { app: Parameters<ReturnType<typeof os>['notify']>[0]['app']; title: string; body: string | (() => string); actions?: string[] }[] = [
   { app: 'intelligence', title: 'Pear Intelligence', body: 'Pear Intelligence is ready. Unfortunately, so are we.' },
@@ -61,6 +64,26 @@ function useShortcuts() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const s = os()
+      if (s.quickLook) {
+        const plain = !e.metaKey && !e.ctrlKey && !e.altKey
+        if ((plain && (e.key === 'Escape' || e.code === 'Space')) || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y')) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          if (!e.repeat) useOS.setState({ quickLook: null })
+          return
+        }
+        if (plain && (e.target as Element)?.closest('input[type="range"]')) return
+        if (plain && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key) && !(e.target as Element)?.closest('audio, video, iframe, input[type="range"]')) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          moveQuickLook(e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 1)
+          return
+        }
+        if (plain && e.key !== 'Tab') {
+          e.stopImmediatePropagation()
+          return
+        }
+      }
       if (e.key === 'F3' || (e.ctrlKey && !e.altKey && !e.metaKey && e.key === 'ArrowUp')) {
         e.preventDefault()
         e.stopImmediatePropagation()
@@ -119,6 +142,8 @@ function DesktopIcons() {
   const desk = resolve(HOME + '/Desktop')
   const files = desk && desk.type === 'dir' ? listDir(desk) : []
   const items = [{ name: 'Pear HD', path: '/', node: null as null | ReturnType<typeof resolve> }, ...files.map(([name, node]) => ({ name, path: `${HOME}/Desktop/${name}`, node }))]
+  const quickLook = (p: string) => openVirtualQuickLook(p, items.map((item) => item.path), (item) => setSel(item.path))
+  useQuickLookShortcut(active && renaming === null, sel, quickLook)
   return (
     <div className="desktop-icons" onPointerDown={() => setSel(null)}>
       {items.map((it) => {
@@ -136,7 +161,7 @@ function DesktopIcons() {
             onDoubleClick={() => openPath(it.path)}
             onContextMenu={(e) => {
               setSel(it.path)
-              menu(fileMenu(it.path, { rename: () => startRename(it.path) }))(e)
+              menu(fileMenu(it.path, { rename: () => startRename(it.path), quickLook: () => quickLook(it.path) }))(e)
             }}
           >
             {it.node === null ? <DiskIcon size={60} /> : it.node?.type === 'dir' ? <FolderIcon size={60} /> : <FileIcon size={60} kind={it.node!.kind} ext={ext} />}
@@ -247,6 +272,7 @@ export function Desktop() {
       <Spotlight />
       <Launchpad />
       <GlobalContextMenu />
+      <QuickLook />
       <ShaderLayer target="overlay" />
       <Brightness />
     </div>

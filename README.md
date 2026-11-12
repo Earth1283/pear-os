@@ -79,6 +79,12 @@ Open **AirPear** from Finder’s sidebar, Launchpad, Spotlight, or Applications.
 
 `npm run test:desktop` covers protocol limits, pairing codes, backpressure, and the window manager. `npm run test:server` covers signaling identity, routing, and cleanup alongside the backend’s other tests.
 
+## Quick Look
+
+Select an item on the desktop or in Finder (including PearDrive), then press **Space** or **⌘Y / Ctrl+Y**, or choose **Quick Look** from its context menu. A preview opens without launching an app. Use the arrow keys or the panel's navigation buttons to browse the current folder or filtered results; **Space** or **Escape** closes it. The panel also has an expand button and an option to open the item in its usual app.
+
+Images and text work on the virtual disk. PearDrive also supports PDFs through the browser's PDF viewer, and audio and video formats your browser can play. Media stops when you switch files or close the preview. Folders show their item count; unsupported formats and sample media without actual content show file details. Text previews read at most 256 KiB plus one byte to detect truncation, and cancel unfinished reads when you move on.
+
 ## Photo Booth and Mail
 
 - **Photo Booth** uses your real camera (HTTPS or localhost only; browsers insist). 18 effects run as one WebGL2 shader on your GPU: the classics (Bulge, Twirl, Thermal Camera, Pop Art…) and a cursed second page (Corporate Headshot, Low Battery, Video Call 2020, Deep Fried, Witness Protection, Liquid Glass, Security Camera with a burned-in timestamp). Take one photo or four, with a 3-2-1 countdown and flash. Photos are real JPEGs in `~/Pictures/Photo Booth Library` and open in Preview. They last until you close the tab, unless you right-click one and *Save to PearDrive*. The camera turns off when you close the window.

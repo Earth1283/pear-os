@@ -11,6 +11,8 @@ import { openPath } from './open'
 import { DriveView } from './Drive'
 import { useBackend } from '../lib/backend'
 import { Server } from 'lucide-react'
+import { openVirtualQuickLook } from '../lib/quickLook'
+import { useQuickLookShortcut } from '../components/useQuickLookShortcut'
 
 const SIDEBAR = [
   {
@@ -160,6 +162,8 @@ export function Finder({ win }: { win: Win }) {
       .map(({ e }) => e)
   }
   const tagDots = (n: NonNullable<ReturnType<typeof resolve>>) => (n.tags ?? []).map((t) => <i key={t} className="tag-dot" style={{ background: TAG_COLORS[t] }} />)
+  const quickLook = (p: string) => openVirtualQuickLook(p, entries.map(([path]) => path), (item) => setSel(item.path))
+  useQuickLookShortcut(focused && !isDrive && !special && renaming === null, sel, quickLook)
 
   const icon = (p: string, node: NonNullable<ReturnType<typeof resolve>>, size: number) => {
     const name = p.split('/').pop()!
@@ -237,7 +241,7 @@ export function Finder({ win }: { win: Win }) {
                   onDoubleClick={() => (node!.type === 'dir' ? go(p) : openPath(p))}
                   onContextMenu={(e) => {
                     setSel(p)
-                    menu(fileMenu(p, { rename: () => startRename(p) }))(e)
+                    menu(fileMenu(p, { rename: () => startRename(p), quickLook: () => quickLook(p) }))(e)
                   }}
                 >
                   {icon(p, node!, 56)}
@@ -266,6 +270,7 @@ export function Finder({ win }: { win: Win }) {
                 {entries.map(([p, node]) => (
                   <tr
                     key={p}
+                    tabIndex={0}
                     className={sel === p ? 'sel' : ''}
                     onPointerDown={(e) => {
                       e.stopPropagation()
@@ -274,7 +279,7 @@ export function Finder({ win }: { win: Win }) {
                     onDoubleClick={() => (node!.type === 'dir' ? go(p) : openPath(p))}
                     onContextMenu={(e) => {
                       setSel(p)
-                      menu(fileMenu(p, { rename: () => startRename(p) }))(e)
+                      menu(fileMenu(p, { rename: () => startRename(p), quickLook: () => quickLook(p) }))(e)
                     }}
                   >
                     <td>
