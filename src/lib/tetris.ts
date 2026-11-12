@@ -13,6 +13,8 @@ export const VISIBLE = ROWS - HIDDEN
 export const LOCK_MS = 500
 export const MAX_RESETS = 15
 export const SOFT_MS = 45
+/** How long ↓ must be held before it starts repeating; a tap is exactly one row. */
+export const SOFT_DELAY = 160
 export const FLASH_MS = 260
 const MAX_LEVEL = 20
 const PREVIEW = 5
@@ -378,7 +380,22 @@ export class Tetris {
     return k
   }
 
-  update(dt: number, soft = false) {
+  /** One row down on the player's say-so, worth a point. */
+  softStep() {
+    const p = this.cur
+    if (!this.live || !p || this.collides(p.kind, p.rot, p.x, p.y + 1)) return false
+    p.y++
+    this.score++
+    this.acc = 0
+    if (p.y > this.lowest) {
+      this.lowest = p.y
+      this.resets = 0
+    }
+    if (this.grounded) this.lockT = 0
+    return true
+  }
+
+  update(dt: number) {
     this.clock += dt
     if (this.flash && this.clock - this.flash.at > FLASH_MS) this.flash = null
     const p = this.cur
@@ -388,12 +405,11 @@ export class Tetris {
       if (this.lockT >= LOCK_MS) this.lock()
       return
     }
-    const iv = soft ? Math.min(this.interval, SOFT_MS) : this.interval
+    const iv = this.interval
     this.acc += dt
     while (this.acc >= iv && this.cur === p && !this.collides(p.kind, p.rot, p.x, p.y + 1)) {
       this.acc -= iv
       p.y++
-      if (soft) this.score++
       if (p.y > this.lowest) {
         this.lowest = p.y
         this.resets = 0

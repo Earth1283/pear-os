@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
 import { Pause, Play } from 'lucide-react'
 import { os, useOS, type Win } from '../store'
-import { COLS, HIDDEN, ROT, ROWS, VISIBLE, FLASH_MS, LUCK, LUCK_STANDARD, Tetris, type Ev, type Kind } from '../lib/tetris'
+import { COLS, HIDDEN, ROT, ROWS, VISIBLE, FLASH_MS, SOFT_DELAY, SOFT_MS, LUCK, LUCK_STANDARD, Tetris, type Ev, type Kind } from '../lib/tetris'
 import { LEARN_SPEEDS, TetrisAgent, WATCH_SPEEDS, type Stats } from '../lib/tetrisAI'
 import type { MenuDef } from './types'
 
@@ -346,6 +346,7 @@ export function TetrisGame({ win }: { win: Win }) {
   const overAt = useRef(0)
   const held = useRef(new Set<string>())
   const das = useRef({ dir: 0, t: 0, repeating: false })
+  const softRef = useRef({ t: 0, repeating: false })
 
   const game = useRef<Tetris | null>(null)
   if (!game.current) {
@@ -404,7 +405,20 @@ export function TetrisGame({ win }: { win: Win }) {
         }
       }
     }
-    g.update(dt, !aiRef.current && g.status === 'playing' && held.current.has('ArrowDown'))
+    if (!aiRef.current && g.status === 'playing' && held.current.has('ArrowDown')) {
+      const sd = softRef.current
+      sd.t += dt
+      if (!sd.repeating && sd.t >= SOFT_DELAY) {
+        sd.repeating = true
+        sd.t -= SOFT_DELAY
+        g.softStep()
+      }
+      while (sd.repeating && sd.t >= SOFT_MS) {
+        sd.t -= SOFT_MS
+        if (!g.softStep()) break
+      }
+    }
+    g.update(dt)
     draw()
     if (g.score !== shown.current) {
       shown.current = g.score
@@ -670,7 +684,7 @@ export function TetrisGame({ win }: { win: Win }) {
         }
         return
       }
-      if (e.repeat && k !== 'ArrowDown') return
+      if (e.repeat) return
       if (k === 'p' || k === 'Escape') return togglePause()
       if (k === 'Enter' || k === ' ') {
         if (g.status === 'paused') return togglePause()
@@ -681,7 +695,11 @@ export function TetrisGame({ win }: { win: Win }) {
         held.current.add(k)
         das.current = { dir: k === 'ArrowLeft' ? -1 : 1, t: 0, repeating: false }
         g.move(das.current.dir as 1 | -1)
-      } else if (k === 'ArrowDown') held.current.add(k)
+      } else if (k === 'ArrowDown') {
+        held.current.add(k)
+        softRef.current = { t: 0, repeating: false }
+        g.softStep()
+      }
       else if (k === 'ArrowUp' || k === 'x') g.rotate(1)
       else if (k === 'z') g.rotate(-1)
       else if (k === 'c' || k === 'Shift') g.hold()
