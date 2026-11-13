@@ -1,6 +1,7 @@
 import { os } from '../store'
 import { normalise, resolve } from '../lib/fs'
 import { usePlayer } from '../lib/player'
+import { openVirtualQuickLook } from '../lib/quickLook'
 
 export function openPath(path: string) {
   const abs = normalise(path)
@@ -24,6 +25,7 @@ export function openPath(path: string) {
       usePlayer.getState().playStation(/lofi|beats/i.test(name) ? 'lofi' : /u2|innocence/i.test(name) ? 'waltz' : 'panic')
       return os().openApp('music', { props: { view: 'now' } })
     case 'video':
+      if (/^(data|blob):/.test(node.content ?? '')) return openVirtualQuickLook(abs, [abs])
       return os().notify({ app: 'finder', title: 'QuickTime Player', body: `"${name}" is 14 hours long. Maybe later.` })
     default:
       return os().notify({ app: 'terminal', title: 'Finder', body: `There is no application set to open "${name}". Try Terminal. Or don't.` })

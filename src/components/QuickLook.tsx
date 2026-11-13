@@ -25,7 +25,7 @@ function PreviewContent({ item, onImageSize }: { item: QuickLookItem; onImageSiz
   const [text, setText] = useState<{ text: string; truncated: boolean } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [count, setCount] = useState<number | null>(null)
-  const url = item.source === 'drive' ? drive.url(item.path) : node?.type === 'file' ? (kind === 'image' ? nodeImageURL(item.name, node) : node.content?.startsWith('data:') ? node.content : null) : null
+  const url = item.source === 'drive' ? drive.url(item.path) : node?.type === 'file' ? (kind === 'image' ? nodeImageURL(item.name, node) : /^(data|blob):/.test(node.content ?? '') ? node.content : null) : null
 
   useEffect(() => {
     const controller = new AbortController()

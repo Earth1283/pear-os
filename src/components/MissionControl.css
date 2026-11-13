@@ -114,3 +114,12 @@
   .mission-control, .mc-backdrop { animation: none; }
 }
 html.a11y-solid .mc-header { background: var(--bg2); backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+.window.space-in { animation: space-in .38s cubic-bezier(.32,.72,0,1) both; }
+.window.space-out { animation: space-out .38s cubic-bezier(.32,.72,0,1) both; pointer-events: none; }
+@keyframes space-in { from { translate: calc(var(--slide, 1) * 100vw) 0; } to { translate: 0 0; } }
+@keyframes space-out { from { translate: 0 0; } to { translate: calc(var(--slide, 1) * -100vw) 0; } }
+.window.revealed { translate: var(--reveal) 0; transition: translate .5s cubic-bezier(.32,.72,0,1), opacity .32s, transform .36s cubic-bezier(.4,0,.2,1), width .26s, height .26s, box-shadow .2s; }
+.window:not(.revealed) { transition: translate .5s cubic-bezier(.32,.72,0,1), opacity .32s, transform .36s cubic-bezier(.4,0,.2,1), width .26s, height .26s, box-shadow .2s; }
+.window.mc-dim { opacity: .0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .window.space-in, .window.space-out { animation: none; } }

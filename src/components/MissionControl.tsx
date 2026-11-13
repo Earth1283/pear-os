@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
 import { ChevronLeft, ChevronRight, LayoutGrid, Plus, X } from 'lucide-react'
-import { MAX_SPACES, os, useOS } from '../store'
+import { MAX_SPACES, os, useOS, onSpace } from '../store'
 import { AppIcon } from './icons'
 import { APPS } from '../apps/registry'
 import type { OverviewRect } from '../lib/missionControl'
@@ -12,6 +12,8 @@ export function MissionControl({ layout, viewport }: { layout: Map<string, Overv
   const spaces = useOS((s) => s.spaces)
   const activeSpace = useOS((s) => s.activeSpace)
   const windows = useOS((s) => s.windows)
+  const assign = useOS((s) => s.assign)
+  const mcApp = useOS((s) => s.mcApp)
   const [dragging, setDragging] = useState<string | null>(null)
   const [dropSpace, setDropSpace] = useState<number | 'new' | null>(null)
   const root = useRef<HTMLDivElement>(null)
@@ -79,14 +81,14 @@ export function MissionControl({ layout, viewport }: { layout: Map<string, Overv
       <div className="mc-backdrop" onPointerDown={(e) => e.stopPropagation()} onClick={close} />
       <div ref={root} className={`mission-control ${dragging ? 'mc-dragging' : ''}`} role="dialog" aria-modal="true" aria-label="Mission Control" onKeyDown={onKeyDown} onPointerDown={(e) => e.stopPropagation()} onContextMenu={(e) => e.stopPropagation()}>
         <header className="mc-header glass">
-          <div className="mc-heading"><LayoutGrid size={16} /><span>Mission Control</span></div>
+          <div className="mc-heading"><LayoutGrid size={16} /><span>{mcApp ? `${APPS[mcApp].name} Windows` : 'Mission Control'}</span></div>
           <div ref={strip} className="mc-spaces" aria-label="Desktops">
             {spaces.map((space, i) => (
               <div key={space} className={`mc-space ${space === activeSpace ? 'active' : ''} ${dropSpace === space ? 'drop-target' : ''}`}
                 onDragOver={(e) => accept(e, space)} onDragLeave={() => setDropSpace(null)} onDrop={(e) => drop(e, space)}>
                 <button className="mc-space-pick" aria-label={`Desktop ${i + 1}`} aria-current={space === activeSpace} onClick={() => os().switchSpace(space)}>
                   <span className="mc-mini-desktop" aria-hidden="true">
-                    {windows.filter((w) => w.space === space && !w.minimized).map((w) => (
+                    {windows.filter((w) => onSpace(w, space, assign) && !w.minimized).map((w) => (
                       <span key={w.id} className="mc-mini-window" style={{ left: `${w.x / viewport.width * 100}%`, top: `${w.y / viewport.height * 100}%`, width: `${w.w / viewport.width * 100}%`, height: `${w.h / viewport.height * 100}%`, zIndex: w.z }}>
                         <AppIcon app={w.app} size={16} />
                       </span>
@@ -112,7 +114,7 @@ export function MissionControl({ layout, viewport }: { layout: Map<string, Overv
               <span className="mc-window-label"><AppIcon app={w.app} size={20} /><span>{w.title}</span></span>
             </button>
           })}
-          {visible.length === 0 && <div className="mc-empty"><LayoutGrid size={34} strokeWidth={1} /><span>No open windows</span><small>{windows.some((w) => w.space === activeSpace && w.minimized) ? 'Your windows are minimized in the Dock.' : 'A little room to think. Suspicious.'}</small><button className="btn" onClick={close}>Return to Desktop</button></div>}
+          {visible.length === 0 && <div className="mc-empty"><LayoutGrid size={34} strokeWidth={1} /><span>No open windows</span><small>{windows.some((w) => onSpace(w, activeSpace, assign) && w.minimized) ? 'Your windows are minimized in the Dock.' : 'A little room to think. Suspicious.'}</small><button className="btn" onClick={close}>Return to Desktop</button></div>}
         </div>
         <footer className="mc-footer">
           <button aria-label="Previous Desktop" disabled={index === 0} onClick={() => os().switchSpace(spaces[index - 1])}><ChevronLeft size={16} /></button>

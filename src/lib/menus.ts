@@ -1,6 +1,6 @@
 import { os, useOS, type Win } from '../store'
 import { openGallery } from '../components/Widgets'
-import { APPS, DOCK_APPS } from '../apps/registry'
+import { APPS } from '../apps/registry'
 import type { AppId } from '../apps/ids'
 import { TOOLS } from './writingTools'
 import { openPath } from '../apps/open'
@@ -372,17 +372,24 @@ export function dockMenu(app: AppId): MenuEntry[] {
       },
     ]
   }
+  const kept = s.dockApps.includes(app)
+  const assigned = s.assign[app]
   const options: MenuEntry = {
     label: 'Options',
     submenu: [
-      { label: 'Keep in Dock', checked: DOCK_APPS.includes(app), disabled: app === 'finder' },
+      {
+        label: 'Keep in Dock',
+        checked: kept,
+        disabled: app === 'finder' || app === 'launchpad',
+        run: () => os().set('dockApps', kept ? s.dockApps.filter((a) => a !== app) : [...s.dockApps, app]),
+      },
       { label: 'Open at Login', checked: app === 'finder' || app === 'intelligence' },
       { label: 'Show in Finder', run: () => os().openApp('finder', { props: { path: '/Applications' }, forceNew: true }) },
       'sep',
       { header: 'Assign To' },
-      { label: 'All Desktops' },
-      { label: 'This Desktop' },
-      { label: 'None', checked: true },
+      { label: 'All Desktops', checked: assigned === 'all', run: () => os().assignApp(app, 'all') },
+      { label: 'This Desktop', checked: typeof assigned === 'number', run: () => os().assignApp(app, 'this') },
+      { label: 'None', checked: assigned === undefined, run: () => os().assignApp(app, null) },
     ],
   }
   const winItems: MenuEntry[] = wins.map((w) => ({ label: w.title || name, checked: w.id === s.focused, run: () => os().focus(w.id) }))
@@ -412,6 +419,13 @@ export function dockMenu(app: AppId): MenuEntry[] {
   ]
 }
 
+export function miniWindowMenu(id: string): MenuEntry[] {
+  return [
+    { label: 'Restore', run: () => os().focus(id) },
+    { label: 'Close', run: () => os().closeWindow(id) },
+  ]
+}
+
 export function dockSeparatorMenu(): MenuEntry[] {
   const s = useOS.getState()
   const refuse = (side: string) => () => toast('Dock', `The Dock refuses to move to the ${side}. It is comfortable where it is.`, 'settings')
@@ -420,7 +434,7 @@ export function dockSeparatorMenu(): MenuEntry[] {
     { label: s.dockMagnify ? 'Turn Magnification Off' : 'Turn Magnification On', run: () => os().set('dockMagnify', !s.dockMagnify) },
     'sep',
     { label: 'Position on Screen', submenu: [{ label: 'Left', run: refuse('left') }, { label: 'Bottom', checked: true }, { label: 'Right', run: refuse('right') }] },
-    { label: 'Minimize Using', submenu: [{ label: 'Genie Effect', checked: true }, { label: 'Scale Effect' }, { label: 'Suck Effect', disabled: true }] },
+    { label: 'Minimize Using', submenu: [{ label: 'Genie Effect', checked: s.dockMinimize === 'genie', run: () => os().set('dockMinimize', 'genie') }, { label: 'Scale Effect', checked: s.dockMinimize === 'scale', run: () => os().set('dockMinimize', 'scale') }, { label: 'Suck Effect', disabled: true }] },
     'sep',
     { label: 'Dock Settings…', run: () => os().openApp('settings', { props: { pane: 'desktop' } }) },
   ]

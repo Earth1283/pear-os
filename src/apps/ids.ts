@@ -23,4 +23,5 @@ export type AppId =
   | 'mail'
   | 'diskutility'
   | 'softwareupdate'
+  | 'screenshot'
   | 'trash'

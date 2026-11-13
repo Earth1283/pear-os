@@ -1,0 +1,93 @@
+.dock-icon { position: relative; }
+.dock-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: linear-gradient(#ff5a50, #ff3b30);
+  color: #fff;
+  font: 600 13px/1 -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  letter-spacing: -.01em;
+  box-shadow: 0 0 0 .5px rgba(120, 0, 0, .55), 0 1px 3px rgba(0, 0, 0, .4), inset 0 .5px 0 rgba(255, 255, 255, .45);
+  pointer-events: none;
+}
+.dock-item.attention .dock-icon > svg { animation-iteration-count: 3; }
+.dock-item.lifted { opacity: 0; }
+.dock-gap { flex: none; height: 1px; animation: dock-gap .18s cubic-bezier(.3, .7, .3, 1); }
+@keyframes dock-gap { from { width: 0; } }
+
+.dock-item.mini .dock-icon { display: flex; align-items: flex-end; justify-content: center; padding-bottom: 5px; box-sizing: border-box; }
+.dock-item.mini.flying .dock-icon { opacity: 0; }
+.dock-item.mini:not(.flying) .dock-icon { animation: dock-land .22s cubic-bezier(.3, .7, .3, 1.3); }
+@keyframes dock-land { from { opacity: 0; transform: scale(.7); } }
+.dock-mini {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  border-radius: 6px;
+  background: var(--bg);
+  box-shadow: 0 0 0 .5px rgba(0, 0, 0, .35), 0 3px 8px rgba(0, 0, 0, .32), inset 0 .5px 0 rgba(255, 255, 255, .5);
+}
+.dock-mini-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 14%;
+  min-height: 5px;
+  padding: 0 4px;
+  border-radius: 6px 6px 0 0;
+  background: color-mix(in srgb, var(--bg) 82%, #888);
+}
+.dock-mini-bar i { width: 3px; height: 3px; border-radius: 50%; background: #ff5f57; }
+.dock-mini-bar i:nth-child(2) { background: #febc2e; }
+.dock-mini-bar i:nth-child(3) { background: #28c840; }
+.dock-mini-body { flex: 1; display: grid; place-items: center; overflow: hidden; border-radius: 0 0 6px 6px; opacity: .92; }
+.dock-mini-badge { position: absolute; right: -6px; bottom: -6px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .4)); }
+
+.dock-drag { position: absolute; z-index: 46000; pointer-events: none; filter: drop-shadow(0 8px 14px rgba(0, 0, 0, .35)); transform: scale(1.06); }
+.dock-remove {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 11px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--fg);
+}
+.dock-poof { position: absolute; z-index: 46000; width: 0; height: 0; pointer-events: none; }
+.dock-poof i {
+  position: absolute;
+  left: -16px;
+  top: -16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #fff, #d9d9de 55%, rgba(190, 190, 200, 0) 72%);
+  animation: dock-poof-move 0.62s cubic-bezier(0.15, 0.7, 0.3, 1) forwards, dock-poof-fade 0.62s linear forwards;
+  transform: rotate(var(--a)) translateY(0) scale(0.4);
+  opacity: 0;
+}
+@keyframes dock-poof-move {
+  from { transform: rotate(var(--a)) translateY(0) scale(0.4); }
+  to { transform: rotate(var(--a)) translateY(calc(-30px * var(--d))) scale(1.6); }
+}
+@keyframes dock-poof-fade {
+  0% { opacity: 0.95; }
+  60% { opacity: 0.55; }
+  100% { opacity: 0; }
+}
+
+
+.file-thumb { display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.file-thumb img { max-width: 92%; max-height: 80%; border-radius: 2px; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.32), 0 2px 7px rgba(0, 0, 0, 0.3); }

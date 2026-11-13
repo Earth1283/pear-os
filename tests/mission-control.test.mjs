@@ -5,12 +5,12 @@ const storage = new Map()
 globalThis.window = { innerWidth: 1440, innerHeight: 900, matchMedia: () => ({ matches: false }) }
 Object.defineProperty(globalThis, 'localStorage', { value: { getItem: (key) => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) } })
 
-const { os, useOS, registerSpecs, CLOSED, MAX_SPACES } = await import('../src/store.ts')
+const { os, useOS, registerSpecs, CLOSED, MAX_SPACES, onSpace } = await import('../src/store.ts')
 const { missionLayout } = await import('../src/lib/missionControl.ts')
 registerSpecs({ finder: { name: 'Finder', w: 860, h: 520 }, notes: { name: 'Notes', w: 820, h: 540, singleton: true }, terminal: { name: 'Terminal', w: 700, h: 440 } })
 
 beforeEach(() => {
-  useOS.setState({ windows: [], focused: null, zTop: 10, spaces: [1], activeSpace: 1, overlay: CLOSED, launching: [] })
+  useOS.setState({ windows: [], focused: null, zTop: 10, spaces: [1], activeSpace: 1, assign: {}, desktopRevealed: false, mcApp: null, spaceFollowApp: true, overlay: CLOSED, launching: [] })
   storage.clear()
 })
 
@@ -93,7 +93,7 @@ test('desktop count is bounded and only desktop metadata is persisted', () => {
   assert.equal(os().addSpace(), null)
   assert.equal(os().spaces.length, MAX_SPACES)
   const saved = JSON.parse(storage.get('pearos.spaces.v1'))
-  assert.deepEqual(saved, { spaces: os().spaces, activeSpace: os().activeSpace })
+  assert.deepEqual(saved, { spaces: os().spaces, activeSpace: os().activeSpace, assign: {} })
   assert.equal(saved.windows, undefined)
 })
 
@@ -127,4 +127,60 @@ test('overview fits mixed window sizes without overlaps or changing their geomet
     }
   }
   assert.equal(missionLayout([], 1440, 900).size, 0)
+})
+
+test('an app assigned to all desktops follows you and never slides', () => {
+  const finder = os().openApp('finder')
+  os().assignApp('finder', 'all')
+  const second = os().addSpace()
+  assert.equal(os().activeSpace, second)
+  assert.equal(onSpace(os().windows.find((w) => w.id === finder), second, os().assign), true)
+  assert.equal(os().openApp('finder'), finder)
+  assert.equal(os().activeSpace, second)
+  os().assignApp('finder', null)
+  assert.equal(os().assign.finder, undefined)
+})
+
+test('an app assigned to this desktop opens there from anywhere', () => {
+  os().assignApp('terminal', 'this')
+  const home = os().activeSpace
+  const other = os().addSpace()
+  const id = os().openApp('terminal', { forceNew: true })
+  assert.equal(os().windows.find((w) => w.id === id).space, home)
+  assert.equal(os().activeSpace, home)
+  assert.notEqual(home, other)
+})
+
+test('deleting a desktop reassigns apps pinned to it', () => {
+  os().assignApp('notes', 'this')
+  const second = os().addSpace()
+  os().removeSpace(1)
+  assert.equal(os().assign.notes, second)
+})
+
+test('switching without follow-app opens the window here instead of travelling', () => {
+  const id = os().openApp('notes')
+  const second = os().addSpace()
+  useOS.setState({ spaceFollowApp: false })
+  assert.equal(os().openApp('notes'), id)
+  assert.equal(os().windows.find((w) => w.id === id).space, second)
+  assert.equal(os().activeSpace, second)
+})
+
+test('slide direction follows the desktop order', () => {
+  const second = os().addSpace()
+  assert.equal(os().spaceSlide.dir, 1)
+  os().switchSpace(1)
+  assert.equal(os().spaceSlide.dir, -1)
+  os().switchSpace(second)
+  assert.equal(os().spaceSlide.dir, 1)
+})
+
+test('Show Desktop toggles and any window focus brings the windows back', () => {
+  const id = os().openApp('finder')
+  os().toggleDesktop()
+  assert.equal(os().desktopRevealed, true)
+  assert.equal(os().focused, null)
+  os().focus(id)
+  assert.equal(os().desktopRevealed, false)
 })

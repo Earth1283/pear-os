@@ -6,6 +6,7 @@ export interface FileNode {
   type: 'file'
   kind: FileKind
   content?: string
+  poster?: string
   size: number
   app?: AppId
   modified: number
@@ -53,6 +54,7 @@ export const root: DirNode = d({
     'Mail.app': app('mail'),
     'Disk Utility.app': app('diskutility'),
     'Software Update.app': app('softwareupdate'),
+    'Screenshot.app': app('screenshot'),
     'System Settings.app': app('settings'),
   }),
   System: d({

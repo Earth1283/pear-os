@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useOS, os, tileRect } from '../store'
+import { useOS, os, tileRect, onSpace } from '../store'
 import { Wallpaper } from './Wallpaper'
 import { ShaderLayer } from './ShaderLayers'
 import { MenuBar } from './MenuBar'
@@ -13,7 +13,7 @@ import { GlobalContextMenu } from './ContextMenu'
 import { isTextField, menu, openContextMenu } from '../lib/menu'
 import { desktopMenu, fileMenu, selectionMenu, textMenu, windowChromeMenu, windowFallbackMenu } from '../lib/menus'
 import { TAG_COLORS } from './ContextMenu'
-import { DiskIcon, FileIcon, FolderIcon } from './icons'
+import { DiskIcon, FileIcon, FolderIcon, fileThumb } from './icons'
 import { HOME, canRename, listDir, rename, resolve } from '../lib/fs'
 import { RenameField, useEnterToRename } from './RenameField'
 import { openPath } from '../apps/open'
@@ -22,6 +22,9 @@ import { shameToast, useScreenTime } from '../lib/screenTime'
 import { missionLayout } from '../lib/missionControl'
 import { MissionControl } from './MissionControl'
 import { QuickLook } from './QuickLook'
+import { HotCorners } from './HotCorners'
+import { ScreenshotUI } from './Screenshot'
+import { cancel as cancelShot, openToolbar, quickScreen, quickSelect, useShots } from '../lib/screenshot'
 import { moveQuickLook, openVirtualQuickLook } from '../lib/quickLook'
 import { useQuickLookShortcut } from './useQuickLookShortcut'
 
@@ -84,6 +87,22 @@ function useShortcuts() {
           return
         }
       }
+      if (e.shiftKey && (e.metaKey || e.ctrlKey) && !e.altKey && /^Digit[345]$/.test(e.code)) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        if (e.repeat) return
+        const copy = e.metaKey && e.ctrlKey
+        if (e.code === 'Digit3') quickScreen(copy)
+        else if (e.code === 'Digit4') quickSelect(copy)
+        else openToolbar()
+        return
+      }
+      if (e.key === 'Escape' && useShots.getState().mode !== 'idle' && !s.contextMenu) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        cancelShot()
+        return
+      }
       if (e.key === 'F3' || (e.ctrlKey && !e.altKey && !e.metaKey && e.key === 'ArrowUp')) {
         e.preventDefault()
         e.stopImmediatePropagation()
@@ -98,6 +117,15 @@ function useShortcuts() {
           s.switchSpace(next)
           if (moving) s.focus(moving)
         }
+      } else if (e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && /^Digit[1-8]$/.test(e.code)) {
+        const target = s.spaces[Number(e.code.slice(5)) - 1]
+        if (target !== undefined) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          s.switchSpace(target)
+        }
+      } else if (s.desktopRevealed && e.key === 'Escape') {
+        s.toggleDesktop()
       } else if (s.overlay.missionControl && (e.key === 'Escape' || (e.ctrlKey && e.key === 'ArrowDown'))) {
         e.preventDefault()
         e.stopImmediatePropagation()
@@ -164,7 +192,7 @@ function DesktopIcons() {
               menu(fileMenu(it.path, { rename: () => startRename(it.path), quickLook: () => quickLook(it.path) }))(e)
             }}
           >
-            {it.node === null ? <DiskIcon size={60} /> : it.node?.type === 'dir' ? <FolderIcon size={60} /> : <FileIcon size={60} kind={it.node!.kind} ext={ext} />}
+            {it.node === null ? <DiskIcon size={60} /> : it.node?.type === 'dir' ? <FolderIcon size={60} /> : <FileIcon size={60} kind={it.node!.kind} ext={ext} thumb={fileThumb(it.node)} />}
             {renaming === it.path ? (
               <RenameField name={it.name} dir={it.node?.type === 'dir'} onDone={(to) => commit(it.path, to)} onCancel={() => setRenaming(null)} />
             ) : (
@@ -201,6 +229,10 @@ function Windows() {
   const windows = useOS((s) => s.windows)
   const focused = useOS((s) => s.focused)
   const activeSpace = useOS((s) => s.activeSpace)
+  const assign = useOS((s) => s.assign)
+  const slide = useOS((s) => s.spaceSlide)
+  const revealed = useOS((s) => s.desktopRevealed)
+  const mcApp = useOS((s) => s.mcApp)
   const overview = useOS((s) => s.overlay.missionControl)
   const [viewport, setViewport] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }))
   useEffect(() => {
@@ -210,9 +242,9 @@ function Windows() {
     window.addEventListener('resize', resize)
     return () => window.removeEventListener('resize', resize)
   }, [overview])
-  const layout = useMemo(() => overview ? missionLayout(windows.filter((w) => w.space === activeSpace && !w.minimized), viewport.width, viewport.height) : new Map(), [windows, activeSpace, overview, viewport])
+  const layout = useMemo(() => overview ? missionLayout(windows.filter((w) => onSpace(w, activeSpace, assign) && !w.minimized && (!mcApp || w.app === mcApp)), viewport.width, viewport.height) : new Map(), [windows, activeSpace, assign, overview, mcApp, viewport])
   return <>
-    {windows.map((w) => <Window key={w.id} win={w} focused={w.id === focused} inactive={w.space !== activeSpace} overviewRect={layout.get(w.id)} />)}
+    {windows.map((w) => <Window key={w.id} win={w} focused={w.id === focused} inactive={!onSpace(w, activeSpace, assign)} overviewRect={layout.get(w.id)} slide={slide} revealed={revealed} dimmed={overview && !layout.has(w.id)} />)}
     {overview && <MissionControl layout={layout} viewport={viewport} />}
   </>
 }
@@ -254,6 +286,7 @@ export function Desktop() {
         open(desktopMenu())
       }}
     >
+      <HotCorners />
       <Wallpaper />
       <ShaderLayer target="desktop" />
       <ShaderLayer target="sky" />
@@ -273,6 +306,7 @@ export function Desktop() {
       <Launchpad />
       <GlobalContextMenu />
       <QuickLook />
+      <ScreenshotUI />
       <ShaderLayer target="overlay" />
       <Brightness />
     </div>

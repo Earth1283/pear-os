@@ -584,6 +584,22 @@ export const AppIcon = memo(function AppIcon({ app, size = 52 }: { app: AppId; s
         </>
       )
       break
+    case 'screenshot':
+      body = (
+        <>
+          <defs>
+            <linearGradient id={g('b')} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#62656e" />
+              <stop offset="1" stopColor="#25262b" />
+            </linearGradient>
+          </defs>
+          <Squircle fill={u('b')} />
+          <rect x="21" y="27" width="58" height="42" rx="5" fill="rgba(255,255,255,.1)" stroke="#fff" strokeWidth="3" strokeDasharray="5.5 4.2" strokeLinecap="round" />
+          {[[21, 27], [79, 27], [21, 69], [79, 69]].map(([x, y]) => <circle key={`${x}${y}`} cx={x} cy={y} r="4.4" fill="#fff" stroke="#3a3c43" strokeWidth="1.4" />)}
+          <path d="M55 52l0 26 6.4-5.6 4.6 10.6 4.4-1.9-4.6-10.4 8.4-.6z" fill="#0a0a0c" stroke="#fff" strokeWidth="2.6" strokeLinejoin="round" />
+        </>
+      )
+      break
     case 'about':
     default:
       body = (
@@ -769,9 +785,13 @@ function FileGlyph({ kind, color }: { kind: FileKind; color: string }) {
   }
 }
 
-export function FileIcon({ size = 64, kind, ext }: { size?: number; kind: FileKind; ext: string }) {
+export const fileThumb = (node: { type: string; kind?: FileKind; content?: string; poster?: string } | null | undefined) =>
+  node?.type !== 'file' ? undefined : node.kind === 'video' ? node.poster : node.kind === 'image' && /^(data:image|blob:)/.test(node.content ?? '') ? node.content : undefined
+
+export function FileIcon({ size = 64, kind, ext, thumb }: { size?: number; kind: FileKind; ext: string; thumb?: string }) {
   const uid = useId().replace(/:/g, '')
   if (kind === 'disk') return <DiskIcon size={size} />
+  if (thumb) return <span className="file-thumb" style={{ width: size, height: size }}><img src={thumb} alt="" draggable={false} /></span>
   const color = KIND_COLOR[kind]
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden>

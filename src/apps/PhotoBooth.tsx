@@ -4,6 +4,7 @@ import { os, useOS, type Win } from '../store'
 import { compile } from '../lib/gpu'
 import { HOME, addNode, mkdir, moveToTrash, resolve, type FileNode } from '../lib/fs'
 import { blobToDataURL, encode } from '../lib/imaging'
+import { shutterSound } from '../lib/shutter'
 import { openPath } from './open'
 import { menu } from '../lib/menu'
 import { bumpDrive, drive, useBackend } from '../lib/backend'
@@ -250,26 +251,6 @@ function burnCaption(c: HTMLCanvasElement, text: string) {
   g.fillStyle = '#fff'
   g.fillText(text, s, c.height - s)
 }
-
-function shutterSound() {
-  try {
-    const ctx = new AudioContext()
-    const len = Math.floor(ctx.sampleRate * 0.12)
-    const buf = ctx.createBuffer(1, len, ctx.sampleRate)
-    const data = buf.getChannelData(0)
-    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (len * (i < len / 3 ? 0.08 : 0.2)))
-    const src = ctx.createBufferSource()
-    const gain = ctx.createGain()
-    gain.gain.value = 0.5 * useOS.getState().volume ** 2
-    src.buffer = buf
-    src.connect(gain).connect(ctx.destination)
-    src.start()
-    src.onended = () => ctx.close()
-  } catch {
-    return
-  }
-}
-
 
 export function PhotoBooth({ win }: { win: Win }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)

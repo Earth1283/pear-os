@@ -172,6 +172,7 @@ export const APP_NAMES: Record<Bucket, string> = {
   mail: 'Mail',
   diskutility: 'Disk Utility',
   softwareupdate: 'Software Update',
+  screenshot: 'Screenshot',
   trash: 'Trash',
 }
 
@@ -197,6 +198,7 @@ const ROASTS: Partial<Record<Bucket, (t: string) => string>> = {
   preview: (t) => `${t} in Preview. You have looked at that picture enough.`,
   diskutility: (t) => `${t} in Disk Utility, checking a disk that is fine.`,
   softwareupdate: (t) => `${t} watching Software Update. The bar moves when you look away.`,
+  screenshot: (t) => `${t} taking screenshots of things you could have just remembered.`,
   mirroring: (t) => `${t} on pPhone Mirroring, so you could ignore the real one more comfortably.`,
 }
 

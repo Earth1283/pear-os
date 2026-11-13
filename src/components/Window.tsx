@@ -1,8 +1,11 @@
-import { memo, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useOS, MENU_H, tileRect, type Tile, type Win } from '../store'
 import { APPS } from '../apps/registry'
 import { WindowShader } from './ShaderLayers'
 import type { OverviewRect } from '../lib/missionControl'
+import { useA11y } from '../lib/a11y'
+import { dockTarget, genieFrames } from '../lib/genie'
+import { endFlight, startFlight } from '../lib/flights'
 
 type Edge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
 const EDGES: Edge[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']
@@ -88,7 +91,7 @@ function TrafficLights({ win }: { win: Win }) {
   )
 }
 
-interface WindowProps { win: Win; focused: boolean; inactive: boolean; overviewRect?: OverviewRect }
+interface WindowProps { win: Win; focused: boolean; inactive: boolean; overviewRect?: OverviewRect; slide: { dir: -1 | 0 | 1; seq: number }; revealed: boolean; dimmed: boolean }
 
 // Overview transforms change the frame, not the running app's inputs.
 const WindowContents = memo(function WindowContents({ win }: { win: Win }) {
@@ -96,7 +99,7 @@ const WindowContents = memo(function WindowContents({ win }: { win: Win }) {
   return <Suspense fallback={null}><App win={win} /></Suspense>
 })
 
-function WindowFrame({ win, focused, inactive, overviewRect }: WindowProps) {
+function WindowFrame({ win, focused, inactive, overviewRect, slide, revealed, dimmed }: WindowProps) {
   const ref = useRef<HTMLDivElement>(null)
   const spec = APPS[win.app]
   const { focus, setRect, tileWindow, set } = useOS.getState()
@@ -229,6 +232,50 @@ function WindowFrame({ win, focused, inactive, overviewRect }: WindowProps) {
     return () => window.removeEventListener('resize', onResize)
   }, [win.tile, win.id, setRect])
 
+  const [phase, setPhase] = useState<'in' | 'out' | null>(null)
+  const [sliding, setSliding] = useState(false)
+  const wasInactive = useRef(inactive)
+  const slideTimer = useRef(0)
+  useLayoutEffect(() => {
+    if (wasInactive.current === inactive) return
+    wasInactive.current = inactive
+    clearTimeout(slideTimer.current)
+    setSliding(false)
+    if (!slide.dir || overviewRect || useA11y.getState().reduceMotion) return
+    setPhase(inactive ? 'out' : 'in')
+    if (inactive) {
+      setSliding(true)
+      slideTimer.current = window.setTimeout(() => setSliding(false), 420)
+    }
+  }, [inactive, slide.seq, overviewRect])
+  useEffect(() => () => clearTimeout(slideTimer.current), [])
+  const wasMinimized = useRef(win.minimized)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el || wasMinimized.current === win.minimized) return
+    wasMinimized.current = win.minimized
+    if (inactive || overviewRect || useA11y.getState().reduceMotion) return
+    const mode = useOS.getState().dockMinimize
+    const frames = genieFrames({ x: win.x, y: win.y, w: win.w, h: win.h }, dockTarget(win), mode)
+    if (frames.length < 2) return
+    if (win.minimized) startFlight(win.id)
+    const anim = el.animate(
+      frames.map((f) => ({ transform: f.transform, opacity: f.opacity, offset: f.offset, transformOrigin: '0 0', visibility: 'visible' })),
+      { duration: mode === 'genie' ? 520 : 320, easing: 'linear', direction: win.minimized ? 'normal' : 'reverse', fill: 'both' },
+    )
+    const finish = () => {
+      anim.cancel()
+      endFlight(win.id)
+    }
+    anim.onfinish = finish
+    return () => {
+      anim.onfinish = null
+      finish()
+    }
+  }, [win.minimized])
+  const leaving = inactive && sliding
+  const peek = revealed && !inactive ? (win.x + win.w / 2 < window.innerWidth / 2 ? -(win.x + win.w - 44) : window.innerWidth - win.x - 44) : 0
+
   const chrome = spec.chrome ?? 'standard'
   return (
     <div
@@ -236,8 +283,8 @@ function WindowFrame({ win, focused, inactive, overviewRect }: WindowProps) {
       data-win={win.id}
       tabIndex={-1}
       inert={inactive || !!overviewRect || win.minimized}
-      className={`window ${focused ? 'focused' : 'blurred'} chrome-${chrome} ${win.minimized ? 'minimized' : ''} ${inactive ? 'space-hidden' : ''} ${overviewRect ? 'mc-window' : ''} ${win.tile ? 'tiled' : ''} app-${win.app}`}
-      style={{ zIndex: overviewRect ? 48000 : win.z, transform: overviewRect ? `translate(${overviewRect.x}px, ${overviewRect.y}px) scale(${overviewRect.scale})` : `translate(${win.x}px, ${win.y}px)`, width: win.w, height: win.h }}
+      className={`window ${focused ? 'focused' : 'blurred'} chrome-${chrome} ${win.minimized ? 'minimized' : ''} ${inactive && !leaving ? 'space-hidden' : ''} ${phase ? `space-${phase}` : ''} ${revealed && !inactive ? 'revealed' : ''} ${dimmed ? 'mc-dim' : ''} ${overviewRect ? 'mc-window' : ''} ${win.tile ? 'tiled' : ''} app-${win.app}`}
+      style={{ '--slide': slide.dir, '--reveal': `${peek}px`, zIndex: overviewRect ? 48000 : win.z, transform: overviewRect ? `translate(${overviewRect.x}px, ${overviewRect.y}px) scale(${overviewRect.scale})` : `translate(${win.x}px, ${win.y}px)`, width: win.w, height: win.h } as React.CSSProperties}
       onPointerDown={startDrag}
       onDoubleClick={(e) => {
         const t = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null) ?? (e.target as HTMLElement)
@@ -259,4 +306,4 @@ function WindowFrame({ win, focused, inactive, overviewRect }: WindowProps) {
   )
 }
 
-export const Window = memo(WindowFrame, (a, b) => a.win === b.win && a.focused === b.focused && a.inactive === b.inactive && a.overviewRect === b.overviewRect)
+export const Window = memo(WindowFrame, (a, b) => a.win === b.win && a.focused === b.focused && a.inactive === b.inactive && a.overviewRect === b.overviewRect && a.slide === b.slide && a.revealed === b.revealed && a.dimmed === b.dimmed)

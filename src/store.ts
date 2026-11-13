@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import type { AppId } from './apps/ids'
 import type { MenuEntry } from './lib/menu'
 import type { QuickLookSession } from './lib/quickLook'
+import { defaultCorners, parseCorners, type HotCorners } from './lib/hotCornerConfig.ts'
+import { DEFAULT_DOCK } from './apps/dockDefaults.ts'
 
 export type Phase = 'off' | 'booting' | 'bootpicker' | 'windows' | 'login' | 'desktop' | 'sleep' | 'panic' | 'shuttingdown'
 export type Tile = 'left' | 'right' | 'fill' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | null
@@ -81,6 +83,10 @@ export const WIDGET_PX: Record<WidgetSize, [number, number]> = { small: [158, 15
 const WIDGET_GAP = 12
 const WIDGET_KEY = 'pearos.widgets.v1'
 
+export type DockMinimize = 'genie' | 'scale'
+export type Assignment = 'all' | number
+export type Assignments = Partial<Record<AppId, Assignment>>
+
 export const MENU_H = 26
 export const DOCK_ZONE = 86
 export const MAX_SPACES = 8
@@ -103,6 +109,18 @@ interface State {
   bluetooth: boolean
   dockMagnify: boolean
   dockSize: number
+  dockZoom: number
+  dockApps: AppId[]
+  dockMinimize: DockMinimize
+  dockIndicators: boolean
+  dockBounce: boolean
+  hotCorners: HotCorners
+  spaceFollowApp: boolean
+  assign: Assignments
+  spaceSlide: { dir: -1 | 0 | 1; seq: number }
+  desktopRevealed: boolean
+  mcApp: AppId | null
+  appSeen: Partial<Record<AppId, number>>
   notes: Note[]
   toasts: Toast[]
   history: HistoryItem[]
@@ -128,6 +146,8 @@ interface State {
   addSpace(): number | null
   removeSpace(id: number): void
   moveWindowToSpace(id: string, space: number): void
+  assignApp(app: AppId, mode: 'all' | 'this' | null): void
+  toggleDesktop(): void
   setRect(id: string, r: Partial<Rect>): void
   tileWindow(id: string, t: Tile): void
   setTitle(id: string, title: string): void
@@ -166,18 +186,34 @@ const uid = () => Math.random().toString(36).slice(2, 10)
 let cascade = 0
 
 const SPACES_KEY = 'pearos.spaces.v1'
-function loadSpaces(): { spaces: number[]; activeSpace: number } {
+function loadSpaces(): { spaces: number[]; activeSpace: number; assign: Assignments } {
   try {
     const raw = JSON.parse(localStorage.getItem(SPACES_KEY) ?? 'null')
     if (Array.isArray(raw?.spaces) && raw.spaces.length > 0 && raw.spaces.length <= MAX_SPACES &&
       raw.spaces.every((id: unknown) => Number.isSafeInteger(id) && (id as number) > 0) && new Set(raw.spaces).size === raw.spaces.length) {
-      return { spaces: raw.spaces, activeSpace: raw.spaces.includes(raw.activeSpace) ? raw.activeSpace : raw.spaces[0] }
+      const assign: Assignments = {}
+      if (raw.assign && typeof raw.assign === 'object') {
+        for (const [app, v] of Object.entries(raw.assign)) if (v === 'all' || (typeof v === 'number' && raw.spaces.includes(v))) assign[app as AppId] = v as Assignment
+      }
+      return { spaces: raw.spaces, activeSpace: raw.spaces.includes(raw.activeSpace) ? raw.activeSpace : raw.spaces[0], assign }
     }
   } catch { /* Unavailable storage: start with one desktop. */ }
-  return { spaces: [1], activeSpace: 1 }
+  return { spaces: [1], activeSpace: 1, assign: {} }
 }
 
-const frontWindow = (windows: Win[], space: number) => windows.filter((w) => !w.minimized && w.space === space).reduce<Win | undefined>((top, w) => !top || w.z > top.z ? w : top, undefined)
+export const onSpace = (w: Win, space: number, assign: Assignments) => assign[w.app] === 'all' || w.space === space
+
+const frontWindow = (windows: Win[], space: number, assign: Assignments) => windows.filter((w) => !w.minimized && onSpace(w, space, assign)).reduce<Win | undefined>((top, w) => !top || w.z > top.z ? w : top, undefined)
+
+const slideTo = (s: { spaces: number[]; activeSpace: number; spaceSlide: { seq: number } }, to: number): { dir: -1 | 1; seq: number } => ({
+  dir: s.spaces.indexOf(to) >= s.spaces.indexOf(s.activeSpace) ? 1 : -1,
+  seq: s.spaceSlide.seq + 1,
+})
+
+const homeSpace = (assign: Assignments, spaces: number[], app: AppId) => {
+  const a = assign[app]
+  return typeof a === 'number' && spaces.includes(a) ? a : null
+}
 
 export function tileRect(t: Tile): Rect {
   const W = window.innerWidth
@@ -259,7 +295,7 @@ function freeSpot(existing: WidgetInst[], size: WidgetSize): { x: number; y: num
 
 const PREFS_KEY = 'pearos.prefs.v1'
 const WALLPAPERS: Wallpaper[] = ['sequel', 'sequel-dark', 'orchard', 'graphite', 'fractal', 'lake']
-const PREF_KEYS = ['theme', 'wallpaper', 'liveWallpaper', 'fractalWallpaper', 'brightness', 'volume', 'wifi', 'bluetooth', 'dnd', 'dockMagnify', 'dockSize', 'dockAutohide'] as const
+const PREF_KEYS = ['theme', 'wallpaper', 'liveWallpaper', 'fractalWallpaper', 'brightness', 'volume', 'wifi', 'bluetooth', 'dnd', 'dockMagnify', 'dockSize', 'dockAutohide', 'dockZoom', 'dockApps', 'dockMinimize', 'dockIndicators', 'dockBounce', 'hotCorners', 'spaceFollowApp'] as const
 type Prefs = Pick<State, (typeof PREF_KEYS)[number]>
 
 function loadPrefs(): Partial<Prefs> {
@@ -276,7 +312,12 @@ function loadPrefs(): Partial<Prefs> {
     out.brightness = num(raw.brightness, 0.25, 1)
     out.volume = num(raw.volume, 0, 1)
     out.dockSize = num(raw.dockSize, 36, 72)
-    for (const k of ['liveWallpaper', 'wifi', 'bluetooth', 'dnd', 'dockMagnify', 'dockAutohide'] as const) if (typeof raw[k] === 'boolean') out[k] = raw[k]
+    out.dockZoom = num(raw.dockZoom, 0.2, 1)
+    if (raw.dockMinimize === 'genie' || raw.dockMinimize === 'scale') out.dockMinimize = raw.dockMinimize
+    if (Array.isArray(raw.dockApps) && raw.dockApps.length <= 40 && raw.dockApps.every((a: unknown) => typeof a === 'string')) out.dockApps = [...new Set<string>(raw.dockApps)] as AppId[]
+    const corners = parseCorners(raw.hotCorners)
+    if (corners) out.hotCorners = corners
+    for (const k of ['liveWallpaper', 'wifi', 'bluetooth', 'dnd', 'dockMagnify', 'dockAutohide', 'dockIndicators', 'dockBounce', 'spaceFollowApp'] as const) if (typeof raw[k] === 'boolean') out[k] = raw[k]
     for (const k of Object.keys(out) as (keyof Prefs)[]) if (out[k] === undefined) delete out[k]
     return out
   } catch {
@@ -311,6 +352,17 @@ export const useOS = create<State>((set, get) => ({
   bluetooth: true,
   dockMagnify: true,
   dockSize: 52,
+  dockZoom: 0.75,
+  dockApps: DEFAULT_DOCK,
+  dockMinimize: 'genie',
+  dockIndicators: true,
+  dockBounce: true,
+  hotCorners: defaultCorners(),
+  spaceFollowApp: true,
+  spaceSlide: { dir: 0, seq: 0 },
+  desktopRevealed: false,
+  mcApp: null,
+  appSeen: {},
   notes: initialNotes,
   toasts: [],
   history: [],
@@ -333,27 +385,44 @@ export const useOS = create<State>((set, get) => ({
     const s = get()
     const spec = specs[app] ?? { name: app, w: 640, h: 440 }
     s.closeOverlays()
+    if (app === 'screenshot') {
+      import('./lib/screenshot').then((m) => m.openToolbar())
+      return ''
+    }
+    const seen = { ...s.appSeen, [app]: Date.now() }
+    const home = homeSpace(s.assign, s.spaces, app)
+    const raise = (top: Win, activeSpace: number) => {
+      const z = s.zTop + 1
+      set({
+        windows: s.windows.map((w) => (w.app === app && w.space === top.space ? { ...w, minimized: false, z: w.id === top.id ? z : w.z } : w)),
+        focused: top.id,
+        activeSpace,
+        zTop: z,
+        desktopRevealed: false,
+        appSeen: seen,
+        spaceSlide: activeSpace === s.activeSpace ? s.spaceSlide : slideTo(s, activeSpace),
+      })
+      return top.id
+    }
     if (!opts.forceNew && !opts.props) {
       const all = s.windows.filter((w) => w.app === app)
-      const local = all.filter((w) => w.space === s.activeSpace)
-      const existing = local.length ? local : all
+      const local = all.filter((w) => onSpace(w, s.activeSpace, s.assign))
+      const existing = local.length ? local : s.spaceFollowApp ? all : []
       if (existing.length) {
         const top = existing.reduce((a, b) => (a.z > b.z ? a : b))
-        const z = s.zTop + 1
-        set({
-          windows: s.windows.map((w) => (w.app === app && w.space === top.space ? { ...w, minimized: false, z: w.id === top.id ? z : w.z } : w)),
-          focused: top.id,
-          activeSpace: top.space,
-          zTop: z,
-        })
-        return top.id
+        return raise(top, onSpace(top, s.activeSpace, s.assign) ? s.activeSpace : top.space)
+      }
+      if (all.length && spec.singleton) {
+        const top = all.reduce((a, b) => (a.z > b.z ? a : b))
+        set({ windows: s.windows.map((w) => (w.id === top.id ? { ...w, space: s.activeSpace } : w)) })
+        return get().openApp(app)
       }
     }
     if (spec.singleton) {
       const existing = s.windows.find((w) => w.app === app)
       if (existing) {
         s.focus(existing.id)
-        if (opts.props) set({ windows: get().windows.map((w) => (w.id === existing.id ? { ...w, props: { ...w.props, ...opts.props } } : w)) })
+        if (opts.props) set({ windows: get().windows.map((w) => (w.id === existing.id ? { ...w, props: { ...w.props, ...opts.props } } : w)), appSeen: seen })
         return existing.id
       }
     }
@@ -364,9 +433,10 @@ export const useOS = create<State>((set, get) => ({
     const off = (cascade++ % 6) * 26
     const id = uid()
     const z = s.zTop + 1
+    const space = home ?? s.activeSpace
     const win: Win = {
       id,
-      space: s.activeSpace,
+      space,
       app,
       title: spec.name,
       x: Math.max(10, Math.round((W - w) / 2 - 80 + off)),
@@ -380,21 +450,21 @@ export const useOS = create<State>((set, get) => ({
       props: opts.props ?? {},
     }
     const launching = s.launching.includes(app) || s.windows.some((x) => x.app === app) ? s.launching : [...s.launching, app]
-    set({ windows: [...s.windows, win], focused: id, zTop: z, launching })
+    set({ windows: [...s.windows, win], focused: id, zTop: z, launching, activeSpace: space, desktopRevealed: false, appSeen: seen, spaceSlide: space === s.activeSpace ? s.spaceSlide : slideTo(s, space) })
     if (launching !== s.launching) setTimeout(() => set({ launching: get().launching.filter((a) => a !== app) }), 1100)
     return id
   },
 
   closeWindow(id) {
     const rest = get().windows.filter((w) => w.id !== id)
-    const next = frontWindow(rest, get().activeSpace)
+    const next = frontWindow(rest, get().activeSpace, get().assign)
     set({ windows: rest, focused: get().focused === id ? next?.id ?? null : get().focused })
   },
 
   closeApp(app) {
     quitHooks[app]?.()
     const rest = get().windows.filter((w) => w.app !== app)
-    const next = frontWindow(rest, get().activeSpace)
+    const next = frontWindow(rest, get().activeSpace, get().assign)
     set({ windows: rest, focused: next?.id ?? null })
   },
 
@@ -403,29 +473,30 @@ export const useOS = create<State>((set, get) => ({
     const s = get()
     const target = s.windows.find((w) => w.id === id)
     if (!target) return
-    if (s.focused === id && s.windows.find((w) => w.id === id)?.z === s.zTop) return
+    const space = onSpace(target, s.activeSpace, s.assign) ? s.activeSpace : target.space
+    if (s.focused === id && target.z === s.zTop && !s.desktopRevealed && space === s.activeSpace && !target.minimized) return
     const z = s.zTop + 1
-    set({ windows: s.windows.map((w) => (w.id === id ? { ...w, z, minimized: false } : w)), focused: id, zTop: z, activeSpace: target.space })
+    set({ windows: s.windows.map((w) => (w.id === id ? { ...w, z, minimized: false } : w)), focused: id, zTop: z, activeSpace: space, desktopRevealed: false, spaceSlide: space === s.activeSpace ? s.spaceSlide : slideTo(s, space) })
   },
 
   minimize(id) {
     const s = get()
     const windows = s.windows.map((w) => (w.id === id ? { ...w, minimized: true } : w))
-    const next = frontWindow(windows, s.activeSpace)
+    const next = frontWindow(windows, s.activeSpace, s.assign)
     set({ windows, focused: s.focused === id ? next?.id ?? null : s.focused })
   },
 
   switchSpace(id) {
     const s = get()
     if (!s.spaces.includes(id) || id === s.activeSpace) return
-    set({ activeSpace: id, focused: frontWindow(s.windows, id)?.id ?? null, contextMenu: null, tilePreview: null })
+    set({ activeSpace: id, focused: frontWindow(s.windows, id, s.assign)?.id ?? null, contextMenu: null, tilePreview: null, desktopRevealed: false, spaceSlide: slideTo(s, id) })
   },
 
   addSpace() {
     const s = get()
     if (s.spaces.length >= MAX_SPACES) return null
     const id = Math.max(...s.spaces) + 1
-    set({ spaces: [...s.spaces, id], activeSpace: id, focused: null })
+    set({ spaces: [...s.spaces, id], activeSpace: id, focused: null, spaceSlide: { dir: 1, seq: s.spaceSlide.seq + 1 } })
     return id
   },
 
@@ -436,8 +507,9 @@ export const useOS = create<State>((set, get) => ({
     const spaces = s.spaces.filter((space) => space !== id)
     const destination = spaces[Math.max(0, index - 1)]
     const windows = s.windows.map((w) => w.space === id ? { ...w, space: destination } : w)
+    const assign = Object.fromEntries(Object.entries(s.assign).map(([app, v]) => [app, v === id ? destination : v])) as Assignments
     const activeSpace = s.activeSpace === id ? destination : s.activeSpace
-    set({ spaces, windows, activeSpace, focused: s.activeSpace === id ? frontWindow(windows, activeSpace)?.id ?? null : s.focused })
+    set({ spaces, windows, assign, activeSpace, focused: s.activeSpace === id ? frontWindow(windows, activeSpace, assign)?.id ?? null : s.focused })
   },
 
   moveWindowToSpace(id, space) {
@@ -445,7 +517,21 @@ export const useOS = create<State>((set, get) => ({
     if (!s.spaces.includes(space)) return
     const windows = s.windows.map((w) => w.id === id && w.space !== space ? { ...w, space } : w)
     const focused = windows.find((w) => w.id === s.focused)
-    set({ windows, focused: focused?.space === s.activeSpace ? s.focused : frontWindow(windows, s.activeSpace)?.id ?? null })
+    set({ windows, focused: focused && onSpace(focused, s.activeSpace, s.assign) ? s.focused : frontWindow(windows, s.activeSpace, s.assign)?.id ?? null })
+  },
+
+  assignApp(app, mode) {
+    const s = get()
+    const assign = { ...s.assign }
+    if (mode === null) delete assign[app]
+    else assign[app] = mode === 'all' ? 'all' : s.activeSpace
+    const windows = mode === 'this' ? s.windows.map((w) => (w.app === app ? { ...w, space: s.activeSpace } : w)) : s.windows
+    set({ assign, windows })
+  },
+
+  toggleDesktop() {
+    const s = get()
+    set({ desktopRevealed: !s.desktopRevealed, focused: s.desktopRevealed ? s.focused : null })
   },
 
   setRect(id, r) {
@@ -468,10 +554,10 @@ export const useOS = create<State>((set, get) => ({
     if (w && w.title !== title) set({ windows: get().windows.map((x) => (x.id === id ? { ...x, title } : x)) })
   },
 
-  setOverlay: (o) => set({ overlay: o.missionControl ? { ...CLOSED, ...o } : { ...get().overlay, ...(Object.values(o).some(Boolean) ? { missionControl: false } : {}), ...o }, contextMenu: null, ...(Object.values(o).some(Boolean) ? { quickLook: null } : {}) }),
+  setOverlay: (o) => set({ overlay: o.missionControl ? { ...CLOSED, ...o } : { ...get().overlay, ...(Object.values(o).some(Boolean) ? { missionControl: false } : {}), ...o }, contextMenu: null, ...(o.missionControl ? { desktopRevealed: false } : { mcApp: null }), ...(Object.values(o).some(Boolean) ? { quickLook: null } : {}) }),
   closeOverlays: () => {
     const o = get().overlay
-    if (Object.values(o).some(Boolean)) set({ overlay: CLOSED })
+    if (Object.values(o).some(Boolean)) set({ overlay: CLOSED, mcApp: null })
     if (get().contextMenu) set({ contextMenu: null })
     if (get().quickLook) set({ quickLook: null })
   },
@@ -528,8 +614,8 @@ export const useOS = create<State>((set, get) => ({
 export const os = () => useOS.getState()
 
 useOS.subscribe((s, prev) => {
-  if (s.spaces !== prev.spaces || s.activeSpace !== prev.activeSpace) {
-    try { localStorage.setItem(SPACES_KEY, JSON.stringify({ spaces: s.spaces, activeSpace: s.activeSpace })) } catch { /* Desktops still work without storage. */ }
+  if (s.spaces !== prev.spaces || s.activeSpace !== prev.activeSpace || s.assign !== prev.assign) {
+    try { localStorage.setItem(SPACES_KEY, JSON.stringify({ spaces: s.spaces, activeSpace: s.activeSpace, assign: s.assign })) } catch { /* Desktops still work without storage. */ }
   }
   if (PREF_KEYS.every((k) => s[k] === prev[k])) return
   try {

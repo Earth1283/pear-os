@@ -3,7 +3,7 @@ import { AppWindow, ChevronLeft, ChevronRight, Clock, Cloud, Download, FileText,
 import { useOS, os, type Win } from '../store'
 import { HOME, canRename, formatBytes, listDir, normalise, rename, resolve, sizeOf } from '../lib/fs'
 import { RenameField, useEnterToRename } from '../components/RenameField'
-import { FileIcon, FolderIcon, AppIcon } from '../components/icons'
+import { FileIcon, FolderIcon, AppIcon, fileThumb } from '../components/icons'
 import { TAG_COLORS } from '../components/ContextMenu'
 import { menu } from '../lib/menu'
 import { fileMenu, folderMenu } from '../lib/menus'
@@ -169,7 +169,7 @@ export function Finder({ win }: { win: Win }) {
     const name = p.split('/').pop()!
     if (node.type === 'dir') return <FolderIcon size={size} />
     if (node.kind === 'app' && node.app) return <AppIcon app={node.app} size={size} />
-    return <FileIcon size={size} kind={node.kind} ext={name.includes('.') ? name.split('.').pop()! : ''} />
+    return <FileIcon size={size} kind={node.kind} ext={name.includes('.') ? name.split('.').pop()! : ''} thumb={fileThumb(node)} />
   }
 
   return (

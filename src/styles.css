@@ -546,7 +546,7 @@ textarea {
 .dropdown.sub {
   z-index: 70001;
 }
-.ctx-catch {
+.overlay-catch.ctx-catch {
   z-index: 69000;
 }
 .dd-item.sub-open {
@@ -767,8 +767,8 @@ textarea {
 }
 .window.minimized {
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
-  transform: translate(calc(50vw - 50%), 100vh) scale(0.08) !important;
 }
 .window.chrome-overlay {
   background: transparent;

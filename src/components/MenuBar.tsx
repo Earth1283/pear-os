@@ -9,6 +9,7 @@ import { APPS, useAppModules } from '../apps/registry'
 import type { MenuDef, MenuItem } from '../apps/types'
 import { PearLogo, IntelOrb } from './icons'
 import { useCurrent, usePlayer } from '../lib/player'
+import { stopRecording, useShots } from '../lib/screenshot'
 
 function Battery() {
   const [pct, setPct] = useState(100)
@@ -184,6 +185,8 @@ export function MenuBar() {
   const openMenu = useOS((s) => s.overlay.menu)
   const wifi = useOS((s) => s.wifi)
   const dnd = useOS((s) => s.dnd)
+  const recording = useShots((s) => s.recording !== null)
+  const countdown = useShots((s) => s.countdown)
   const cur = useCurrent()
   const playing = usePlayer((s) => s.playing)
   useAppModules((s) => s.loaded)
@@ -226,6 +229,19 @@ export function MenuBar() {
         ))}
       </div>
       <div className="mb-right">
+        {countdown !== null && (
+          <span className="mb-item icon mb-countdown" title="Screenshot timer" aria-live="polite">
+            {countdown}
+          </span>
+        )}
+        {recording && (
+          <button className="mb-item icon mb-rec" title="Stop Recording" aria-label="Stop Recording" onClick={() => stopRecording()}>
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+              <circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+              <rect x="5.4" y="5.4" width="5.2" height="5.2" rx="1" fill="currentColor" />
+            </svg>
+          </button>
+        )}
         {dnd && (
           <span className="mb-item icon" title="Do Not Disturb is on">
             <Moon size={13} strokeWidth={2.4} fill="currentColor" />

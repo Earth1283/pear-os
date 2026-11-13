@@ -5,6 +5,7 @@ import { useOS, os, type Win, type Wallpaper } from '../store'
 import { kernelTaskCpu, entropy, renderMandelbrot, DEFAULT_VIEW, type FractalView, kernelVersion } from '../kernel'
 import { GPU_MIN_SCALE, MandelbrotGL, gpuInfo } from '../lib/gpu'
 import { APPS } from './registry'
+import { DEFAULT_DOCK } from './dockDefaults'
 import { LaptopArt, PearLogo, AppIcon } from '../components/icons'
 import { menu } from '../lib/menu'
 import { A11Y_DEFAULTS, speak, useA11y, type A11ySettings, type ColorFilter, type Invert, type ZoomModifier } from '../lib/a11y'
@@ -12,6 +13,8 @@ import { PRESETS, PRESET_ORDER } from '../lib/shaderPresets'
 import { shaderStats, useShaders, type ShaderTarget } from '../lib/shaders'
 import { altitudeDegrees, formatHour, moonName, skyAt, type Body, type SkyState } from '../lib/sky'
 import { ScreenTimePane } from './ScreenTimePane'
+import { HotCornersSheet } from '../components/HotCornersSheet'
+import { CORNERS } from '../lib/hotCornerConfig'
 import { procs as realProcs, useBackend, formatBytes as fmtBytes, type RealProc } from '../lib/backend'
 
 export function About() {
@@ -771,12 +774,20 @@ function AccessibilityPane() {
 export function Settings({ win }: { win: Win }) {
   const [pane, setPane] = useState<PaneId>((win.props.pane as PaneId) ?? 'appearance')
   const [q, setQ] = useState('')
+  const [hotSheet, setHotSheet] = useState(false)
   const s = useOS(
     useShallow((st) => ({
       bluetooth: st.bluetooth,
       brightness: st.brightness,
       dockMagnify: st.dockMagnify,
       dockSize: st.dockSize,
+      dockZoom: st.dockZoom,
+      dockMinimize: st.dockMinimize,
+      dockAutohide: st.dockAutohide,
+      dockIndicators: st.dockIndicators,
+      dockBounce: st.dockBounce,
+      spaceFollowApp: st.spaceFollowApp,
+      hotCorners: st.hotCorners,
       liveWallpaper: st.liveWallpaper,
       theme: st.theme,
       wallpaper: st.wallpaper,
@@ -844,23 +855,61 @@ export function Settings({ win }: { win: Win }) {
       break
     case 'desktop':
       body = (
-        <div className="set-card">
-          <Row label="Size">
-            <input type="range" min={36} max={72} value={s.dockSize} onChange={(e) => os().set('dockSize', +e.target.value)} />
-          </Row>
-          <Row label="Magnification">
-            <Toggle on={s.dockMagnify} onChange={(v) => os().set('dockMagnify', v)} />
-          </Row>
-          <Row label="Click wallpaper to reveal desktop" sub="Always. (We heard you hated it. We kept it.)">
-            <select defaultValue="always">
-              <option value="always">Always</option>
-              <option>Only in Stage Manager</option>
-            </select>
-          </Row>
-          <Row label="Tile by dragging windows to screen edges" sub="New in Sequel! Windows apparently did this in 2009.">
-            <Toggle on onChange={() => {}} />
-          </Row>
-        </div>
+        <>
+          <h4 className="set-head">Dock</h4>
+          <div className="set-card">
+            <Row label="Size">
+              <input type="range" min={36} max={72} value={s.dockSize} onChange={(e) => os().set('dockSize', +e.target.value)} />
+            </Row>
+            <Row label="Magnification">
+              <Toggle on={s.dockMagnify} onChange={(v) => os().set('dockMagnify', v)} />
+            </Row>
+            {s.dockMagnify && (
+              <Row label="Magnification size">
+                <input type="range" min={0.2} max={1} step={0.05} value={s.dockZoom} onChange={(e) => os().set('dockZoom', +e.target.value)} />
+              </Row>
+            )}
+            <Row label="Minimize windows using">
+              <select value={s.dockMinimize} onChange={(e) => os().set('dockMinimize', e.target.value as 'genie' | 'scale')}>
+                <option value="genie">Genie effect</option>
+                <option value="scale">Scale effect</option>
+              </select>
+            </Row>
+            <Row label="Animate opening applications">
+              <Toggle on={s.dockBounce} onChange={(v) => os().set('dockBounce', v)} />
+            </Row>
+            <Row label="Automatically hide and show the Dock">
+              <Toggle on={s.dockAutohide} onChange={(v) => os().set('dockAutohide', v)} />
+            </Row>
+            <Row label="Show indicators for open applications">
+              <Toggle on={s.dockIndicators} onChange={(v) => os().set('dockIndicators', v)} />
+            </Row>
+            <Row label="Reset Dock" sub="Puts every app back where Pear thinks it belongs.">
+              <button className="btn small" onClick={() => os().set('dockApps', DEFAULT_DOCK)}>Reset…</button>
+            </Row>
+          </div>
+          <h4 className="set-head">Mission Control</h4>
+          <div className="set-card">
+            <Row label="When switching to an application, switch to a Space with open windows for the application">
+              <Toggle on={s.spaceFollowApp} onChange={(v) => os().set('spaceFollowApp', v)} />
+            </Row>
+            <Row label="Hot Corners" sub={CORNERS.some((c) => s.hotCorners[c].action !== 'none') ? undefined : 'No corners are doing anything yet.'}>
+              <button className="btn small" onClick={() => setHotSheet(true)}>Hot Corners…</button>
+            </Row>
+          </div>
+          <h4 className="set-head">Windows</h4>
+          <div className="set-card">
+            <Row label="Click wallpaper to reveal desktop" sub="Always. (We heard you hated it. We kept it.)">
+              <select defaultValue="always">
+                <option value="always">Always</option>
+                <option>Only in Stage Manager</option>
+              </select>
+            </Row>
+            <Row label="Tile by dragging windows to screen edges" sub="New in Sequel! Windows apparently did this in 2009.">
+              <Toggle on onChange={() => {}} />
+            </Row>
+          </div>
+        </>
       )
       break
     case 'intelligence':
@@ -1089,6 +1138,7 @@ export function Settings({ win }: { win: Win }) {
           )
         })}
       </aside>
+      {hotSheet && <HotCornersSheet wp={WALLPAPERS.find((w) => w.id === s.wallpaper)?.cls ?? 'wp-sequel'} onDone={() => setHotSheet(false)} />}
       <section className="settings-main">
         <div className="toolbar" data-drag>
           <div className="toolbar-title left">{'label' in current ? current.label : ''}</div>

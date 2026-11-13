@@ -128,11 +128,12 @@ export const APPS: Record<AppId, AppDef> = {
   mail: { name: 'Mail', component: Mail, w: 1040, h: 640, minW: 760, minH: 420, singleton: true, chrome: 'overlay' },
   diskutility: { name: 'Disk Utility', component: DiskUtility, w: 860, h: 560, minW: 640, minH: 420, singleton: true, chrome: 'overlay' },
   softwareupdate: { name: 'Software Update', component: SoftwareUpdate, w: 580, h: 460, minW: 480, minH: 380, singleton: true },
+  screenshot: { name: 'Screenshot', component: Nothing, w: 0, h: 0, resizable: false, hidden: true },
   about: { name: 'About This Pear', component: About, w: 300, h: 580, singleton: true, resizable: false, chrome: 'overlay' },
   trash: { name: 'Trash', component: Nothing, w: 0, h: 0, hidden: true },
 }
 
 registerSpecs(APPS)
 
-export const DOCK_APPS: AppId[] = ['finder', 'launchpad', 'safari', 'mail', 'music', 'chess', 'tetris', 'notes', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'settings']
-export const LAUNCHPAD_APPS: AppId[] = ['finder', 'airpear', 'safari', 'music', 'chess', 'tetris', 'notes', 'textedit', 'preview', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'photobooth', 'mail', 'diskutility', 'softwareupdate', 'bootcamp', 'settings']
+export { DEFAULT_DOCK as DOCK_APPS } from './dockDefaults'
+export const LAUNCHPAD_APPS: AppId[] = ['finder', 'airpear', 'safari', 'music', 'chess', 'tetris', 'notes', 'textedit', 'preview', 'calculator', 'terminal', 'intelligence', 'passwords', 'mirroring', 'activity', 'fractals', 'photobooth', 'mail', 'diskutility', 'softwareupdate', 'bootcamp', 'screenshot', 'settings']
