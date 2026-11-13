@@ -73,7 +73,7 @@ function FakeTerminal({ win }: { win: Win }) {
       case '':
         return
       case 'help':
-        return print('PearOS zsh, version 5.9 (wasm32-pear-sequel)', 'Commands: ' + COMMANDS.join(', '), { text: 'Tip: try `calc 2^64`, `pearfetch`, `open notes`, or `sudo rm -rf /` (please don\'t).', cls: 'dim' })
+        return print('PearOS zsh, version 5.9 (wasm32-pear-grove)', 'Commands: ' + COMMANDS.join(', '), { text: 'Tip: try `calc 2^64`, `pearfetch`, `open notes`, or `sudo rm -rf /` (please don\'t).', cls: 'dim' })
       case 'clear':
         return setLines([])
       case 'pwd':
@@ -87,7 +87,7 @@ function FakeTerminal({ win }: { win: Win }) {
       case 'uname':
         return print(args.includes('-a') ? `Pearwin PearBook-Pro.local 24.1.0 ${kernelVersion()}` : 'Pearwin')
       case 'sw_vers':
-        return print('ProductName:\t\tPearOS', 'ProductVersion:\t\t15.1', 'ProductNickname:\tSequel', 'BuildVersion:\t\t24B83')
+        return print('ProductName:\t\tPearOS', 'ProductVersion:\t\t15.1', 'ProductNickname:\tGrove', 'BuildVersion:\t\t24B83')
       case 'uptime':
         return print(`${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}  up 412 days, 3 users, load averages: 9.41 8.88 9.12`)
       case 'history':
@@ -159,7 +159,7 @@ function FakeTerminal({ win }: { win: Win }) {
         const info = [
           ['', 'pear@PearBook-Pro'],
           ['', '-----------------'],
-          ['OS', 'PearOS Sequel 15.1 wasm32'],
+          ['OS', 'PearOS Grove 15.1 wasm32'],
           ['Host', 'PearBook Pro (16-inch, 2025)'],
           ['Kernel', 'pearnel.wasm 24.1.0'],
           ['Uptime', '412 days, 3 hours'],

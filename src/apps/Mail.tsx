@@ -77,7 +77,7 @@ function seed(): Msg[] {
         from: 'Pear ID',
         addr: 'noreply@id.pear',
         subject: 'New sign-in to your Pear ID',
-        body: `Your Pear ID was just used to sign in to PearOS Sequel from ${browserName()}, ${place()}, at ${new Date(now - 1 * min).toLocaleTimeString()}.\n\nGPU: ${gpuInfo().renderer}\n\nIf this was you, you can ignore this email.\nIf this wasn't you, it was also you. Nobody else has access to this tab.\n\nPear ID Support\nWe will never ask for your password, except constantly.`,
+        body: `Your Pear ID was just used to sign in to PearOS Grove from ${browserName()}, ${place()}, at ${new Date(now - 1 * min).toLocaleTimeString()}.\n\nGPU: ${gpuInfo().renderer}\n\nIf this was you, you can ignore this email.\nIf this wasn't you, it was also you. Nobody else has access to this tab.\n\nPear ID Support\nWe will never ask for your password, except constantly.`,
         read: false,
         summary: 'Someone in your house is using your computer. It might be you.',
       },

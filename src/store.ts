@@ -7,7 +7,7 @@ import { DEFAULT_DOCK } from './apps/dockDefaults.ts'
 
 export type Phase = 'off' | 'booting' | 'bootpicker' | 'windows' | 'login' | 'desktop' | 'sleep' | 'panic' | 'shuttingdown'
 export type Tile = 'left' | 'right' | 'fill' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | null
-export type Wallpaper = 'sequel' | 'sequel-dark' | 'orchard' | 'graphite' | 'fractal' | 'lake'
+export type Wallpaper = 'grove' | 'grove-dark' | 'orchard' | 'graphite' | 'fractal' | 'lake'
 
 export interface Rect {
   x: number
@@ -294,7 +294,7 @@ function freeSpot(existing: WidgetInst[], size: WidgetSize): { x: number; y: num
 }
 
 const PREFS_KEY = 'pearos.prefs.v1'
-const WALLPAPERS: Wallpaper[] = ['sequel', 'sequel-dark', 'orchard', 'graphite', 'fractal', 'lake']
+const WALLPAPERS: Wallpaper[] = ['grove', 'grove-dark', 'orchard', 'graphite', 'fractal', 'lake']
 const PREF_KEYS = ['theme', 'wallpaper', 'liveWallpaper', 'fractalWallpaper', 'brightness', 'volume', 'wifi', 'bluetooth', 'dnd', 'dockMagnify', 'dockSize', 'dockAutohide', 'dockZoom', 'dockApps', 'dockMinimize', 'dockIndicators', 'dockBounce', 'hotCorners', 'spaceFollowApp'] as const
 type Prefs = Pick<State, (typeof PREF_KEYS)[number]>
 
@@ -308,7 +308,9 @@ function loadPrefs(): Partial<Prefs> {
     const f = raw.fractalWallpaper
     if (f && [f.cx, f.cy, f.scale, f.iter].every(Number.isFinite) && f.scale > 0 && [0, 1, 2].includes(f.scheme))
       out.fractalWallpaper = { cx: f.cx, cy: f.cy, scale: f.scale, iter: Math.min(4000, Math.max(1, Math.round(f.iter))), scheme: f.scheme }
-    if (WALLPAPERS.includes(raw.wallpaper) && (raw.wallpaper !== 'fractal' || out.fractalWallpaper)) out.wallpaper = raw.wallpaper
+    // Preserve wallpaper choices saved before the Grove rename.
+    const wallpaper = raw.wallpaper === 'sequel' ? 'grove' : raw.wallpaper === 'sequel-dark' ? 'grove-dark' : raw.wallpaper
+    if (WALLPAPERS.includes(wallpaper) && (wallpaper !== 'fractal' || out.fractalWallpaper)) out.wallpaper = wallpaper
     out.brightness = num(raw.brightness, 0.25, 1)
     out.volume = num(raw.volume, 0, 1)
     out.dockSize = num(raw.dockSize, 36, 72)
@@ -345,7 +347,7 @@ export const useOS = create<State>((set, get) => ({
   zTop: 10,
   tilePreview: null,
   theme: window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
-  wallpaper: 'sequel',
+  wallpaper: 'grove',
   brightness: 1,
   volume: 0.6,
   wifi: true,

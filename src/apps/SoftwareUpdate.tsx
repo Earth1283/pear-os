@@ -201,7 +201,7 @@ export function SoftwareUpdate(_: { win: Win }) {
           <div className="su-system-icon">
             <RefreshCw size={38} strokeWidth={1.5} />
           </div>
-          <h2>PearOS Sequel</h2>
+          <h2>PearOS Grove</h2>
           <p>Updates to the operating system inside your operating system.</p>
         </div>
         {build.dirty && (

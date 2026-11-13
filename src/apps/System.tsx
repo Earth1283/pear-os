@@ -36,7 +36,7 @@ export function About() {
         <dt>Serial number</dt>
         <dd>C02PEAR4LYF3</dd>
         <dt>PearOS</dt>
-        <dd>Sequel 15.1</dd>
+        <dd>Grove 15.1</dd>
         <dt>Kernel</dt>
         <dd className="mono small">pearnel.wasm (Rust)</dd>
       </dl>
@@ -332,7 +332,7 @@ export function Fractals() {
           ))}
         </div>
         <div className="seg">
-          {(['Sequel', 'Pear', 'Rainbow'] as const).map((n, i) => (
+          {(['Grove', 'Pear', 'Rainbow'] as const).map((n, i) => (
             <button key={n} className={view.scheme === i ? 'on' : ''} onClick={() => setView((v) => ({ ...v, scheme: i as 0 | 1 | 2 }))}>
               {n}
             </button>
@@ -362,7 +362,7 @@ export function Fractals() {
               { label: 'CPU: pearnel.wasm (Rust, f64)', checked: engine === 'cpu', run: () => setEngine('cpu') },
             ],
           },
-          { label: 'Colors', submenu: (['Sequel', 'Pear', 'Rainbow'] as const).map((n, i) => ({ label: n, checked: view.scheme === i, run: () => setView((v) => ({ ...v, scheme: i as 0 | 1 | 2 })) })) },
+          { label: 'Colors', submenu: (['Grove', 'Pear', 'Rainbow'] as const).map((n, i) => ({ label: n, checked: view.scheme === i, run: () => setView((v) => ({ ...v, scheme: i as 0 | 1 | 2 })) })) },
           {
             label: 'Detail',
             submenu: [
@@ -433,8 +433,8 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
 }
 
 const WALLPAPERS: { id: Wallpaper; name: string; cls: string }[] = [
-  { id: 'sequel', name: 'Sequel', cls: 'wp-sequel' },
-  { id: 'sequel-dark', name: 'Sequel Night', cls: 'wp-sequel-dark' },
+  { id: 'grove', name: 'Grove', cls: 'wp-grove' },
+  { id: 'grove-dark', name: 'Grove Night', cls: 'wp-grove-dark' },
   { id: 'orchard', name: 'Orchard', cls: 'orchard' },
   { id: 'graphite', name: 'Graphite', cls: 'graphite' },
   { id: 'lake', name: 'Mountain Lake', cls: 'wp-lake' },
@@ -452,7 +452,7 @@ function UpdatePane() {
       <div className="update">
         <PearLogo size={40} />
         <div style={{ flex: 1 }}>
-          <b>PearOS Sequel 15.1.1</b>
+          <b>PearOS Grove 15.1.1</b>
           <small className="muted">Preparing update… {p < 99 ? `About ${Math.round((100 - p) * 7)} minutes remaining` : 'Starting over'}</small>
           <div className="boot-bar light">
             <div style={{ width: `${p}%` }} />
@@ -905,7 +905,7 @@ export function Settings({ win }: { win: Win }) {
                 <option>Only in Stage Manager</option>
               </select>
             </Row>
-            <Row label="Tile by dragging windows to screen edges" sub="New in Sequel! Windows apparently did this in 2009.">
+            <Row label="Tile by dragging windows to screen edges" sub="New in Grove! Windows apparently did this in 2009.">
               <Toggle on onChange={() => {}} />
             </Row>
           </div>
@@ -951,7 +951,7 @@ export function Settings({ win }: { win: Win }) {
           <Row label="Coverage" sub="Expired 3 days after purchase">
             <button className="btn small">Details…</button>
           </Row>
-          <Row label="PearOS">Sequel 15.1</Row>
+          <Row label="PearOS">Grove 15.1</Row>
           <Row label="Kernel">
             <span className="mono small">{kernelVersion().slice(0, 48)}…</span>
           </Row>
@@ -1138,7 +1138,7 @@ export function Settings({ win }: { win: Win }) {
           )
         })}
       </aside>
-      {hotSheet && <HotCornersSheet wp={WALLPAPERS.find((w) => w.id === s.wallpaper)?.cls ?? 'wp-sequel'} onDone={() => setHotSheet(false)} />}
+      {hotSheet && <HotCornersSheet wp={WALLPAPERS.find((w) => w.id === s.wallpaper)?.cls ?? 'wp-grove'} onDone={() => setHotSheet(false)} />}
       <section className="settings-main">
         <div className="toolbar" data-drag>
           <div className="toolbar-title left">{'label' in current ? current.label : ''}</div>

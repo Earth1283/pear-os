@@ -67,7 +67,7 @@ export function BootPicker() {
             <button role="option" aria-selected={sel === d} className={`bp-disk ${sel === d ? 'sel' : ''}`} onClick={() => setSel(d)} onDoubleClick={() => go(d)}>
               {d === 'mac' ? <DiskIcon size={104} /> : <WindowsDisk size={104} />}
               <span>{NAMES[d]}</span>
-              <small>{d === 'mac' ? 'PearOS Sequel' : `Windows ${version}`}</small>
+              <small>{d === 'mac' ? 'PearOS Grove' : `Windows ${version}`}</small>
             </button>
             <button className="bp-go" aria-label={`Start up from ${NAMES[d]}`} style={{ visibility: sel === d ? 'visible' : 'hidden' }} onClick={() => go(d)}>
               <ArrowRight size={16} />

@@ -3107,10 +3107,10 @@ input[type='range']::-moz-range-progress {
 .wp-pick.on .wp-thumb {
   box-shadow: 0 0 0 3px var(--accent);
 }
-.wp-sequel {
+.wp-grove {
   background: linear-gradient(170deg, #9fd3ff 0%, #5b8cff 30%, #7d7bff 50%, #ff9ec7 70%, #4a63ff 100%);
 }
-.wp-sequel-dark {
+.wp-grove-dark {
   background: linear-gradient(170deg, #0a1030 0%, #2747b8 35%, #4b3cc9 55%, #a33a8f 75%, #05071f 100%);
 }
 .wp-lake,

@@ -43,7 +43,7 @@ const WAVES = [
   'M-200 930C300 880 680 1040 1040 950S1500 840 1800 930V1100H-200Z',
 ]
 
-function SequelWaves({ dark }: { dark: boolean }) {
+function GroveWaves({ dark }: { dark: boolean }) {
   const p = dark ? DARK : LIGHT
   return (
     <svg className="wallpaper-svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice" aria-hidden>
@@ -125,8 +125,8 @@ function LakeWallpaper({ blur }: { blur: boolean }) {
   return <canvas ref={ref} className="wallpaper-canvas gpu" />
 }
 
-function Sequel({ dark, blur }: { dark: boolean; blur: boolean }) {
-  return gpuInfo().available ? <LiveWaves dark={dark} blur={blur} /> : <SequelWaves dark={dark} />
+function Grove({ dark, blur }: { dark: boolean; blur: boolean }) {
+  return gpuInfo().available ? <LiveWaves dark={dark} blur={blur} /> : <GroveWaves dark={dark} />
 }
 
 function FractalWallpaper() {
@@ -185,11 +185,11 @@ export function Wallpaper({ blur = false }: { blur?: boolean }) {
     case 'graphite':
       inner = <div className="wallpaper-css graphite" />
       break
-    case 'sequel-dark':
-      inner = <Sequel dark blur={blur} />
+    case 'grove-dark':
+      inner = <Grove dark blur={blur} />
       break
     default:
-      inner = <Sequel dark={theme === 'dark'} blur={blur} />
+      inner = <Grove dark={theme === 'dark'} blur={blur} />
   }
   return <div className={`wallpaper${blur ? ' blurred' : ''}`}>{inner}</div>
 }

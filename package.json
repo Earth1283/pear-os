@@ -3,7 +3,7 @@
   "private": true,
   "version": "15.0.0",
   "type": "module",
-  "description": "PearOS Sequel — a parody of macOS 15, built with React and a Rust/WebAssembly kernel.",
+  "description": "PearOS Grove — a parody of macOS 15, built with React and a Rust/WebAssembly kernel.",
   "scripts": {
     "kernel": "cargo build --manifest-path kernel/Cargo.toml --release --target wasm32-unknown-unknown && cp kernel/target/wasm32-unknown-unknown/release/pearnel.wasm src/kernel/pearnel.wasm",
     "dev": "vite",

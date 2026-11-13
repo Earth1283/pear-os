@@ -1,4 +1,4 @@
-# PearOS Sequel
+# PearOS Grove
 
 A parody of macOS 15 that runs in a browser tab. The UI is React; the "kernel" is Rust compiled to WebAssembly with no JS glue.
 
@@ -148,7 +148,7 @@ Boot Camp's second option is the actual Windows 98, running in [v86](https://git
 
 Everything here goes through WebGL2, so it runs on the real GPU of whatever machine is showing the page.
 
-- The Sequel wallpaper is a fragment shader, animated at 30 fps. It pauses in background tabs and is static with reduced motion. If WebGL2 isn't available, it falls back to an SVG.
+- The Grove wallpaper is a fragment shader, animated at 30 fps. It pauses in background tabs and is static with reduced motion. If WebGL2 isn't available, it falls back to an SVG.
 - Fractals renders on the GPU (float32) until zoom passes float32 precision, then the Rust kernel (f64) takes over. You can force either one.
 - About, Settings → Displays and `pearfetch` show your actual GPU name.
 

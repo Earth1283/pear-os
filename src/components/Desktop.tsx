@@ -30,7 +30,7 @@ import { useQuickLookShortcut } from './useQuickLookShortcut'
 
 const JOKES: { app: Parameters<ReturnType<typeof os>['notify']>[0]['app']; title: string; body: string | (() => string); actions?: string[] }[] = [
   { app: 'intelligence', title: 'Pear Intelligence', body: 'Pear Intelligence is ready. Unfortunately, so are we.' },
-  { app: 'settings', title: 'Software Update', body: 'PearOS Sequel 15.0.1 is ready to install. It fixes the bugs in 15.0 and adds new, more interesting ones.', actions: ['Later', 'Try Tonight'] },
+  { app: 'settings', title: 'Software Update', body: 'PearOS Grove 15.0.1 is ready to install. It fixes the bugs in 15.0 and adds new, more interesting ones.', actions: ['Later', 'Try Tonight'] },
   { app: 'finder', title: 'Storage Almost Full', body: "You've used 7.9 GB of 8 GB. Upgrade to 16 GB for only $200 (it's like 32 GB)." },
   { app: 'passwords', title: 'Passwords', body: '47 of your passwords appeared in a data leak. All 47 were "password123".' },
   { app: 'mirroring', title: 'pPhone Mirroring', body: 'Your pPhone is nearby. We can tell. It is in your pocket and you are ignoring it.' },

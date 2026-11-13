@@ -60,7 +60,7 @@ export const root: DirNode = d({
   System: d({
     Library: d({
       Kernels: d({ 'pearnel.wasm': f('binary', 63_691) }),
-      'CoreServices': d({ 'SystemVersion.plist': txt('ProductName: PearOS\nProductVersion: 15.1\nProductNickname: Sequel\nBuildVersion: 24B83\n') }),
+      'CoreServices': d({ 'SystemVersion.plist': txt('ProductName: PearOS\nProductVersion: 15.1\nProductNickname: Grove\nBuildVersion: 24B83\n') }),
     }),
   }),
   Library: d({ Caches: d({ 'everything.cache': f('binary', 31_000_000_000) }) }),
@@ -85,7 +85,7 @@ export const root: DirNode = d({
       }, 5),
       Downloads: d({
         'Xcode_16.xip': f('archive', 40_100_000_000, undefined, 20),
-        'Install PearOS Sequel.app': app('settings'),
+        'Install PearOS Grove.app': app('settings'),
         'installer (3).dmg': f('disk', 120_000_000, undefined, 12),
         'installer (4).dmg': f('disk', 120_000_000, undefined, 12),
         'definitely-not-malware.zip': f('archive', 1337, undefined, 4),
