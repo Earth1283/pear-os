@@ -17,6 +17,17 @@ interface PearnelExports {
   img_auto_levels(): number
   img_flood_mask(ptr: number, w: number, h: number, x: number, y: number, tol: number, countOut: number): number
   img_apply_mask(ptr: number, w: number, h: number): void
+  gravity_reset(): void
+  gravity_bounds(width: number, height: number, top: number, bottom: number): void
+  gravity_put(id: number, x: number, y: number, w: number, h: number, angle: number): void
+  gravity_remove(id: number): void
+  gravity_upright(on: number): void
+  gravity_grab(id: number, x: number, y: number): number
+  gravity_pointer(x: number, y: number): void
+  gravity_release(): void
+  gravity_step(elapsed: number): number
+  gravity_poses_ptr(): number
+  gravity_poses_len(): number
 }
 
 let k: PearnelExports | null = null
@@ -36,6 +47,22 @@ export function bootKernel(): Promise<void> {
 }
 
 export const kernelReady = () => k !== null
+
+export const gravityKernel = {
+  reset: () => k!.gravity_reset(),
+  bounds: (width: number, height: number, top: number, bottom: number) => k!.gravity_bounds(width, height, top, bottom),
+  put: (id: number, x: number, y: number, w: number, h: number, angle: number) => k!.gravity_put(id, x, y, w, h, angle),
+  remove: (id: number) => k!.gravity_remove(id),
+  upright: (on: boolean) => k!.gravity_upright(Number(on)),
+  grab: (id: number, x: number, y: number) => !!k!.gravity_grab(id, x, y),
+  pointer: (x: number, y: number) => k!.gravity_pointer(x, y),
+  release: () => k!.gravity_release(),
+  step: (elapsed: number) => {
+    const active = !!k!.gravity_step(elapsed)
+    const poses = new Float32Array(k!.memory.buffer, k!.gravity_poses_ptr(), k!.gravity_poses_len())
+    return { active, poses }
+  },
+}
 
 function withString<T>(s: string, fn: (ptr: number, len: number) => T): T {
   if (!k) throw new Error('kernel not booted')

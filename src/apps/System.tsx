@@ -16,6 +16,7 @@ import { ScreenTimePane } from './ScreenTimePane'
 import { HotCornersSheet } from '../components/HotCornersSheet'
 import { CORNERS } from '../lib/hotCornerConfig'
 import { procs as realProcs, useBackend, formatBytes as fmtBytes, type RealProc } from '../lib/backend'
+import { restoreDesktopOrder, setDesktopGravity, useGravity } from '../lib/gravity'
 
 export function About() {
   const sys = useBackend((s) => s.sys)
@@ -428,8 +429,8 @@ function Row({ label, children, sub }: { label: string; children?: React.ReactNo
   )
 }
 
-function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
-  return <button className={`toggle ${on ? 'on' : ''}`} onClick={() => onChange(!on)} role="switch" aria-checked={on} />
+function Toggle({ on, onChange, label, disabled }: { on: boolean; onChange: (v: boolean) => void; label?: string; disabled?: boolean }) {
+  return <button className={`toggle ${on ? 'on' : ''}`} onClick={() => onChange(!on)} role="switch" aria-checked={on} aria-label={label} disabled={disabled} />
 }
 
 const WALLPAPERS: { id: Wallpaper; name: string; cls: string }[] = [
@@ -772,6 +773,7 @@ function AccessibilityPane() {
 }
 
 export function Settings({ win }: { win: Win }) {
+  const gravity = useGravity()
   const [pane, setPane] = useState<PaneId>((win.props.pane as PaneId) ?? 'appearance')
   const [q, setQ] = useState('')
   const [hotSheet, setHotSheet] = useState(false)
@@ -899,6 +901,15 @@ export function Settings({ win }: { win: Win }) {
           </div>
           <h4 className="set-head">Windows</h4>
           <div className="set-card">
+            <Row label="Desktop Gravity" sub={gravity.loading ? 'Preparing gravity…' : 'Let windows fall, tumble, and collide. Grab a title bar to throw one.'}>
+              <Toggle label="Desktop Gravity" disabled={gravity.loading} on={gravity.enabled} onChange={(v) => { void setDesktopGravity(v) }} />
+            </Row>
+            <Row label="Keep windows upright" sub="All the gravity, fewer upside-down spreadsheets.">
+              <Toggle label="Keep windows upright" on={gravity.upright} onChange={(v) => useGravity.setState({ upright: v })} />
+            </Row>
+            {gravity.canRestore && <Row label="Restore Order" sub="Turn gravity off and return windows to their original layout.">
+              <button className="btn small" onClick={restoreDesktopOrder}>Restore Order</button>
+            </Row>}
             <Row label="Click wallpaper to reveal desktop" sub="Always. (We heard you hated it. We kept it.)">
               <select defaultValue="always">
                 <option value="always">Always</option>

@@ -269,7 +269,7 @@ class Wind {
   private move(b: Body, dt: number, steps: number) {
     const spec = SPEC[b.kind]
     const self = this.dragged.get(b.el)
-    if (b.el.classList.contains('dragging') || (self && Math.hypot(self.vx, self.vy) >= WAKE_SPEED)) {
+    if (b.el.classList.contains('gravity-body') || b.el.classList.contains('dragging') || (self && Math.hypot(self.vx, self.vy) >= WAKE_SPEED)) {
       b.a = { x: 0, v: 0 }
       b.b = { x: 0, v: 0 }
       return

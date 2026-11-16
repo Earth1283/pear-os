@@ -17,6 +17,8 @@ export interface Rect {
 }
 
 export interface Win extends Rect {
+  angle?: number
+  gravityScale?: number
   id: string
   space: number
   app: AppId
@@ -544,9 +546,9 @@ export const useOS = create<State>((set, get) => ({
     set({
       windows: get().windows.map((w) => {
         if (w.id !== id) return w
-        if (t === null) return w.restore ? { ...w, ...w.restore, tile: null, restore: null } : { ...w, tile: null }
+        if (t === null) return w.restore ? { ...w, ...w.restore, tile: null, restore: null, angle: 0, gravityScale: 1 } : { ...w, tile: null, angle: 0, gravityScale: 1 }
         const restore = w.tile ? w.restore : { x: w.x, y: w.y, w: w.w, h: w.h }
-        return { ...w, ...tileRect(t), tile: t, restore }
+        return { ...w, ...tileRect(t), tile: t, restore, angle: 0, gravityScale: 1 }
       }),
     })
   },

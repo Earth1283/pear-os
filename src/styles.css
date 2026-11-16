@@ -383,7 +383,7 @@ textarea {
 .desktop {
   position: fixed;
   inset: 0;
-  overflow: hidden;
+  overflow: clip;
 }
 .wallpaper {
   position: absolute;
@@ -764,6 +764,40 @@ textarea {
 }
 .window.dragging {
   transition: none;
+}
+.window.gravity-body:not(.mc-window):not(.revealed) {
+  animation: none;
+  transition: none;
+  transform-origin: center;
+}
+.window.gravity-body [data-drag] {
+  touch-action: none;
+  cursor: grab;
+}
+.window.gravity-body[data-gravity-grabbed] [data-drag] {
+  cursor: grabbing;
+}
+.gravity-controls {
+  position: absolute;
+  top: 38px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 46000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 28px);
+  width: max-content;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 12px;
+}
+.gravity-controls > span {
+  margin-right: 4px;
+}
+@media (max-width: 520px) {
+  .gravity-controls { flex-wrap: wrap; justify-content: flex-end; }
 }
 .window.minimized {
   opacity: 0;

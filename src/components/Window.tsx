@@ -6,6 +6,7 @@ import type { OverviewRect } from '../lib/missionControl'
 import { useA11y } from '../lib/a11y'
 import { dockTarget, genieFrames } from '../lib/genie'
 import { endFlight, startFlight } from '../lib/flights'
+import { grabGravityWindow, holdDesktopGravity, registerGravityWindow, repaintGravityWindow, useGravity, windowTransform } from '../lib/gravity'
 
 type Edge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
 const EDGES: Edge[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']
@@ -101,8 +102,14 @@ const WindowContents = memo(function WindowContents({ win }: { win: Win }) {
 
 function WindowFrame({ win, focused, inactive, overviewRect, slide, revealed, dimmed }: WindowProps) {
   const ref = useRef<HTMLDivElement>(null)
+  const interactionCleanup = useRef<(() => void) | null>(null)
+  const gravityEnabled = useGravity((s) => s.enabled)
   const spec = APPS[win.app]
   const { focus, setRect, tileWindow, set } = useOS.getState()
+
+  useLayoutEffect(() => registerGravityWindow(win.id, ref.current!), [win.id])
+  useLayoutEffect(() => { repaintGravityWindow(win.id) })
+  useEffect(() => () => { interactionCleanup.current?.() }, [])
 
   const startDrag = useCallback(
     (e: React.PointerEvent) => {
@@ -113,15 +120,26 @@ function WindowFrame({ win, focused, inactive, overviewRect, slide, revealed, di
       focus(win.id)
       if (!t.closest('[data-drag]') || t.closest('button, input, textarea, select, a, [data-nodrag]')) return
       const el = ref.current!
+      interactionCleanup.current?.()
+      const release = grabGravityWindow(win.id, el, e)
+      if (release) {
+        e.preventDefault()
+        interactionCleanup.current = release
+        return
+      }
       const sx = e.clientX
       const sy = e.clientY
       let { x, y, w } = win
       const h = win.h
       let detached = false
       let preview: Tile = null
+      let lastPointer = { x: sx, y: sy }
+      let finished = false
       el.setPointerCapture(e.pointerId)
       el.classList.add('dragging')
       const move = (ev: PointerEvent) => {
+        if (ev.pointerId !== e.pointerId) return
+        lastPointer = { x: ev.clientX, y: ev.clientY }
         let nx = x + ev.clientX - sx
         let ny = y + ev.clientY - sy
         if (win.tile && !detached) {
@@ -136,27 +154,34 @@ function WindowFrame({ win, focused, inactive, overviewRect, slide, revealed, di
           nx = x + ev.clientX - sx
           ny = y + ev.clientY - sy
         }
-        ny = Math.max(MENU_H, ny)
-        el.style.transform = `translate(${nx}px, ${ny}px)`
+        if (!win.angle && (win.gravityScale ?? 1) === 1) ny = Math.max(MENU_H, ny)
+        el.style.transform = windowTransform({ ...win, x: nx, y: ny })
         const p = edgeTile(ev.clientX, ev.clientY)
         if (p !== preview) {
           preview = p
           set('tilePreview', p)
         }
       }
-      const up = (ev: PointerEvent) => {
-        el.releasePointerCapture(e.pointerId)
+      const up = (ev?: PointerEvent) => {
+        if (finished || (ev && ev.pointerId !== e.pointerId)) return
+        finished = true
+        interactionCleanup.current = null
         el.classList.remove('dragging')
         el.removeEventListener('pointermove', move)
         el.removeEventListener('pointerup', up)
+        el.removeEventListener('pointercancel', up)
+        el.removeEventListener('lostpointercapture', up)
+        if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId)
         set('tilePreview', null)
-        const moved = Math.hypot(ev.clientX - sx, ev.clientY - sy) > 2
+        const point = ev?.type === 'pointerup' ? { x: ev.clientX, y: ev.clientY } : lastPointer
+        const moved = Math.hypot(point.x - sx, point.y - sy) > 2
         if (!moved) {
-          el.style.transform = `translate(${win.x}px, ${win.y}px)`
+          el.style.transform = windowTransform(win)
           return
         }
-        const nx = x + ev.clientX - sx
-        const ny = Math.max(MENU_H, y + ev.clientY - sy)
+        const nx = x + point.x - sx
+        const targetY = y + point.y - sy
+        const ny = !win.angle && (win.gravityScale ?? 1) === 1 ? Math.max(MENU_H, targetY) : targetY
         if (preview) {
           if (detached || !win.tile) setRect(win.id, { x: nx, y: ny, w, h: detached ? win.restore?.h ?? h : h })
           tileWindow(win.id, preview)
@@ -171,59 +196,88 @@ function WindowFrame({ win, focused, inactive, overviewRect, slide, revealed, di
       }
       el.addEventListener('pointermove', move)
       el.addEventListener('pointerup', up)
+      el.addEventListener('pointercancel', up)
+      el.addEventListener('lostpointercapture', up)
+      interactionCleanup.current = up
     },
     [win, focus, setRect, tileWindow, set],
   )
 
   const startResize = (edge: Edge) => (e: React.PointerEvent) => {
     e.stopPropagation()
+    e.preventDefault()
     focus(win.id)
+    interactionCleanup.current?.()
+    const resumeGravity = holdDesktopGravity()
+    const current = useOS.getState().windows.find((w) => w.id === win.id) ?? win
     const el = ref.current!
     const handle = e.currentTarget as HTMLElement
     handle.setPointerCapture(e.pointerId)
     const sx = e.clientX
     const sy = e.clientY
-    const o = { x: win.x, y: win.y, w: win.w, h: win.h }
+    const o = { x: current.x, y: current.y, w: current.w, h: current.h, angle: current.angle ?? 0, gravityScale: current.gravityScale ?? 1 }
+    const cos = Math.cos(o.angle)
+    const sin = Math.sin(o.angle)
     const minW = spec.minW ?? 320
     const minH = spec.minH ?? 200
     let r = { ...o }
+    let finished = false
     el.classList.add('dragging')
     const move = (ev: PointerEvent) => {
-      const dx = ev.clientX - sx
-      const dy = ev.clientY - sy
+      if (ev.pointerId !== e.pointerId) return
+      const px = (ev.clientX - sx) / o.gravityScale
+      const py = (ev.clientY - sy) / o.gravityScale
+      const dx = cos * px + sin * py
+      const dy = -sin * px + cos * py
       r = { ...o }
       if (edge.includes('e')) r.w = Math.max(minW, o.w + dx)
       if (edge.includes('s')) r.h = Math.max(minH, o.h + dy)
       if (edge.includes('w')) {
         r.w = Math.max(minW, o.w - dx)
-        r.x = o.x + o.w - r.w
       }
       if (edge.includes('n')) {
         r.h = Math.max(minH, o.h - dy)
-        r.y = Math.max(MENU_H, o.y + o.h - r.h)
-        r.h = o.y + o.h - r.y
       }
-      el.style.transform = `translate(${r.x}px, ${r.y}px)`
+      const shiftX = (r.w - o.w) / 2 * (edge.includes('w') ? -1 : 1)
+      const shiftY = (r.h - o.h) / 2 * (edge.includes('n') ? -1 : 1)
+      r.x = o.x + o.w / 2 + (cos * shiftX - sin * shiftY) * o.gravityScale - r.w / 2
+      r.y = o.y + o.h / 2 + (sin * shiftX + cos * shiftY) * o.gravityScale - r.h / 2
+      if (!o.angle && o.gravityScale === 1 && edge.includes('n') && r.y < MENU_H) {
+        r.h -= MENU_H - r.y
+        r.y = MENU_H
+      }
+      el.style.transform = windowTransform(r)
       el.style.width = `${r.w}px`
       el.style.height = `${r.h}px`
     }
-    const up = () => {
+    const up = (ev?: PointerEvent) => {
+      if (finished || (ev && ev.pointerId !== e.pointerId)) return
+      finished = true
+      interactionCleanup.current = null
       el.classList.remove('dragging')
       handle.removeEventListener('pointermove', move)
       handle.removeEventListener('pointerup', up)
+      handle.removeEventListener('pointercancel', up)
+      handle.removeEventListener('lostpointercapture', up)
+      if (handle.hasPointerCapture(e.pointerId)) handle.releasePointerCapture(e.pointerId)
       useOS.setState((s) => ({ windows: s.windows.map((w) => (w.id === win.id ? { ...w, ...r, tile: null, restore: null } : w)) }))
+      resumeGravity()
     }
     handle.addEventListener('pointermove', move)
     handle.addEventListener('pointerup', up)
+    handle.addEventListener('pointercancel', up)
+    handle.addEventListener('lostpointercapture', up)
+    interactionCleanup.current = up
   }
 
   useEffect(() => {
     const el = ref.current
     if (!el || overviewRect) return
-    el.style.transform = `translate(${win.x}px, ${win.y}px)`
+    el.style.transform = windowTransform(win)
     el.style.width = `${win.w}px`
     el.style.height = `${win.h}px`
-  }, [win.x, win.y, win.w, win.h, overviewRect])
+    repaintGravityWindow(win.id)
+  }, [win.x, win.y, win.w, win.h, win.angle, win.gravityScale, overviewRect])
 
   useEffect(() => {
     if (!win.tile) return
@@ -254,7 +308,7 @@ function WindowFrame({ win, focused, inactive, overviewRect, slide, revealed, di
     const el = ref.current
     if (!el || wasMinimized.current === win.minimized) return
     wasMinimized.current = win.minimized
-    if (inactive || overviewRect || useA11y.getState().reduceMotion) return
+    if (inactive || overviewRect || useA11y.getState().reduceMotion || gravityEnabled || win.angle || (win.gravityScale ?? 1) !== 1) return
     const mode = useOS.getState().dockMinimize
     const frames = genieFrames({ x: win.x, y: win.y, w: win.w, h: win.h }, dockTarget(win), mode)
     if (frames.length < 2) return
@@ -283,8 +337,8 @@ function WindowFrame({ win, focused, inactive, overviewRect, slide, revealed, di
       data-win={win.id}
       tabIndex={-1}
       inert={inactive || !!overviewRect || win.minimized}
-      className={`window ${focused ? 'focused' : 'blurred'} chrome-${chrome} ${win.minimized ? 'minimized' : ''} ${inactive && !leaving ? 'space-hidden' : ''} ${phase ? `space-${phase}` : ''} ${revealed && !inactive ? 'revealed' : ''} ${dimmed ? 'mc-dim' : ''} ${overviewRect ? 'mc-window' : ''} ${win.tile ? 'tiled' : ''} app-${win.app}`}
-      style={{ '--slide': slide.dir, '--reveal': `${peek}px`, zIndex: overviewRect ? 48000 : win.z, transform: overviewRect ? `translate(${overviewRect.x}px, ${overviewRect.y}px) scale(${overviewRect.scale})` : `translate(${win.x}px, ${win.y}px)`, width: win.w, height: win.h } as React.CSSProperties}
+      className={`window ${focused ? 'focused' : 'blurred'} chrome-${chrome} ${win.minimized ? 'minimized' : ''} ${inactive && !leaving ? 'space-hidden' : ''} ${phase ? `space-${phase}` : ''} ${revealed && !inactive ? 'revealed' : ''} ${dimmed ? 'mc-dim' : ''} ${overviewRect ? 'mc-window' : ''} ${win.tile ? 'tiled' : ''} ${gravityEnabled && !inactive && !win.tile && !overviewRect && !revealed && !win.minimized ? 'gravity-body' : ''} app-${win.app}`}
+      style={{ '--slide': slide.dir, '--reveal': `${peek}px`, zIndex: overviewRect ? 48000 : win.z, transform: overviewRect ? `translate(${overviewRect.x}px, ${overviewRect.y}px) scale(${overviewRect.scale})` : windowTransform(win), width: win.w, height: win.h } as React.CSSProperties}
       onPointerDown={startDrag}
       onDoubleClick={(e) => {
         const t = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null) ?? (e.target as HTMLElement)

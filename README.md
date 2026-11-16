@@ -85,6 +85,14 @@ Select an item on the desktop or in Finder (including PearDrive), then press **S
 
 Images and text work on the virtual disk. PearDrive also supports PDFs through the browser's PDF viewer, and audio and video formats your browser can play. Media stops when you switch files or close the preview. Folders show their item count; unsupported formats and sample media without actual content show file details. Text previews read at most 256 KiB plus one byte to detect truncation, and cancel unfinished reads when you move on.
 
+## Desktop Gravity
+
+Right-click the desktop and choose **Desktop Gravity**, or enable it in *System Settings → Desktop & Dock → Windows*. Windows fall, collide, and tumble while their apps keep running. Grab a title bar to pick one up; grabbing near a corner lets it swing, and releasing a moving window throws it. Windows scale down to leave room for rotation and crowded desktops. The menu bar and Dock stay outside the playground; tiled and minimized windows sit out.
+
+**Stop Gravity** freezes the current arrangement. **Restore Order** turns gravity off and restores the positions, sizes, and tiling from before you enabled it, including windows opened during the session. Settings also has **Keep windows upright**. Gravity starts off each page load, pauses for Mission Control, Show Desktop, Quick Look, resizing, sleep, and hidden tabs, and respects Reduce Motion.
+
+The simulation lives in Pearnel: the `rapier2d` Rust crate, compiled into the existing WASM kernel. Rust owns collisions, angular motion, grabbing, throws, scaling, and a fixed 120 Hz timestep with bounded catch-up. TypeScript forwards browser input and paints the returned transforms. Resting bodies sleep, and the browser stops requesting physics frames once every body is asleep. `npm run test:kernel` covers the simulation; `npm run test:desktop` also exercises the shipped WASM exports and memory interface.
+
 ## Screenshot
 
 Press **⇧⌘5** (or **Ctrl+Shift+5**) for the Screenshot toolbar, or open *Screenshot* from Launchpad or Spotlight. **⇧⌘3** captures the whole screen at once, and **⇧⌘4** gives you the crosshair: drag a region, hold **Space** while dragging to move it, or press **Space** before dragging to pick a window (the shot keeps its rounded corners and drop shadow, and windows stacked above it stay out of the picture). Add **⌃** to ⇧⌘3 or ⇧⌘4 to copy to the clipboard instead. The toolbar also records the whole screen or a portion, and its *Options* menu sets the save location (Desktop, Documents, Pictures or Clipboard), a 5 or 10 second timer, the floating thumbnail, and whether the mouse pointer is drawn. **Esc** cancels.

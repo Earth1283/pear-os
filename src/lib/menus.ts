@@ -9,6 +9,7 @@ import { replaceInField, type Field, type MenuEntry } from './menu'
 import { lastContextPoint, useStickies } from './stickies'
 import { shareWithAirPear } from './airpearShare'
 import { openVirtualQuickLook } from './quickLook'
+import { restoreDesktopOrder, setDesktopGravity, useGravity } from './gravity'
 
 const say = (text: string) => {
   if (!('speechSynthesis' in window) || !text.trim()) return
@@ -328,6 +329,9 @@ export function desktopMenu(): MenuEntry[] {
     { label: 'Change Wallpaper…', run: () => os().openApp('settings', { props: { pane: 'wallpaper' } }) },
     { label: 'Edit Widgets…', run: () => openGallery('desktop') },
     { label: 'New Sticky', run: () => useStickies.getState().add(lastContextPoint()) },
+    'sep',
+    { label: 'Desktop Gravity', checked: useGravity.getState().enabled, disabled: useGravity.getState().loading, run: () => { void setDesktopGravity(!useGravity.getState().enabled) } },
+    ...(useGravity.getState().canRestore ? [{ label: 'Restore Order', run: restoreDesktopOrder } as MenuEntry] : []),
     'sep',
     { label: 'Use Stacks', run: () => toast('Stacks', 'Your desktop is now organised into one stack called “Everything”.') },
     {

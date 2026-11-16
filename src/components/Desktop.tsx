@@ -27,6 +27,8 @@ import { ScreenshotUI } from './Screenshot'
 import { cancel as cancelShot, openToolbar, quickScreen, quickSelect, useShots } from '../lib/screenshot'
 import { moveQuickLook, openVirtualQuickLook } from '../lib/quickLook'
 import { useQuickLookShortcut } from './useQuickLookShortcut'
+import { mountDesktopGravity, restoreDesktopOrder, setDesktopGravity, useGravity } from '../lib/gravity'
+import { useA11y } from '../lib/a11y'
 
 const JOKES: { app: Parameters<ReturnType<typeof os>['notify']>[0]['app']; title: string; body: string | (() => string); actions?: string[] }[] = [
   { app: 'intelligence', title: 'Pear Intelligence', body: 'Pear Intelligence is ready. Unfortunately, so are we.' },
@@ -254,10 +256,23 @@ function Brightness() {
   return <div className="brightness" style={{ opacity: 1 - brightness }} />
 }
 
+function GravityControls() {
+  const { enabled, canRestore } = useGravity()
+  const overview = useOS((s) => s.overlay.missionControl)
+  const reducedMotion = useA11y((s) => s.reduceMotion)
+  if ((!enabled && !canRestore) || overview) return null
+  return <div className="gravity-controls glass" role="group" aria-label="Desktop Gravity" onPointerDown={(e) => e.stopPropagation()}>
+    <span>{enabled ? reducedMotion ? 'Gravity paused · Reduce Motion' : 'Gravity on' : 'Gravity off'}</span>
+    {enabled && <button className="btn small" onClick={() => void setDesktopGravity(false)}>Stop Gravity</button>}
+    <button className="btn small" onClick={restoreDesktopOrder}>Restore Order</button>
+  </div>
+}
+
 export function Desktop() {
   useJokeNotifications()
   useShortcuts()
   usePreloadApps()
+  useEffect(mountDesktopGravity, [])
   const missionControl = useOS((s) => s.overlay.missionControl)
 
   return (
@@ -296,6 +311,7 @@ export function Desktop() {
       <ShaderLayer target="shadow" />
       <TilePreview />
       <Windows />
+      <GravityControls />
       <MenuBar />
       <Dock />
       <Notifications />
