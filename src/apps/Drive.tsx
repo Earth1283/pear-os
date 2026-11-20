@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
-import { Upload } from 'lucide-react'
+import { ChevronRight, Upload } from 'lucide-react'
 import { os } from '../store'
 import { TEXT_EXT, bumpDrive, drive, formatBytes, useBackend, type DriveEntry } from '../lib/backend'
 import { FileIcon, FolderIcon } from '../components/icons'
 import { menu, type MenuEntry } from '../lib/menu'
-import type { FileKind } from '../lib/fs'
+import { parentOf, type FileKind } from '../lib/fs'
 import { playDriveFile } from '../lib/player'
 import { RenameField, useEnterToRename } from '../components/RenameField'
 import { MAX_BYTES } from '../lib/airpearProtocol'
 import { openQuickLook, type QuickLookItem } from '../lib/quickLook'
 import { useQuickLookShortcut } from '../components/useQuickLookShortcut'
+import { QuickLookContent } from '../components/QuickLook'
+import { FINDER_VIEWS, showFileInfo, type FinderView } from './finderCommands'
 
 export const join = (dir: string, name: string) => `${dir.replace(/\/$/, '')}/${name}`
 
@@ -38,29 +40,60 @@ export function openDriveFile(rel: string) {
 
 const fail = (e: unknown) => os().notify({ app: 'finder', title: 'PearDrive', body: e instanceof Error ? e.message : String(e) })
 
-export function DriveView({ rel, view, q, active, onOpenDir, setView }: { rel: string; view: 'grid' | 'list'; q: string; active: boolean; onOpenDir: (rel: string) => void; setView: (v: 'grid' | 'list') => void }) {
+interface DriveViewProps {
+  rel: string
+  columnRoot: string
+  revealName: string | null
+  view: FinderView
+  q: string
+  active: boolean
+  onOpenDir: (rel: string, selection?: string) => void
+  setView: (view: FinderView) => void
+  infoCommand: { current: (() => void) | null }
+}
+
+export function DriveView({ rel, columnRoot, revealName, view, q, active, onOpenDir, setView, infoCommand }: DriveViewProps) {
   const version = useBackend((s) => s.driveVersion)
   const root = useBackend((s) => s.sys?.root)
   const free = useBackend((s) => (s.sys?.diskFree != null ? `, ${formatBytes(s.sys.diskFree)} available on ${s.sys.hostname}` : ''))
-  const [entries, setEntries] = useState<DriveEntry[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [listing, setListing] = useState<{ path: string; entries: DriveEntry[] | null; error: string | null } | null>(null)
+  const entries = listing?.path === rel ? listing.entries : null
+  const error = listing?.path === rel ? listing.error : null
+  const [parents, setParents] = useState<{ path: string; entries: DriveEntry[] }[]>([])
   const [sel, setSel] = useState<string | null>(null)
   const [renaming, setRenaming] = useState<string | null>(null)
   const [drag, setDrag] = useState(false)
   const [uploading, setUploading] = useState<string | null>(null)
   const picker = useRef<HTMLInputElement>(null)
+  const columns = useRef<HTMLDivElement>(null)
   const inTrash = rel === '/.Trash' || rel.startsWith('/.Trash/')
 
   useEffect(() => {
     let live = true
     drive
       .list(rel)
-      .then((e) => live && (setEntries(e), setError(null)))
-      .catch((e) => live && setError(e.message))
+      .then((entries) => { if (live) setListing({ path: rel, entries, error: null }) })
+      .catch((e) => { if (live) setListing({ path: rel, entries: null, error: e.message }) })
     return () => {
       live = false
     }
   }, [rel, version])
+  useEffect(() => {
+    if (view !== 'columns' || q) return
+    let live = true
+    const paths: string[] = []
+    const root = rel === columnRoot || rel.startsWith(columnRoot.replace(/\/$/, '') + '/') ? columnRoot : rel
+    for (let p = rel; p !== root;) {
+      p = parentOf(p).dir
+      paths.unshift(p)
+    }
+    void Promise.all(paths.map(async (path) => ({ path, entries: await drive.list(path) })))
+      .then((value) => { if (live) setParents(value) }).catch(() => { if (live) setParents([]) })
+    return () => { live = false }
+  }, [view, q, rel, columnRoot, version])
+  useEffect(() => {
+    if (columns.current) columns.current.scrollLeft = columns.current.scrollWidth
+  }, [rel, parents, view, sel])
 
   const upload = async (files: FileList | File[]) => {
     for (const f of Array.from(files)) {
@@ -91,9 +124,9 @@ export function DriveView({ rel, view, q, active, onOpenDir, setView }: { rel: s
 
   useEnterToRename(active && renaming === null, sel, setRenaming)
   useEffect(() => {
-    setSel(null)
+    setSel(revealName)
     setRenaming(null)
-  }, [rel])
+  }, [rel, revealName])
 
   const commitRename = async (from: string, to: string) => {
     setRenaming(null)
@@ -109,6 +142,9 @@ export function DriveView({ rel, view, q, active, onOpenDir, setView }: { rel: s
     }
   }
 
+  const lookItem = (e: DriveEntry): QuickLookItem => ({
+    source: 'drive', path: join(rel, e.name), name: e.name, dir: e.dir, kind: kindFor(e.name), size: e.size, modified: e.modified,
+  })
   const itemMenu = (e: DriveEntry): MenuEntry[] => {
     const p = join(rel, e.name)
     return [
@@ -129,7 +165,7 @@ export function DriveView({ rel, view, q, active, onOpenDir, setView }: { rel: s
         ? { label: 'Delete Immediately…', run: () => drive.remove(p).then(bumpDrive, fail) }
         : { label: 'Move to Trash', shortcut: '⌘⌫', run: () => drive.trash(p).then(bumpDrive, fail) },
       'sep',
-      { label: 'Get Info', shortcut: '⌘I', run: () => os().notify({ app: 'finder', title: `${e.name} Info`, body: `${e.dir ? 'Folder' : kindFor(e.name)} · ${formatBytes(e.size)} · Modified ${new Date(e.modified).toLocaleString()} · ${root ?? 'PearDrive'}${p}` }) },
+      { label: 'Get Info', shortcut: '⌘I', run: () => showFileInfo(lookItem(e)) },
       { label: 'Rename', shortcut: '↩', run: () => setRenaming(e.name) },
       'sep',
       { label: 'Copy Path', run: () => navigator.clipboard?.writeText(`${root ?? ''}${p}`) },
@@ -141,17 +177,23 @@ export function DriveView({ rel, view, q, active, onOpenDir, setView }: { rel: s
     { label: 'Upload Files…', run: () => picker.current?.click() },
     'sep',
     { label: 'Refresh', shortcut: '⌘R', run: bumpDrive },
-    { label: 'View', submenu: [{ label: 'as Icons', checked: view === 'grid', run: () => setView('grid') }, { label: 'as List', checked: view === 'list', run: () => setView('list') }] },
+    { label: 'View', submenu: FINDER_VIEWS.map(({ id, label, shortcut }) => ({ label: `as ${label}`, shortcut, checked: view === id, run: () => setView(id) })) },
     'sep',
     { label: 'Open in Terminal', run: () => os().openApp('terminal', { forceNew: true }) },
   ]
 
   const shown = (entries ?? []).filter((e) => !e.name.startsWith('.') || inTrash).filter((e) => !q || e.name.toLowerCase().includes(q.toLowerCase()))
+  const selected = shown.find((e) => e.name === sel) ?? (view === 'gallery' ? shown[0] : undefined)
+  const preview = selected && lookItem(selected)
+  useEffect(() => {
+    infoCommand.current = () => { if (preview) showFileInfo(preview) }
+    return () => { infoCommand.current = null }
+  })
   const quickLook = (name: string) => {
-    const items: QuickLookItem[] = shown.map((e) => ({ source: 'drive', path: join(rel, e.name), name: e.name, dir: e.dir, kind: kindFor(e.name), size: e.size, modified: e.modified }))
+    const items = shown.map(lookItem)
     openQuickLook(items, join(rel, name), (item) => setSel(item.name))
   }
-  useQuickLookShortcut(active && renaming === null, sel, quickLook)
+  useQuickLookShortcut(active && renaming === null, selected?.name ?? null, quickLook)
   const icon = (e: DriveEntry, size: number) => (e.dir ? <FolderIcon size={size} /> : <FileIcon size={size} kind={kindFor(e.name)} ext={e.name.includes('.') ? e.name.split('.').pop()! : ''} />)
   const label = (e: DriveEntry) =>
     renaming === e.name ? (
@@ -173,10 +215,15 @@ export function DriveView({ rel, view, q, active, onOpenDir, setView }: { rel: s
       if (ev.key === 'Enter' && renaming === null) setRenaming(e.name)
     },
   })
+  const previewPane = preview && <div className="finder-preview-pane" onPointerDown={(e) => e.stopPropagation()}>
+    <div className="finder-preview-content"><QuickLookContent key={`${preview.path}:${version}`} item={preview} /></div>
+    <footer><strong>{preview.name}</strong><span>{preview.dir ? 'Folder' : formatBytes(preview.size)}</span>
+      <button className="btn small" onClick={() => quickLook(preview.name)}>Quick Look</button></footer>
+  </div>
 
   return (
     <div
-      className={`drive ${drag ? 'drag' : ''}`}
+      className={`drive ${drag ? 'drag' : ''} ${view === 'gallery' || view === 'columns' ? 'drive-preview-view' : ''}`}
       onPointerDown={() => setSel(null)}
       onContextMenu={menu(bgMenu)}
       onDragOver={(e) => {
@@ -199,10 +246,42 @@ export function DriveView({ rel, view, q, active, onOpenDir, setView }: { rel: s
         <div className="finder-empty">
           <div className="spinner dark" />
         </div>
+      ) : view === 'columns' && !q ? (
+        <div className="finder-columns" ref={columns}>
+          {parents.filter((parent) => rel.startsWith(parent.path.replace(/\/$/, '') + '/') && parent.path !== rel).map(({ path, entries }) => (
+            <div className="finder-column" key={path}>
+              <div className="finder-column-title">{parentOf(path).name || 'PearDrive'}</div>
+              {entries.filter((item) => !item.name.startsWith('.')).map((item) => {
+                const p = join(path, item.name)
+                return <button key={p} className={`finder-column-item ${(rel === p || rel.startsWith(p + '/')) ? 'sel' : ''}`}
+                  onClick={() => item.dir ? onOpenDir(p) : onOpenDir(path, item.name)}>
+                  {icon(item, 18)}<span>{item.name}</span>{item.dir && <ChevronRight size={13} />}
+                </button>
+              })}
+            </div>
+          ))}
+          <div className="finder-column">
+            <div className="finder-column-title">{parentOf(rel).name || 'PearDrive'}</div>
+            {shown.map((item) => <button key={item.name} className={`finder-column-item ${sel === item.name ? 'sel' : ''}`}
+              {...handlers(item)} onClick={() => item.dir ? onOpenDir(join(rel, item.name)) : setSel(item.name)}>
+              {icon(item, 18)}<span>{label(item)}</span>{item.dir && <ChevronRight size={13} />}
+            </button>)}
+          </div>
+          {previewPane}
+        </div>
       ) : shown.length === 0 ? (
         <div className="finder-empty drop-hint">
           <Upload size={28} strokeWidth={1.4} />
           {q ? 'No results.' : 'Drop files from your actual computer here.'}
+        </div>
+      ) : view === 'gallery' ? (
+        <div className="finder-gallery">
+          {previewPane}
+          <div className="finder-filmstrip">{shown.map((e) => (
+            <button key={e.name} className={`grid-item ${selected?.name === e.name ? 'sel' : ''}`} {...handlers(e)} onClick={() => setSel(e.name)}>
+              {icon(e, 42)}<span>{label(e)}</span>
+            </button>
+          ))}</div>
         </div>
       ) : view === 'grid' ? (
         <div className="icon-grid">

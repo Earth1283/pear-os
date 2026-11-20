@@ -41,12 +41,12 @@ export function Dock() {
   const dockApps = useOS((s) => s.dockApps)
   const indicators = useOS((s) => s.dockIndicators)
   const bounceOn = useOS((s) => s.dockBounce)
-  const running = useOS((s) => s.windows.map((w) => w.app).join(','))
+  const running = useOS((s) => s.runningApps)
   const minimizedKey = useOS((s) => s.windows.filter((w) => w.minimized).map((w) => `${w.id}\t${w.app}\t${w.title}\t${(w.w / w.h).toFixed(3)}`).join('\n'))
   const launching = useOS((s) => s.launching)
   const history = useOS((s) => s.history)
   const seen = useOS((s) => s.appSeen)
-  const autohide = useOS((s) => s.dockAutohide)
+  const autohide = useOS((s) => s.dockAutohide || s.activeSpace < 0)
   const menuOpen = useOS((s) => s.contextMenu !== null)
   const flying = useFlights((s) => s.ids)
   const [peek, setPeek] = useState(false)
@@ -87,8 +87,8 @@ export function Dock() {
   }
 
   const apps = useMemo(() => normaliseDock(dockApps, validApp, DOCK_PINNED), [dockApps])
-  const runningSet = new Set(running.split(','))
-  const extras = [...runningSet].filter((id): id is AppId => !!id && id in APPS && !apps.includes(id as AppId) && !APPS[id as AppId].hidden && id !== 'trash')
+  const runningSet = new Set(running)
+  const extras = running.filter((id) => validApp(id) && !apps.includes(id)).sort((a, b) => APPS[a].name.localeCompare(APPS[b].name))
   const minis: Mini[] = minimizedKey ? minimizedKey.split('\n').map((row) => {
     const [id, app, title, ratio] = row.split('\t')
     return { id, app: app as AppId, title, ratio: Math.min(1.7, Math.max(1, +ratio)) }

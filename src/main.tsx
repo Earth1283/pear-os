@@ -6,6 +6,7 @@ import './lib/stickiesSync'
 import './lib/screenTimeSync'
 import App from './App'
 import './styles.css'
+import './components/DesktopWorkflows.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

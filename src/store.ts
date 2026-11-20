@@ -22,6 +22,7 @@ export interface Win extends Rect {
   id: string
   space: number
   app: AppId
+  fullscreen?: { space: number; side?: 'left' | 'right' }
   title: string
   z: number
   minimized: boolean
@@ -86,6 +87,7 @@ const WIDGET_GAP = 12
 const WIDGET_KEY = 'pearos.widgets.v1'
 
 export type DockMinimize = 'genie' | 'scale'
+export type AppSwitchShortcut = 'alt-tab' | 'ctrl-shift-space' | 'alt-backquote'
 export type Assignment = 'all' | number
 export type Assignments = Partial<Record<AppId, Assignment>>
 
@@ -101,6 +103,10 @@ interface State {
   spaces: number[]
   activeSpace: number
   focused: string | null
+  activeApp: AppId
+  runningApps: AppId[]
+  hiddenApps: AppId[]
+  appSwitchShortcut: AppSwitchShortcut
   zTop: number
   tilePreview: Tile
   theme: 'light' | 'dark'
@@ -142,6 +148,10 @@ interface State {
   openApp(app: AppId, opts?: { props?: Record<string, unknown>; forceNew?: boolean }): string
   closeWindow(id: string): void
   closeApp(app: AppId): void
+  activateApp(app: AppId): void
+  hideApp(app: AppId): void
+  cycleWindows(backward: boolean): void
+  resetSession(): void
   focus(id: string | null): void
   minimize(id: string): void
   switchSpace(id: number): void
@@ -152,6 +162,8 @@ interface State {
   toggleDesktop(): void
   setRect(id: string, r: Partial<Rect>): void
   tileWindow(id: string, t: Tile): void
+  toggleFullscreen(id: string): void
+  splitFullscreen(id: string, other: string, side: 'left' | 'right'): void
   setTitle(id: string, title: string): void
   setOverlay(o: Partial<Overlay>): void
   closeOverlays(): void
@@ -203,14 +215,72 @@ function loadSpaces(): { spaces: number[]; activeSpace: number; assign: Assignme
   return { spaces: [1], activeSpace: 1, assign: {} }
 }
 
-export const onSpace = (w: Win, space: number, assign: Assignments) => assign[w.app] === 'all' || w.space === space
+export const onSpace = (w: Win, space: number, assign: Assignments) =>
+  w.fullscreen ? w.fullscreen.space === space : space > 0 && (assign[w.app] === 'all' || w.space === space)
 
-const frontWindow = (windows: Win[], space: number, assign: Assignments) => windows.filter((w) => !w.minimized && onSpace(w, space, assign)).reduce<Win | undefined>((top, w) => !top || w.z > top.z ? w : top, undefined)
+export const spaceOrder = (s: Pick<State, 'spaces' | 'windows'>) => [
+  ...s.spaces,
+  ...[...new Set(s.windows.flatMap((w) => w.fullscreen ? [w.fullscreen.space] : []))].sort((a, b) => b - a),
+]
 
-const slideTo = (s: { spaces: number[]; activeSpace: number; spaceSlide: { seq: number } }, to: number): { dir: -1 | 1; seq: number } => ({
-  dir: s.spaces.indexOf(to) >= s.spaces.indexOf(s.activeSpace) ? 1 : -1,
-  seq: s.spaceSlide.seq + 1,
+const windowSpace = (w: Win) => w.fullscreen?.space ?? w.space
+const desktopFor = (s: Pick<State, 'windows' | 'activeSpace' | 'spaces' | 'focused'>) => {
+  if (s.activeSpace > 0) return s.activeSpace
+  const group = s.windows.filter((w) => windowSpace(w) === s.activeSpace)
+  return (group.find((w) => w.id === s.focused) ?? group[0])?.space ?? s.spaces[0]
+}
+const frontWindow = (s: Pick<State, 'windows' | 'assign' | 'hiddenApps'>, space: number, app?: AppId) => s.windows
+  .filter((w) => !w.minimized && !s.hiddenApps.includes(w.app) && onSpace(w, space, s.assign) && (!app || w.app === app))
+  .reduce<Win | undefined>((top, w) => !top || w.z > top.z ? w : top, undefined)
+const appFocus = (s: Pick<State, 'runningApps'>, app: AppId) => ({
+  activeApp: app,
+  runningApps: s.runningApps[0] === app ? s.runningApps : [app, ...s.runningApps.filter((a) => a !== app)],
 })
+const initialSession = () => ({ windows: [], focused: null, activeApp: 'finder' as const, runningApps: ['finder' as const], hiddenApps: [], launching: [], desktopRevealed: false, mcApp: null })
+
+function slideTo(s: Pick<State, 'spaces' | 'windows' | 'activeSpace' | 'spaceSlide'>, to: number): State['spaceSlide'] {
+  const order = spaceOrder(s)
+  const destination = order.indexOf(to)
+  const origin = order.indexOf(s.activeSpace)
+  return { dir: destination < 0 || destination >= origin ? 1 : -1, seq: s.spaceSlide.seq + 1 }
+}
+
+function raiseWindow(s: State, target: Win, windows = s.windows, scope: 'window' | 'app' = 'window') {
+  const activeSpace = onSpace(target, s.activeSpace, s.assign) ? s.activeSpace : windowSpace(target)
+  let zTop = s.zTop
+  const order = new Map<string, number>()
+  if (scope !== 'window') {
+    const others = windows.filter((w) => w.id !== target.id && w.app === target.app && !w.minimized && onSpace(w, activeSpace, s.assign))
+    others.sort((a, b) => a.z - b.z).forEach((w) => order.set(w.id, ++zTop))
+  }
+  order.set(target.id, ++zTop)
+  return {
+    ...appFocus(s, target.app),
+    hiddenApps: s.hiddenApps.filter((app) => app !== target.app),
+    windows: windows.map((w) => {
+      const z = order.get(w.id)
+      return z === undefined ? w : { ...w, z, minimized: false }
+    }),
+    focused: target.id, zTop, activeSpace, desktopRevealed: false,
+    spaceSlide: activeSpace === s.activeSpace ? s.spaceSlide : slideTo(s, activeSpace),
+  }
+}
+
+function normalizeSplit(windows: Win[]) {
+  return windows.map((w) => w.fullscreen?.side && !windows.some((other) => other.id !== w.id && other.fullscreen?.space === w.fullscreen?.space)
+    ? { ...w, fullscreen: { space: w.fullscreen.space } } : w)
+}
+
+export function fullscreenRect(side: 'left' | 'right' | undefined, { width, height }: { width: number; height: number }): Rect {
+  const half = Math.floor(width / 2)
+  return { x: side === 'right' ? half : 0, y: 0, w: side === 'left' ? half : side === 'right' ? width - half : width, h: height }
+}
+
+export function fullscreenSide(w: Win, s: Pick<State, 'windows' | 'hiddenApps'>) {
+  if (!w.fullscreen?.side) return undefined
+  return s.windows.some((other) => other.id !== w.id && other.fullscreen?.space === w.fullscreen?.space && !s.hiddenApps.includes(other.app))
+    ? w.fullscreen.side : undefined
+}
 
 const homeSpace = (assign: Assignments, spaces: number[], app: AppId) => {
   const a = assign[app]
@@ -297,7 +367,7 @@ function freeSpot(existing: WidgetInst[], size: WidgetSize): { x: number; y: num
 
 const PREFS_KEY = 'pearos.prefs.v1'
 const WALLPAPERS: Wallpaper[] = ['grove', 'grove-dark', 'orchard', 'graphite', 'fractal', 'lake']
-const PREF_KEYS = ['theme', 'wallpaper', 'liveWallpaper', 'fractalWallpaper', 'brightness', 'volume', 'wifi', 'bluetooth', 'dnd', 'dockMagnify', 'dockSize', 'dockAutohide', 'dockZoom', 'dockApps', 'dockMinimize', 'dockIndicators', 'dockBounce', 'hotCorners', 'spaceFollowApp'] as const
+const PREF_KEYS = ['theme', 'wallpaper', 'liveWallpaper', 'fractalWallpaper', 'brightness', 'volume', 'wifi', 'bluetooth', 'dnd', 'dockMagnify', 'dockSize', 'dockAutohide', 'dockZoom', 'dockApps', 'dockMinimize', 'dockIndicators', 'dockBounce', 'hotCorners', 'spaceFollowApp', 'appSwitchShortcut'] as const
 type Prefs = Pick<State, (typeof PREF_KEYS)[number]>
 
 function loadPrefs(): Partial<Prefs> {
@@ -318,6 +388,7 @@ function loadPrefs(): Partial<Prefs> {
     out.dockSize = num(raw.dockSize, 36, 72)
     out.dockZoom = num(raw.dockZoom, 0.2, 1)
     if (raw.dockMinimize === 'genie' || raw.dockMinimize === 'scale') out.dockMinimize = raw.dockMinimize
+    if (raw.appSwitchShortcut === 'alt-tab' || raw.appSwitchShortcut === 'ctrl-shift-space' || raw.appSwitchShortcut === 'alt-backquote') out.appSwitchShortcut = raw.appSwitchShortcut
     if (Array.isArray(raw.dockApps) && raw.dockApps.length <= 40 && raw.dockApps.every((a: unknown) => typeof a === 'string')) out.dockApps = [...new Set<string>(raw.dockApps)] as AppId[]
     const corners = parseCorners(raw.hotCorners)
     if (corners) out.hotCorners = corners
@@ -343,9 +414,8 @@ export const useOS = create<State>((set, get) => ({
   phase: 'off',
   panicReason: null,
   shutdownMode: 'restart',
-  windows: [],
+  ...initialSession(),
   ...loadSpaces(),
-  focused: null,
   zTop: 10,
   tilePreview: null,
   theme: window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
@@ -363,9 +433,8 @@ export const useOS = create<State>((set, get) => ({
   dockBounce: true,
   hotCorners: defaultCorners(),
   spaceFollowApp: true,
+  appSwitchShortcut: 'ctrl-shift-space',
   spaceSlide: { dir: 0, seq: 0 },
-  desktopRevealed: false,
-  mcApp: null,
   appSeen: {},
   notes: initialNotes,
   toasts: [],
@@ -374,7 +443,6 @@ export const useOS = create<State>((set, get) => ({
   widgets: loadWidgets(),
   overlay: CLOSED,
   fsVersion: 0,
-  launching: [],
   fractalWallpaper: null,
   contextMenu: null,
   quickLook: null,
@@ -383,7 +451,15 @@ export const useOS = create<State>((set, get) => ({
   ...loadPrefs(),
 
   setPhase: (phase) => set({ phase, overlay: CLOSED, quickLook: null }),
-  panic: (reason) => set({ phase: 'panic', panicReason: reason, windows: [], focused: null, toasts: [], quickLook: null }),
+  resetSession() {
+    const s = get()
+    for (const app of s.runningApps) quitHooks[app]?.()
+    set({ ...initialSession(), activeSpace: desktopFor(s), toasts: [], overlay: CLOSED, contextMenu: null, quickLook: null })
+  },
+  panic(reason) {
+    get().resetSession()
+    set({ phase: 'panic', panicReason: reason })
+  },
 
   openApp(app, opts = {}) {
     const s = get()
@@ -394,31 +470,22 @@ export const useOS = create<State>((set, get) => ({
       return ''
     }
     const seen = { ...s.appSeen, [app]: Date.now() }
+    const activation = { ...appFocus(s, app), hiddenApps: s.hiddenApps.filter((a) => a !== app) }
     const home = homeSpace(s.assign, s.spaces, app)
-    const raise = (top: Win, activeSpace: number) => {
-      const z = s.zTop + 1
-      set({
-        windows: s.windows.map((w) => (w.app === app && w.space === top.space ? { ...w, minimized: false, z: w.id === top.id ? z : w.z } : w)),
-        focused: top.id,
-        activeSpace,
-        zTop: z,
-        desktopRevealed: false,
-        appSeen: seen,
-        spaceSlide: activeSpace === s.activeSpace ? s.spaceSlide : slideTo(s, activeSpace),
-      })
-      return top.id
-    }
     if (!opts.forceNew && !opts.props) {
-      const all = s.windows.filter((w) => w.app === app)
+      const all = s.windows.filter((w) => w.app === app && (app !== 'finder' || !w.props.infoPath))
       const local = all.filter((w) => onSpace(w, s.activeSpace, s.assign))
-      const existing = local.length ? local : s.spaceFollowApp ? all : []
+      const existing = local.length ? local : s.spaceFollowApp ? all : all.filter((w) => w.fullscreen)
       if (existing.length) {
-        const top = existing.reduce((a, b) => (a.z > b.z ? a : b))
-        return raise(top, onSpace(top, s.activeSpace, s.assign) ? s.activeSpace : top.space)
+        const top = existing.reduce((a, b) => a.minimized !== b.minimized ? a.minimized ? b : a : a.z > b.z ? a : b)
+        set({ ...raiseWindow(s, top, s.windows, 'app'), appSeen: seen })
+        return top.id
       }
       if (all.length && spec.singleton) {
         const top = all.reduce((a, b) => (a.z > b.z ? a : b))
-        set({ windows: s.windows.map((w) => (w.id === top.id ? { ...w, space: s.activeSpace } : w)) })
+        const space = home ?? desktopFor(s)
+        set({ windows: s.windows.map((w) => (w.id === top.id ? { ...w, space } : w)) })
+        if (space !== s.activeSpace) get().switchSpace(space)
         return get().openApp(app)
       }
     }
@@ -432,19 +499,20 @@ export const useOS = create<State>((set, get) => ({
     }
     const W = window.innerWidth
     const H = window.innerHeight
-    const w = Math.min(spec.w, W - 40)
-    const h = Math.min(spec.h, H - MENU_H - DOCK_ZONE - 20)
+    const inspector = app === 'finder' && opts.props?.infoPath
+    const w = Math.min(inspector ? 335 : spec.w, W - 40)
+    const h = Math.min(inspector ? 390 : spec.h, H - MENU_H - DOCK_ZONE - 20)
     const off = (cascade++ % 6) * 26
     const id = uid()
     const z = s.zTop + 1
-    const space = home ?? s.activeSpace
+    const space = home ?? desktopFor(s)
     const win: Win = {
       id,
       space,
       app,
       title: spec.name,
-      x: Math.max(10, Math.round((W - w) / 2 - 80 + off)),
-      y: Math.max(MENU_H + 8, Math.round((H - DOCK_ZONE - h) / 2 - 20 + off)),
+      x: Math.max(10, Math.min(W - w - 10, Math.round((W - w) / 2 - 80 + off))),
+      y: Math.max(MENU_H + 8, Math.min(H - h - 10, Math.round((H - DOCK_ZONE - h) / 2 - 20 + off))),
       w,
       h,
       z,
@@ -453,54 +521,112 @@ export const useOS = create<State>((set, get) => ({
       restore: null,
       props: opts.props ?? {},
     }
-    const launching = s.launching.includes(app) || s.windows.some((x) => x.app === app) ? s.launching : [...s.launching, app]
-    set({ windows: [...s.windows, win], focused: id, zTop: z, launching, activeSpace: space, desktopRevealed: false, appSeen: seen, spaceSlide: space === s.activeSpace ? s.spaceSlide : slideTo(s, space) })
+    const launching = s.launching.includes(app) || s.runningApps.includes(app) ? s.launching : [...s.launching, app]
+    set({ ...activation, windows: [...s.windows, win], focused: id, zTop: z, launching, activeSpace: space, desktopRevealed: false, appSeen: seen, spaceSlide: space === s.activeSpace ? s.spaceSlide : slideTo(s, space) })
     if (launching !== s.launching) setTimeout(() => set({ launching: get().launching.filter((a) => a !== app) }), 1100)
     return id
   },
 
   closeWindow(id) {
-    const rest = get().windows.filter((w) => w.id !== id)
-    const next = frontWindow(rest, get().activeSpace, get().assign)
-    set({ windows: rest, focused: get().focused === id ? next?.id ?? null : get().focused })
+    const s = get()
+    const windows = normalizeSplit(s.windows.filter((w) => w.id !== id))
+    const activeSpace = spaceOrder({ ...s, windows }).includes(s.activeSpace) ? s.activeSpace : desktopFor(s)
+    const next = frontWindow({ ...s, windows }, activeSpace, activeSpace > 0 ? s.activeApp : undefined)
+    const replaceFocus = s.focused === id || activeSpace !== s.activeSpace
+    if (replaceFocus && next) return set({ ...raiseWindow(s, next, windows), activeSpace, spaceSlide: activeSpace === s.activeSpace ? s.spaceSlide : slideTo(s, activeSpace) })
+    set({
+      windows, activeSpace, focused: replaceFocus ? null : s.focused,
+      spaceSlide: activeSpace === s.activeSpace ? s.spaceSlide : slideTo(s, activeSpace),
+    })
   },
 
   closeApp(app) {
+    const s = get()
     quitHooks[app]?.()
-    const rest = get().windows.filter((w) => w.app !== app)
-    const next = frontWindow(rest, get().activeSpace, get().assign)
-    set({ windows: rest, focused: next?.id ?? null })
+    const windows = normalizeSplit(s.windows.filter((w) => w.app !== app))
+    const activeSpace = spaceOrder({ ...s, windows }).includes(s.activeSpace) ? s.activeSpace : desktopFor(s)
+    const hiddenApps = s.hiddenApps.filter((a) => a !== app)
+    const runningApps = s.runningApps.filter((a) => a !== app || a === 'finder')
+    const next = frontWindow({ ...s, windows, hiddenApps }, activeSpace)
+    set({
+      windows, hiddenApps, runningApps, activeSpace, launching: s.launching.filter((a) => a !== app),
+      ...(s.activeApp === app ? { ...appFocus({ runningApps }, next?.app ?? runningApps.find((a) => !hiddenApps.includes(a)) ?? 'finder'), focused: next?.id ?? null } : {}),
+      spaceSlide: activeSpace === s.activeSpace ? s.spaceSlide : slideTo(s, activeSpace),
+    })
+  },
+
+  activateApp(app) {
+    const s = get()
+    if (!s.runningApps.includes(app)) return
+    s.closeOverlays()
+    const hiddenApps = s.hiddenApps.filter((a) => a !== app)
+    const visible = { ...s, hiddenApps }
+    const local = frontWindow(visible, s.activeSpace, app)
+    const remote = s.windows.filter((w) => w.app === app && !w.minimized && (s.spaceFollowApp || w.fullscreen)).sort((a, b) => b.z - a.z)[0]
+    const target = local ?? remote
+    if (target) set(raiseWindow(s, target, s.windows, 'app'))
+    else {
+      const activeSpace = desktopFor(s)
+      set({ ...appFocus(s, app), hiddenApps, activeSpace, focused: null, desktopRevealed: false, spaceSlide: activeSpace === s.activeSpace ? s.spaceSlide : slideTo(s, activeSpace) })
+    }
+  },
+
+  hideApp(app) {
+    const s = get()
+    if (!s.runningApps.includes(app) || s.hiddenApps.includes(app) || (app === 'finder' && !s.windows.some((w) => w.app === app))) return
+    const hiddenApps = [...s.hiddenApps, app]
+    const visible = { ...s, hiddenApps }
+    const activeSpace = s.activeSpace < 0 && !frontWindow(visible, s.activeSpace) ? desktopFor(s) : s.activeSpace
+    const next = frontWindow(visible, activeSpace)
+    set({
+      hiddenApps, activeSpace,
+      ...(s.activeApp === app ? { ...appFocus(s, next?.app ?? 'finder'), focused: next?.id ?? null } : {}),
+      spaceSlide: activeSpace === s.activeSpace ? s.spaceSlide : slideTo(s, activeSpace),
+    })
+  },
+
+  cycleWindows(backward) {
+    const s = get()
+    const windows = s.windows.filter((w) => w.app === s.activeApp && !w.minimized && !s.hiddenApps.includes(w.app) && onSpace(w, s.activeSpace, s.assign))
+    if (!windows.length) return
+    const index = windows.findIndex((w) => w.id === s.focused)
+    const next = index < 0 ? (backward ? windows.length - 1 : 0) : (index + (backward ? -1 : 1) + windows.length) % windows.length
+    s.focus(windows[next].id)
   },
 
   focus(id) {
-    if (!id) return set({ focused: null })
     const s = get()
+    if (!id) return set({ focused: null, ...appFocus(s, 'finder') })
     const target = s.windows.find((w) => w.id === id)
     if (!target) return
-    const space = onSpace(target, s.activeSpace, s.assign) ? s.activeSpace : target.space
-    if (s.focused === id && target.z === s.zTop && !s.desktopRevealed && space === s.activeSpace && !target.minimized) return
-    const z = s.zTop + 1
-    set({ windows: s.windows.map((w) => (w.id === id ? { ...w, z, minimized: false } : w)), focused: id, zTop: z, activeSpace: space, desktopRevealed: false, spaceSlide: space === s.activeSpace ? s.spaceSlide : slideTo(s, space) })
+    const space = onSpace(target, s.activeSpace, s.assign) ? s.activeSpace : windowSpace(target)
+    if (s.focused === id && s.activeApp === target.app && target.z === s.zTop && !s.desktopRevealed && space === s.activeSpace && !target.minimized && !s.hiddenApps.includes(target.app)) return
+    set(raiseWindow(s, target))
   },
 
   minimize(id) {
     const s = get()
+    if (!s.windows.some((w) => w.id === id && !w.fullscreen)) return
     const windows = s.windows.map((w) => (w.id === id ? { ...w, minimized: true } : w))
-    const next = frontWindow(windows, s.activeSpace, s.assign)
-    set({ windows, focused: s.focused === id ? next?.id ?? null : s.focused })
+    const next = frontWindow({ ...s, windows }, s.activeSpace, s.activeApp)
+    if (s.focused === id && next) return set(raiseWindow(s, next, windows))
+    set({ windows, focused: s.focused === id ? null : s.focused })
   },
 
   switchSpace(id) {
     const s = get()
-    if (!s.spaces.includes(id) || id === s.activeSpace) return
-    set({ activeSpace: id, focused: frontWindow(s.windows, id, s.assign)?.id ?? null, contextMenu: null, tilePreview: null, desktopRevealed: false, spaceSlide: slideTo(s, id) })
+    if (!spaceOrder(s).includes(id) || id === s.activeSpace) return
+    const next = frontWindow(s, id)
+    const hidden = id < 0 && !next ? s.windows.find((w) => windowSpace(w) === id) : undefined
+    if (hidden) return s.focus(hidden.id)
+    set({ ...appFocus(s, next?.app ?? 'finder'), activeSpace: id, focused: next?.id ?? null, contextMenu: null, tilePreview: null, desktopRevealed: false, spaceSlide: slideTo(s, id) })
   },
 
   addSpace() {
     const s = get()
     if (s.spaces.length >= MAX_SPACES) return null
     const id = Math.max(...s.spaces) + 1
-    set({ spaces: [...s.spaces, id], activeSpace: id, focused: null, spaceSlide: { dir: 1, seq: s.spaceSlide.seq + 1 } })
+    set({ ...appFocus(s, 'finder'), spaces: [...s.spaces, id], activeSpace: id, focused: null, spaceSlide: { dir: s.activeSpace < 0 ? -1 : 1, seq: s.spaceSlide.seq + 1 } })
     return id
   },
 
@@ -513,29 +639,41 @@ export const useOS = create<State>((set, get) => ({
     const windows = s.windows.map((w) => w.space === id ? { ...w, space: destination } : w)
     const assign = Object.fromEntries(Object.entries(s.assign).map(([app, v]) => [app, v === id ? destination : v])) as Assignments
     const activeSpace = s.activeSpace === id ? destination : s.activeSpace
-    set({ spaces, windows, assign, activeSpace, focused: s.activeSpace === id ? frontWindow(windows, activeSpace, assign)?.id ?? null : s.focused })
+    const next = frontWindow({ ...s, windows, assign }, activeSpace)
+    set({ spaces, windows, assign, activeSpace, ...(s.activeSpace === id ? { ...appFocus(s, next?.app ?? 'finder'), focused: next?.id ?? null } : {}) })
   },
 
   moveWindowToSpace(id, space) {
     const s = get()
     if (!s.spaces.includes(space)) return
-    const windows = s.windows.map((w) => w.id === id && w.space !== space ? { ...w, space } : w)
+    const windows = normalizeSplit(s.windows.map((w) => {
+      if (w.id !== id) return w
+      const { fullscreen, ...rest } = w
+      return { ...rest, space }
+    }))
+    const activeSpace = spaceOrder({ ...s, windows }).includes(s.activeSpace) ? s.activeSpace : space
     const focused = windows.find((w) => w.id === s.focused)
-    set({ windows, focused: focused && onSpace(focused, s.activeSpace, s.assign) ? s.focused : frontWindow(windows, s.activeSpace, s.assign)?.id ?? null })
+    const next = focused && onSpace(focused, activeSpace, s.assign) ? focused : frontWindow({ ...s, windows }, activeSpace)
+    set({
+      ...appFocus(s, next?.app ?? 'finder'), windows, activeSpace, focused: next?.id ?? null,
+      spaceSlide: activeSpace === s.activeSpace ? s.spaceSlide : slideTo(s, activeSpace),
+    })
   },
 
   assignApp(app, mode) {
     const s = get()
     const assign = { ...s.assign }
     if (mode === null) delete assign[app]
-    else assign[app] = mode === 'all' ? 'all' : s.activeSpace
-    const windows = mode === 'this' ? s.windows.map((w) => (w.app === app ? { ...w, space: s.activeSpace } : w)) : s.windows
+    else assign[app] = mode === 'all' ? 'all' : desktopFor(s)
+    const windows = mode === 'this' ? s.windows.map((w) => (w.app === app ? { ...w, space: desktopFor(s) } : w)) : s.windows
     set({ assign, windows })
   },
 
   toggleDesktop() {
     const s = get()
-    set({ desktopRevealed: !s.desktopRevealed, focused: s.desktopRevealed ? s.focused : null })
+    if (s.activeSpace < 0) return s.switchSpace(desktopFor(s))
+    const next = s.desktopRevealed ? frontWindow(s, s.activeSpace) : undefined
+    set({ ...appFocus(s, next?.app ?? 'finder'), desktopRevealed: !s.desktopRevealed, focused: next?.id ?? null })
   },
 
   setRect(id, r) {
@@ -545,12 +683,42 @@ export const useOS = create<State>((set, get) => ({
   tileWindow(id, t) {
     set({
       windows: get().windows.map((w) => {
-        if (w.id !== id) return w
+        if (w.id !== id || w.fullscreen || specs[w.app]?.resizable === false || w.props.infoPath) return w
         if (t === null) return w.restore ? { ...w, ...w.restore, tile: null, restore: null, angle: 0, gravityScale: 1 } : { ...w, tile: null, angle: 0, gravityScale: 1 }
         const restore = w.tile ? w.restore : { x: w.x, y: w.y, w: w.w, h: w.h }
         return { ...w, ...tileRect(t), tile: t, restore, angle: 0, gravityScale: 1 }
       }),
     })
+  },
+
+  toggleFullscreen(id) {
+    const s = get()
+    const win = s.windows.find((w) => w.id === id)
+    if (!win || specs[win.app]?.resizable === false || win.props.infoPath) return
+    const { fullscreen, ...rest } = win
+    const next = fullscreen ? rest : {
+      ...win, space: onSpace(win, s.activeSpace, s.assign) ? desktopFor(s) : win.space,
+      fullscreen: { space: Math.min(0, ...spaceOrder(s)) - 1 },
+    }
+    const windows = normalizeSplit(s.windows.map((w) => w.id === id ? next : w))
+    set({ ...raiseWindow(s, next, windows), overlay: CLOSED, contextMenu: null, quickLook: null, tilePreview: null, mcApp: null })
+  },
+
+  splitFullscreen(id, other, side) {
+    const s = get()
+    const eligible = (w: Win) => !w.fullscreen?.side && !w.minimized && !w.props.infoPath && !s.hiddenApps.includes(w.app) && specs[w.app]?.resizable !== false
+    const first = s.windows.find((w) => w.id === id && eligible(w))
+    const second = s.windows.find((w) => w.id === other && !w.fullscreen && eligible(w))
+    if (!first || !second || first.id === second.id) return
+    const space = first.fullscreen?.space ?? Math.min(0, ...spaceOrder(s)) - 1
+    const desktop = first.fullscreen ? first.space : desktopFor(s)
+    const next = { ...first, space: onSpace(first, desktop, s.assign) ? desktop : first.space, fullscreen: { space, side } }
+    const windows = s.windows.map<Win>((w) => {
+      if (w.id === id) return next
+      if (w.id === other) return { ...w, space: onSpace(w, desktop, s.assign) ? desktop : w.space, fullscreen: { space, side: side === 'left' ? 'right' : 'left' } }
+      return w
+    })
+    set({ ...raiseWindow(s, next, windows), overlay: CLOSED, contextMenu: null, quickLook: null, tilePreview: null, mcApp: null })
   },
 
   setTitle(id, title) {
@@ -618,8 +786,8 @@ export const useOS = create<State>((set, get) => ({
 export const os = () => useOS.getState()
 
 useOS.subscribe((s, prev) => {
-  if (s.spaces !== prev.spaces || s.activeSpace !== prev.activeSpace || s.assign !== prev.assign) {
-    try { localStorage.setItem(SPACES_KEY, JSON.stringify({ spaces: s.spaces, activeSpace: s.activeSpace, assign: s.assign })) } catch { /* Desktops still work without storage. */ }
+  if (s.spaces !== prev.spaces || s.activeSpace !== prev.activeSpace || s.assign !== prev.assign || (s.activeSpace < 0 && s.focused !== prev.focused)) {
+    try { localStorage.setItem(SPACES_KEY, JSON.stringify({ spaces: s.spaces, activeSpace: desktopFor(s), assign: s.assign })) } catch { /* Desktops still work without storage. */ }
   }
   if (PREF_KEYS.every((k) => s[k] === prev[k])) return
   try {

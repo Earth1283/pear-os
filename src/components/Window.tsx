@@ -1,5 +1,5 @@
 import { memo, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { useOS, MENU_H, tileRect, type Tile, type Win } from '../store'
+import { useOS, MENU_H, fullscreenRect, onSpace, tileRect, type Tile, type Win } from '../store'
 import { APPS } from '../apps/registry'
 import { WindowShader } from './ShaderLayers'
 import type { OverviewRect } from '../lib/missionControl'
@@ -23,6 +23,13 @@ function edgeTile(x: number, y: number): Tile {
 
 function TileMenu({ win, onClose }: { win: Win; onClose: () => void }) {
   const tileWindow = useOS((s) => s.tileWindow)
+  const windows = useOS((s) => s.windows)
+  const hidden = useOS((s) => s.hiddenApps)
+  const activeSpace = useOS((s) => s.activeSpace)
+  const assign = useOS((s) => s.assign)
+  const [splitSide, setSplitSide] = useState<'left' | 'right' | null>(null)
+  const partners = windows.filter((w) => w.id !== win.id && !w.minimized && !hidden.includes(w.app) && !w.fullscreen && !w.props.infoPath
+    && APPS[w.app].resizable !== false && onSpace(w, win.fullscreen ? win.space : activeSpace, assign))
   const pick = (t: Tile) => {
     tileWindow(win.id, t)
     onClose()
@@ -37,35 +44,52 @@ function TileMenu({ win, onClose }: { win: Win; onClose: () => void }) {
   )
   return (
     <div className="tile-menu glass" onPointerDown={(e) => e.stopPropagation()}>
-      <div className="tile-menu-label">Move &amp; Resize</div>
-      <div className="tile-row">
-        {opt('left', 'Left', [2, 2, 12.5, 16])}
-        {opt('right', 'Right', [15.5, 2, 12.5, 16])}
-        {opt('top-left', 'Top Left', [2, 2, 12.5, 7.5])}
-        {opt('bottom-right', 'Bottom Right', [15.5, 10.5, 12.5, 7.5])}
-      </div>
-      <div className="tile-menu-label">Fill &amp; Arrange</div>
-      <div className="tile-row">
-        {opt('fill', 'Fill', [2, 2, 26, 16])}
-        <button className="tile-text" onClick={() => pick(null)}>
-          Return to Previous Size
-        </button>
-      </div>
+      <div className="tile-menu-label">Full Screen</div>
+      <button className="tile-text" onClick={() => { useOS.getState().toggleFullscreen(win.id); onClose() }}>
+        {win.fullscreen ? 'Exit Full Screen' : 'Enter Full Screen'}
+      </button>
+      {!win.fullscreen?.side && partners.length > 0 && <>
+        <div className="tile-row">
+          <button className="tile-text" aria-pressed={splitSide === 'left'} onClick={() => setSplitSide('left')}>Split Left</button>
+          <button className="tile-text" aria-pressed={splitSide === 'right'} onClick={() => setSplitSide('right')}>Split Right</button>
+        </div>
+        {splitSide && <div className="tile-partners" aria-label="Split View window">
+          {partners.map((partner) => <button key={partner.id} className="tile-text" title={partner.title}
+            onClick={() => { useOS.getState().splitFullscreen(win.id, partner.id, splitSide); onClose() }}>{partner.title}</button>)}
+        </div>}
+      </>}
+      {!win.fullscreen && <>
+        <div className="tile-menu-label">Move &amp; Resize</div>
+        <div className="tile-row">
+          {opt('left', 'Left', [2, 2, 12.5, 16])}
+          {opt('right', 'Right', [15.5, 2, 12.5, 16])}
+          {opt('top-left', 'Top Left', [2, 2, 12.5, 7.5])}
+          {opt('top-right', 'Top Right', [15.5, 2, 12.5, 7.5])}
+          {opt('bottom-left', 'Bottom Left', [2, 10.5, 12.5, 7.5])}
+          {opt('bottom-right', 'Bottom Right', [15.5, 10.5, 12.5, 7.5])}
+        </div>
+        <div className="tile-menu-label">Fill &amp; Arrange</div>
+        <div className="tile-row">
+          {opt('fill', 'Fill', [2, 2, 26, 16])}
+          <button className="tile-text" disabled={!win.tile} onClick={() => pick(null)}>Return to Previous Size</button>
+        </div>
+      </>}
     </div>
   )
 }
 
 function TrafficLights({ win }: { win: Win }) {
-  const { closeWindow, minimize, tileWindow } = useOS.getState()
+  const { closeWindow, minimize, tileWindow, toggleFullscreen } = useOS.getState()
   const [menu, setMenu] = useState(false)
   const hover = useRef<number | undefined>(undefined)
-  const resizable = APPS[win.app].resizable !== false
+  const resizable = APPS[win.app].resizable !== false && !win.props.infoPath
+  useEffect(() => () => clearTimeout(hover.current), [])
   return (
     <div className="traffic" data-nodrag onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
       <button className="tl tl-close" aria-label="Close" onClick={() => closeWindow(win.id)}>
         <svg viewBox="0 0 10 10"><path d="M3 3l4 4M7 3l-4 4" /></svg>
       </button>
-      <button className="tl tl-min" aria-label="Minimize" onClick={() => minimize(win.id)}>
+      <button className="tl tl-min" aria-label="Minimize" disabled={!!win.fullscreen} onClick={() => minimize(win.id)}>
         <svg viewBox="0 0 10 10"><path d="M2.5 5h5" /></svg>
       </button>
       <span
@@ -77,12 +101,27 @@ function TrafficLights({ win }: { win: Win }) {
           clearTimeout(hover.current)
           setMenu(false)
         }}
+        onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setMenu(false) }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape' && menu) {
+            setMenu(false)
+            e.currentTarget.querySelector<HTMLButtonElement>('.tl-max')?.focus()
+          }
+        }}
       >
         <button
           className="tl tl-max"
-          aria-label="Zoom"
+          aria-label={win.fullscreen ? 'Exit Full Screen' : 'Enter Full Screen'}
+          aria-expanded={menu}
           disabled={!resizable}
-          onClick={() => tileWindow(win.id, win.tile === 'fill' ? null : 'fill')}
+          onClick={(e) => {
+            if (e.altKey && !win.fullscreen) tileWindow(win.id, win.tile === 'fill' ? null : 'fill')
+            else toggleFullscreen(win.id)
+            setMenu(false)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown') { e.preventDefault(); setMenu(true) }
+          }}
         >
           <svg viewBox="0 0 10 10"><path d="M3 3.2h3.8v3.8zM7 6.8H3.2V3z" /></svg>
         </button>
@@ -92,7 +131,18 @@ function TrafficLights({ win }: { win: Win }) {
   )
 }
 
-interface WindowProps { win: Win; focused: boolean; inactive: boolean; overviewRect?: OverviewRect; slide: { dir: -1 | 0 | 1; seq: number }; revealed: boolean; dimmed: boolean }
+interface WindowProps {
+  win: Win
+  focused: boolean
+  inactive: boolean
+  hidden: boolean
+  displaySide?: 'left' | 'right'
+  viewport: { width: number; height: number }
+  overviewRect?: OverviewRect
+  slide: { dir: -1 | 0 | 1; seq: number }
+  revealed: boolean
+  dimmed: boolean
+}
 
 // Overview transforms change the frame, not the running app's inputs.
 const WindowContents = memo(function WindowContents({ win }: { win: Win }) {
@@ -100,11 +150,14 @@ const WindowContents = memo(function WindowContents({ win }: { win: Win }) {
   return <Suspense fallback={null}><App win={win} /></Suspense>
 })
 
-function WindowFrame({ win, focused, inactive, overviewRect, slide, revealed, dimmed }: WindowProps) {
+function WindowFrame({ win, focused, inactive, hidden, displaySide, viewport, overviewRect, slide, revealed, dimmed }: WindowProps) {
   const ref = useRef<HTMLDivElement>(null)
   const interactionCleanup = useRef<(() => void) | null>(null)
   const gravityEnabled = useGravity((s) => s.enabled)
   const spec = APPS[win.app]
+  const resizable = spec.resizable !== false && !win.props.infoPath
+  const frame = win.fullscreen ? fullscreenRect(displaySide, viewport) : win
+  const transform = windowTransform(frame)
   const { focus, setRect, tileWindow, set } = useOS.getState()
 
   useLayoutEffect(() => registerGravityWindow(win.id, ref.current!), [win.id])
@@ -118,6 +171,7 @@ function WindowFrame({ win, focused, inactive, overviewRect, slide, revealed, di
       if (e.button !== 0) return focus(win.id)
       const t = e.target as HTMLElement
       focus(win.id)
+      if (win.fullscreen) return
       if (!t.closest('[data-drag]') || t.closest('button, input, textarea, select, a, [data-nodrag]')) return
       const el = ref.current!
       interactionCleanup.current?.()
@@ -273,11 +327,11 @@ function WindowFrame({ win, focused, inactive, overviewRect, slide, revealed, di
   useEffect(() => {
     const el = ref.current
     if (!el || overviewRect) return
-    el.style.transform = windowTransform(win)
-    el.style.width = `${win.w}px`
-    el.style.height = `${win.h}px`
+    el.style.transform = transform
+    el.style.width = `${frame.w}px`
+    el.style.height = `${frame.h}px`
     repaintGravityWindow(win.id)
-  }, [win.x, win.y, win.w, win.h, win.angle, win.gravityScale, overviewRect])
+  }, [transform, frame.w, frame.h, overviewRect])
 
   useEffect(() => {
     if (!win.tile) return
@@ -336,17 +390,17 @@ function WindowFrame({ win, focused, inactive, overviewRect, slide, revealed, di
       ref={ref}
       data-win={win.id}
       tabIndex={-1}
-      inert={inactive || !!overviewRect || win.minimized}
-      className={`window ${focused ? 'focused' : 'blurred'} chrome-${chrome} ${win.minimized ? 'minimized' : ''} ${inactive && !leaving ? 'space-hidden' : ''} ${phase ? `space-${phase}` : ''} ${revealed && !inactive ? 'revealed' : ''} ${dimmed ? 'mc-dim' : ''} ${overviewRect ? 'mc-window' : ''} ${win.tile ? 'tiled' : ''} ${gravityEnabled && !inactive && !win.tile && !overviewRect && !revealed && !win.minimized ? 'gravity-body' : ''} app-${win.app}`}
-      style={{ '--slide': slide.dir, '--reveal': `${peek}px`, zIndex: overviewRect ? 48000 : win.z, transform: overviewRect ? `translate(${overviewRect.x}px, ${overviewRect.y}px) scale(${overviewRect.scale})` : windowTransform(win), width: win.w, height: win.h } as React.CSSProperties}
+      inert={inactive || hidden || !!overviewRect || win.minimized}
+      className={`window ${focused ? 'focused' : 'blurred'} chrome-${chrome} ${win.minimized ? 'minimized' : ''} ${hidden || (inactive && !leaving) ? 'space-hidden' : ''} ${phase ? `space-${phase}` : ''} ${revealed && !inactive ? 'revealed' : ''} ${dimmed ? 'mc-dim' : ''} ${overviewRect ? 'mc-window' : ''} ${win.tile ? 'tiled' : ''} ${win.fullscreen ? 'fullscreen-window' : ''} ${gravityEnabled && !inactive && !win.fullscreen && !win.tile && !overviewRect && !revealed && !win.minimized ? 'gravity-body' : ''} app-${win.app}`}
+      style={{ '--slide': slide.dir, '--reveal': `${peek}px`, zIndex: overviewRect ? 48000 : win.z, transform: overviewRect ? `translate(${overviewRect.x}px, ${overviewRect.y}px) scale(${overviewRect.scale})` : transform, width: frame.w, height: frame.h } as React.CSSProperties}
       onPointerDown={startDrag}
       onDoubleClick={(e) => {
         const t = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null) ?? (e.target as HTMLElement)
-        if (t.closest('[data-drag]') && !t.closest('button, input, [data-nodrag]') && spec.resizable !== false) tileWindow(win.id, win.tile === 'fill' ? null : 'fill')
+        if (t.closest('[data-drag]') && !t.closest('button, input, [data-nodrag]') && resizable && !win.fullscreen) tileWindow(win.id, win.tile === 'fill' ? null : 'fill')
       }}
     >
       <TrafficLights win={win} />
-      <WindowShader focused={focused} minimized={win.minimized || inactive} />
+      <WindowShader focused={focused} minimized={win.minimized || inactive || hidden} />
       {chrome === 'standard' && (
         <div className="titlebar" data-drag>
           <span className="title">{win.title}</span>
@@ -355,9 +409,11 @@ function WindowFrame({ win, focused, inactive, overviewRect, slide, revealed, di
       <div className="window-body">
         <WindowContents win={win} />
       </div>
-      {spec.resizable !== false && EDGES.map((edge) => <div key={edge} className={`rz rz-${edge}`} onPointerDown={startResize(edge)} />)}
+      {resizable && !win.fullscreen && EDGES.map((edge) => <div key={edge} className={`rz rz-${edge}`} onPointerDown={startResize(edge)} />)}
     </div>
   )
 }
 
-export const Window = memo(WindowFrame, (a, b) => a.win === b.win && a.focused === b.focused && a.inactive === b.inactive && a.overviewRect === b.overviewRect && a.slide === b.slide && a.revealed === b.revealed && a.dimmed === b.dimmed)
+export const Window = memo(WindowFrame, (a, b) => a.win === b.win && a.focused === b.focused && a.inactive === b.inactive && a.hidden === b.hidden
+  && (!a.win.fullscreen || (a.viewport === b.viewport && a.displaySide === b.displaySide))
+  && a.overviewRect === b.overviewRect && a.slide === b.slide && a.revealed === b.revealed && a.dimmed === b.dimmed)

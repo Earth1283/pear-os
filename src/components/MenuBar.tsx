@@ -10,6 +10,7 @@ import type { MenuDef, MenuItem } from '../apps/types'
 import { PearLogo, IntelOrb } from './icons'
 import { useCurrent, usePlayer } from '../lib/player'
 import { stopRecording, useShots } from '../lib/screenshot'
+import { closeFinderTab, FINDER_VIEWS, finderCommands, goToFinderFolder } from '../apps/finderCommands'
 
 function Battery() {
   const [pct, setPct] = useState(100)
@@ -125,7 +126,8 @@ const pearMenu: MenuItem[] = [
     action: () => {
       usePlayer.getState().stop()
       logout()
-      useOS.setState({ windows: [], focused: null, phase: 'login' })
+      os().resetSession()
+      os().setPhase('login')
     },
   },
 ]
@@ -135,7 +137,7 @@ export function defaultMenus(appName: string): MenuDef[] {
     {
       title: 'File',
       items: [
-        { label: 'New Window', shortcut: '⌘N', action: (w) => w && os().openApp(w.app, { forceNew: true }) },
+        { label: 'New Window', shortcut: '⌘N', action: () => os().openApp(os().activeApp, { forceNew: true }) },
         { label: 'Close Window', shortcut: '⌘W', action: (w) => w && os().closeWindow(w.id) },
       ],
     },
@@ -153,7 +155,7 @@ export function defaultMenus(appName: string): MenuDef[] {
         { label: 'Emoji & Symbols', shortcut: 'fn E', disabled: true },
       ],
     },
-    { title: 'View', items: [{ label: 'Enter Full Screen', shortcut: '⌃⌘F', action: (w) => w && os().tileWindow(w.id, 'fill') }] },
+    { title: 'View', items: [] },
     {
       title: 'Window',
       items: [
@@ -181,7 +183,9 @@ export function defaultMenus(appName: string): MenuDef[] {
 }
 
 export function MenuBar() {
-  const focusedApp = useOS((s) => s.windows.find((w) => w.id === s.focused)?.app ?? 'finder')
+  const focusedApp = useOS((s) => s.activeApp)
+  const focusedWin = useOS((s) => s.windows.find((w) => w.id === s.focused))
+  const fullscreenSpace = useOS((s) => s.activeSpace < 0 && !s.overlay.missionControl)
   const openMenu = useOS((s) => s.overlay.menu)
   const wifi = useOS((s) => s.wifi)
   const dnd = useOS((s) => s.dnd)
@@ -192,6 +196,27 @@ export function MenuBar() {
   useAppModules((s) => s.loaded)
   const { setOverlay } = useOS.getState()
   const app = APPS[focusedApp]
+  const appMenus = app.menus ?? defaultMenus(app.name)
+  if (focusedApp === 'finder') {
+    const file = appMenus.find((m) => m.title === 'File')!
+    if (focusedWin && finderCommands.get(focusedWin.id)?.hasTabs) {
+      file.items[1] = { label: 'Close Window', shortcut: '⇧⌘W', action: (w) => w && os().closeWindow(w.id) }
+      file.items.splice(1, 0, { label: 'Close Tab', shortcut: '⌘W', action: (w) => w && closeFinderTab(w.id) })
+    }
+    file.items.splice(1, 0, { label: 'New Tab', shortcut: '⌘T', action: (w) => {
+      const commands = w && finderCommands.get(w.id)
+      if (commands) commands.newTab()
+      else os().openApp('finder', { forceNew: true })
+    } })
+    file.items.push('sep', { label: 'Get Info', shortcut: '⌘I', action: (w) => w && finderCommands.get(w.id)?.getInfo() })
+    appMenus.find((m) => m.title === 'View')!.items = FINDER_VIEWS.map(({ id, label, shortcut }) => (
+      { label: `as ${label}`, shortcut, disabled: !focusedWin || !!focusedWin.props.infoPath, action: (w) => w && finderCommands.get(w.id)?.setView(id) }
+    ))
+    appMenus.splice(appMenus.findIndex((m) => m.title === 'Window'), 0, {
+      title: 'Go',
+      items: [{ label: 'Go to Folder…', shortcut: '⇧⌘G', action: (w) => goToFinderFolder(w?.id) }],
+    })
+  }
   const menus: { key: string; label: React.ReactNode; items: MenuItem[]; bold?: boolean }[] = [
     { key: 'pear', label: <PearLogo size={15} />, items: pearMenu },
     {
@@ -203,23 +228,31 @@ export function MenuBar() {
         'sep',
         { label: 'Settings…', shortcut: '⌘,', action: () => os().openApp('settings') },
         'sep',
-        { label: `Hide ${app.name}`, shortcut: '⌘H', action: () => os().windows.filter((w) => w.app === focusedApp).forEach((w) => os().minimize(w.id)) },
-        { label: `Quit ${app.name}`, shortcut: '⌘Q', action: () => os().closeApp(focusedApp) },
+        { label: `Hide ${app.name}`, shortcut: '⌘H', action: () => os().hideApp(focusedApp) },
+        ...(focusedApp === 'finder' ? [] : [{ label: `Quit ${app.name}`, shortcut: '⌘Q', action: () => os().closeApp(focusedApp) }]),
       ],
     },
-    ...(app.menus ?? defaultMenus(app.name)).map((m) => ({ key: m.title, label: m.title, items: m.items })),
+    ...appMenus.map((m) => ({ key: m.title, label: m.title, items: m.items })),
   ]
+  if (focusedWin && app.resizable !== false && !focusedWin.props.infoPath) {
+    const item: MenuItem = { label: focusedWin.fullscreen ? 'Exit Full Screen' : 'Enter Full Screen', shortcut: '⌃⌘F', action: (w) => w && os().toggleFullscreen(w.id) }
+    const view = menus.find((m) => m.key === 'View')
+    if (view) view.items = [...view.items, ...(view.items.length ? ['sep' as const] : []), item]
+    else menus.push({ key: 'View', label: 'View', items: [item] })
+  }
+  const visibleMenus = menus.filter((m) => m.items.length)
 
   const toggle = (k: string) => setOverlay({ menu: openMenu === k ? null : k, controlCenter: false, notificationCenter: false, spotlight: false })
 
   return (
-    <div className="menubar" onPointerDown={(e) => e.stopPropagation()}>
+    <div className={`menubar ${fullscreenSpace ? 'fullscreen-menubar' : ''}`} onPointerDown={(e) => e.stopPropagation()}>
       <div className="mb-left">
-        {menus.map((m) => (
-          <div key={m.key} className="mb-menu">
+        {visibleMenus.map((m) => (
+          <div key={m.key} className="mb-menu" data-menu={m.key}>
             <button
               className={`mb-item ${m.bold ? 'bold' : ''} ${openMenu === m.key ? 'active' : ''} ${m.key === 'pear' ? 'pear' : ''}`}
               onPointerDown={() => toggle(m.key)}
+              onClick={(e) => { if (e.detail === 0) toggle(m.key) }}
               onPointerEnter={() => openMenu && openMenu !== m.key && setOverlay({ menu: m.key })}
             >
               {m.label}

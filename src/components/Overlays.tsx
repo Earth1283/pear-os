@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Airplay, Bluetooth, Calculator as CalcIcon, Globe, LayoutGrid, Moon, Pause, Play, Radio, Search, SkipBack, SkipForward, Sun, Volume2, Wifi, X, Contrast, MonitorSmartphone } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useOS, os } from '../store'
@@ -9,22 +9,39 @@ import { calc, formatNumber } from '../kernel'
 import { STATION_TRACKS, useCurrent, usePlayer } from '../lib/player'
 import { useSpoken } from '../lib/captions'
 import { Art, Eq } from './MusicBits'
+import { indexVirtualFiles, searchVirtualFiles } from '../lib/fileSearch'
+import { formatBytes, HOME, parentOf } from '../lib/fs'
+import { openVirtualQuickLook, virtualLookItem, type QuickLookItem } from '../lib/quickLook'
+import { QuickLookContent, QuickLookIcon } from './QuickLook'
+import { openPath } from '../apps/open'
+import { revealInFinder } from '../apps/finderCommands'
 
 export function Spotlight() {
   const open = useOS((s) => s.overlay.spotlight)
+  return open ? <SpotlightPanel /> : null
+}
+
+interface SpotlightResult {
+  key: string
+  icon: React.ReactNode
+  title: string
+  sub: string
+  run: () => void
+  item?: QuickLookItem
+}
+
+function SpotlightPanel() {
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(0)
+  const panel = useRef<HTMLDivElement>(null)
   const input = useRef<HTMLInputElement>(null)
-  useEffect(() => {
-    if (open) {
-      setQ('')
-      setSel(0)
-      setTimeout(() => input.current?.focus(), 10)
-    }
-  }, [open])
+  const resultsRef = useRef<HTMLDivElement>(null)
+  const listId = useId()
+  const version = useOS((s) => s.fsVersion)
+  const files = useMemo(() => indexVirtualFiles(), [version])
 
   const results = useMemo(() => {
-    const out: { key: string; icon: React.ReactNode; title: string; sub: string; run: () => void }[] = []
+    const out: SpotlightResult[] = []
     const t = q.trim()
     if (!t) return out
     const v = calc(t)
@@ -41,6 +58,13 @@ export function Spotlight() {
     if ('mission control spaces desktops'.includes(lower)) out.push({ key: 'mission-control', icon: <LayoutGrid size={24} />, title: 'Mission Control', sub: 'Windows & Desktops', run: () => os().setOverlay({ missionControl: true }) })
     for (const id of LAUNCHPAD_APPS) {
       if (APPS[id].name.toLowerCase().includes(lower)) out.push({ key: id, icon: <AppIcon app={id} size={26} />, title: APPS[id].name, sub: 'Application', run: () => os().openApp(id) })
+    }
+    for (const path of searchVirtualFiles(files, t)) {
+      const item = virtualLookItem(path)
+      if (!item) continue
+      const location = parentOf(path).dir.replace(HOME, '~')
+      out.push({ key: path, icon: <QuickLookIcon item={item} size={23} />, title: item.name,
+        sub: `${item.dir ? 'Folder' : 'File'} · ${location}`, item, run: () => openPath(path) })
     }
     const { drive, local } = usePlayer.getState()
     const hits = [...STATION_TRACKS, ...drive, ...local].filter((t) => `${t.title} ${t.artist}`.toLowerCase().includes(lower)).slice(0, 4)
@@ -71,22 +95,59 @@ export function Spotlight() {
       run: () => os().openApp('intelligence', { props: { ask: t } }),
     })
     return out
-  }, [q])
+  }, [q, files])
 
-  if (!open) return null
+  const index = Math.min(sel, results.length - 1)
+  const item = results[index]?.item
+  useLayoutEffect(() => {
+    const previous = document.activeElement as HTMLElement | null
+    const focused = os().focused
+    input.current?.focus()
+    return () => {
+      requestAnimationFrame(() => {
+        const s = os()
+        if (!s.overlay.spotlight && !s.quickLook && s.focused === focused && previous?.isConnected && document.activeElement === document.body) {
+          previous.focus({ preventScroll: true })
+        }
+      })
+    }
+  }, [])
+  useEffect(() => {
+    resultsRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' })
+  }, [index, q])
+
   const go = (i: number) => {
-    const r = results[i]
-    if (!r) return
+    const result = results[i]
+    if (!result) return
     os().setOverlay({ spotlight: false })
-    r.run()
+    result.run()
   }
+  const showInFinder = () => item && revealInFinder(item.path)
+  const quickLook = () => item && openVirtualQuickLook(item.path, results.flatMap((r) => r.item ? [r.item.path] : []))
+
   return (
-    <div className="overlay-catch" onPointerDown={() => os().setOverlay({ spotlight: false })}>
-      <div className="spotlight glass" onPointerDown={(e) => e.stopPropagation()}>
+    <div className="overlay-catch" onPointerDown={(e) => {
+      e.stopPropagation()
+      os().setOverlay({ spotlight: false })
+    }}>
+      <div ref={panel} className="spotlight glass" role="dialog" aria-label="Spotlight" aria-modal="true" onPointerDown={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (e.key !== 'Tab') return
+          const items = [...(panel.current?.querySelectorAll<HTMLElement>('.spot-input input, .spot-preview [tabindex="0"], .spot-preview button, .spot-preview a[href]') ?? [])]
+          const active = items.indexOf(document.activeElement as HTMLElement)
+          const next = items[(active + (e.shiftKey ? -1 : 1) + items.length) % items.length]
+          if (next) { e.preventDefault(); next.focus() }
+        }}>
         <div className="spot-input">
           <Search size={22} opacity={0.55} />
           <input
             ref={input}
+            role="combobox"
+            aria-label="Spotlight Search"
+            aria-autocomplete="list"
+            aria-expanded={results.length > 0}
+            aria-controls={results.length ? listId : undefined}
+            aria-activedescendant={index >= 0 ? `${listId}-${index}` : undefined}
             value={q}
             placeholder="Spotlight Search"
             onChange={(e) => {
@@ -95,23 +156,46 @@ export function Spotlight() {
             }}
             onKeyDown={(e) => {
               if (e.key === 'Escape') os().setOverlay({ spotlight: false })
-              if (e.key === 'ArrowDown') setSel((s) => Math.min(results.length - 1, s + 1))
-              if (e.key === 'ArrowUp') setSel((s) => Math.max(0, s - 1))
-              if (e.key === 'Enter') go(sel)
+              if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault()
+                setSel(Math.max(0, Math.min(results.length - 1, index + (e.key === 'ArrowDown' ? 1 : -1))))
+              }
+              if (item && (e.metaKey || e.ctrlKey) && e.code === 'KeyY') {
+                e.preventDefault()
+                quickLook()
+              } else if (item && (e.metaKey || e.ctrlKey) && e.code === 'KeyR') {
+                e.preventDefault()
+                showInFinder()
+              } else if (e.key === 'Enter') {
+                e.preventDefault()
+                if (item && (e.metaKey || e.ctrlKey)) showInFinder()
+                else go(index)
+              }
             }}
           />
         </div>
         {results.length > 0 && (
-          <div className="spot-results">
-            {results.map((r, i) => (
-              <button key={r.key} className={`spot-row ${i === sel ? 'sel' : ''}`} onPointerEnter={() => setSel(i)} onClick={() => go(i)}>
-                <span className="spot-icon">{r.icon}</span>
-                <span className="spot-text">
-                  <span className="spot-title">{r.title}</span>
-                  <span className="spot-sub">{r.sub}</span>
-                </span>
-              </button>
-            ))}
+          <div className={`spot-body ${item ? 'with-preview' : ''}`}>
+            <div className="spot-results" ref={resultsRef} id={listId} role="listbox" aria-label="Search results">
+              {results.map((result, i) => (
+                <button key={result.key} id={`${listId}-${i}`} role="option" aria-selected={i === index} tabIndex={-1}
+                  className={`spot-row ${i === index ? 'sel' : ''}`} onPointerMove={() => { if (i !== index) setSel(i) }} onClick={() => go(i)}>
+                  <span className="spot-icon">{result.icon}</span>
+                  <span className="spot-text"><span className="spot-title">{result.title}</span><span className="spot-sub">{result.sub}</span></span>
+                </button>
+              ))}
+            </div>
+            {item && <aside className="spot-preview" aria-label={`Preview of ${item.name}`}>
+              <div className="spot-preview-content"><QuickLookContent key={`${item.path}:${version}`} item={item} /></div>
+              <div className="spot-preview-details">
+                <strong title={item.name}>{item.name}</strong>
+                <small>{formatBytes(item.size)} · {new Date(item.modified).toLocaleDateString()}</small>
+                <div className="spot-preview-actions">
+                  <button className="btn small" title="Quick Look (⌘Y)" onClick={quickLook}>Quick Look</button>
+                  <button className="btn small" title="Show in Finder (⌘R)" onClick={showInFinder}>Show in Finder</button>
+                </div>
+              </div>
+            </aside>}
           </div>
         )}
       </div>

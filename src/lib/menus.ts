@@ -4,7 +4,8 @@ import { APPS } from '../apps/registry'
 import type { AppId } from '../apps/ids'
 import { TOOLS } from './writingTools'
 import { openPath } from '../apps/open'
-import { HOME, addNode, canRename, cloneNode, formatBytes, mkdir, moveToTrash, normalise, parentOf, remove, resolve, sizeOf, toggleTag } from './fs'
+import { FINDER_VIEWS, showFileInfo, type FinderView } from '../apps/finderCommands'
+import { HOME, addNode, canRename, cloneNode, mkdir, moveToTrash, parentOf, remove, resolve, sizeOf, toggleTag } from './fs'
 import { replaceInField, type Field, type MenuEntry } from './menu'
 import { lastContextPoint, useStickies } from './stickies'
 import { shareWithAirPear } from './airpearShare'
@@ -136,13 +137,6 @@ export function selectionMenu(text: string): MenuEntry[] {
   return [lookUp(text), translate(text), { label: 'Search With Gargle', run: () => gargle(text) }, 'sep', { label: 'Copy', run: () => copy(text) }, shareMenu(text), 'sep', speechMenu(text), servicesMenu]
 }
 
-function kindOf(path: string) {
-  const n = resolve(path)
-  if (!n) return 'Unknown'
-  if (n.type === 'dir') return 'Folder'
-  return n.kind === 'app' ? 'Application' : `${n.kind[0].toUpperCase()}${n.kind.slice(1)} document`
-}
-
 export function fileMenu(path: string, opts: { rename?: () => void; quickLook?: () => void } = {}): MenuEntry[] {
   const node = resolve(path)
   if (!node) return []
@@ -205,11 +199,7 @@ export function fileMenu(path: string, opts: { rename?: () => void; quickLook?: 
     {
       label: 'Get Info',
       shortcut: '⌘I',
-      run: () =>
-        toast(
-          `${name} Info`,
-          `${kindOf(path)} · ${formatBytes(sizeOf(node))} · Modified ${new Date(node.modified).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · Where: ${dir}`,
-        ),
+      run: () => showFileInfo(path),
     },
     { label: 'Rename', shortcut: '↩', disabled: !opts.rename || !canRename(path), run: opts.rename },
     {
@@ -269,7 +259,7 @@ export function fileMenu(path: string, opts: { rename?: () => void; quickLook?: 
   ]
 }
 
-export function folderMenu(dirPath: string, opts: { view?: 'grid' | 'list'; setView?: (v: 'grid' | 'list') => void; sort?: string; setSort?: (s: string) => void } = {}): MenuEntry[] {
+export function folderMenu(dirPath: string, opts: { view?: FinderView; setView?: (v: FinderView) => void; sort?: string; setSort?: (s: string) => void } = {}): MenuEntry[] {
   const writable = dirPath.startsWith(HOME)
   const sorts = ['Name', 'Kind', 'Date Modified', 'Size']
   return [
@@ -285,7 +275,7 @@ export function folderMenu(dirPath: string, opts: { view?: 'grid' | 'list'; setV
       },
     },
     'sep',
-    { label: 'Get Info', run: () => toast(`${dirPath.split('/').pop() || 'Pear HD'} Info`, `Folder · ${formatBytes(sizeOf(resolve(dirPath)!))} · Where: ${normalise(dirPath + '/..')}`) },
+    { label: 'Get Info', run: () => showFileInfo(dirPath) },
     'sep',
     {
       label: 'Import from pPhone',
@@ -300,12 +290,7 @@ export function folderMenu(dirPath: string, opts: { view?: 'grid' | 'list'; setV
       ? [
           {
             label: 'View',
-            submenu: [
-              { label: 'as Icons', checked: opts.view === 'grid', run: () => opts.setView!('grid') },
-              { label: 'as List', checked: opts.view === 'list', run: () => opts.setView!('list') },
-              { label: 'as Columns', disabled: true },
-              { label: 'as Gallery', disabled: true },
-            ],
+            submenu: FINDER_VIEWS.map(({ id, label, shortcut }) => ({ label: `as ${label}`, shortcut, checked: opts.view === id, run: () => opts.setView?.(id) })),
           } as MenuEntry,
         ]
       : []),
@@ -357,7 +342,7 @@ export function desktopMenu(): MenuEntry[] {
 export function dockMenu(app: AppId): MenuEntry[] {
   const s = useOS.getState()
   const wins = s.windows.filter((w) => w.app === app)
-  const running = wins.length > 0
+  const running = s.runningApps.includes(app)
   const name = APPS[app].name
   if (app === 'trash') {
     const trash = resolve(HOME + '/.Trash')
@@ -415,8 +400,12 @@ export function dockMenu(app: AppId): MenuEntry[] {
     'sep',
     ...(running
       ? [
-          { label: 'Show All Windows', run: () => wins.forEach((w) => os().focus(w.id)) },
-          { label: 'Hide', run: () => wins.forEach((w) => os().minimize(w.id)) },
+          { label: 'Show All Windows', disabled: !wins.length, run: () => {
+            os().activateApp(app)
+            useOS.setState({ mcApp: app })
+            os().setOverlay({ missionControl: true })
+          } },
+          ...(app === 'finder' ? [] : s.hiddenApps.includes(app) ? [{ label: 'Show', run: () => os().activateApp(app) }] : [{ label: 'Hide', run: () => os().hideApp(app) }]),
           ...(app === 'finder' ? [] : [{ label: 'Quit', run: () => os().closeApp(app) }]),
         ]
       : [{ label: 'Open', run: () => os().openApp(app) }]),
@@ -446,14 +435,15 @@ export function dockSeparatorMenu(): MenuEntry[] {
 
 export function windowChromeMenu(win: Win): MenuEntry[] {
   const t = os().tileWindow
-  const resizable = APPS[win.app].resizable !== false
+  const resizable = APPS[win.app].resizable !== false && !win.props.infoPath
   return [
-    { label: 'Minimize', shortcut: '⌘M', run: () => os().minimize(win.id) },
-    { label: 'Zoom', disabled: !resizable, run: () => t(win.id, win.tile === 'fill' ? null : 'fill') },
+    { label: 'Minimize', shortcut: '⌘M', disabled: !!win.fullscreen, run: () => os().minimize(win.id) },
+    { label: win.fullscreen ? 'Exit Full Screen' : 'Enter Full Screen', shortcut: '⌃⌘F', disabled: !resizable, run: () => os().toggleFullscreen(win.id) },
+    { label: 'Zoom', disabled: !resizable || !!win.fullscreen, run: () => t(win.id, win.tile === 'fill' ? null : 'fill') },
     'sep',
     {
       label: 'Move & Resize',
-      disabled: !resizable,
+      disabled: !resizable || !!win.fullscreen,
       submenu: [
         { header: 'Halves' },
         { label: 'Left', shortcut: '⌃⌥←', run: () => t(win.id, 'left') },
@@ -467,7 +457,7 @@ export function windowChromeMenu(win: Win): MenuEntry[] {
         { label: 'Return to Previous Size', disabled: !win.tile, run: () => t(win.id, null) },
       ],
     },
-    { label: 'Fill', shortcut: '⌃⌥F', disabled: !resizable, run: () => t(win.id, 'fill') },
+    { label: 'Fill', shortcut: '⌃⌥F', disabled: !resizable || !!win.fullscreen, run: () => t(win.id, 'fill') },
     'sep',
     { label: 'Move to Desktop', submenu: [
       ...os().spaces.map((space, i) => ({ label: `Desktop ${i + 1}`, checked: win.space === space, run: () => os().moveWindowToSpace(win.id, space) })),

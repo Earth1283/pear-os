@@ -12,14 +12,14 @@ import { readPreviewText, TEXT_LIMIT } from '../lib/quickLookText'
 import { QuickLookMedia } from './QuickLookMedia'
 import './QuickLook.css'
 
-function ItemIcon({ item, size = 96 }: { item: QuickLookItem; size?: number }) {
+export function QuickLookIcon({ item, size = 96 }: { item: QuickLookItem; size?: number }) {
   if (item.dir) return <FolderIcon size={size} />
   const node = item.source === 'virtual' ? resolve(item.path) : null
   if (node?.type === 'file' && node.app) return <AppIcon app={node.app} size={size} />
   return <FileIcon size={size} kind={item.kind} ext={item.name.includes('.') ? item.name.split('.').pop()! : ''} />
 }
 
-function PreviewContent({ item, onImageSize }: { item: QuickLookItem; onImageSize: (size: { width: number; height: number }) => void }) {
+export function QuickLookContent({ item, onImageSize }: { item: QuickLookItem; onImageSize?: (size: { width: number; height: number }) => void }) {
   const kind = previewKind(item)
   const node = item.source === 'virtual' ? resolve(item.path) : null
   const [text, setText] = useState<{ text: string; truncated: boolean } | null>(null)
@@ -50,7 +50,7 @@ function PreviewContent({ item, onImageSize }: { item: QuickLookItem; onImageSiz
 
   const fallback = (message: string) => (
     <div className="ql-info">
-      <ItemIcon item={item} />
+      <QuickLookIcon item={item} />
       <div className="ql-file-details"><h2>{item.name}</h2><p>{message}</p><dl>
           <div><dt>Size</dt><dd>{formatBytes(item.size)}</dd></div>
           <div><dt>Modified</dt><dd>{new Date(item.modified).toLocaleString()}</dd></div>
@@ -65,7 +65,7 @@ function PreviewContent({ item, onImageSize }: { item: QuickLookItem; onImageSiz
     return <div className="ql-document"><pre tabIndex={0} aria-label={`Contents of ${item.name}`}>{text.text || <span className="ql-empty">This file is empty.</span>}</pre>{text.truncated && <div className="ql-text-limit">Showing the first 256 KB. Open the file to read more.</div>}</div>
   }
   if (!url) return fallback(kind === 'info' ? 'No preview available for this file type.' : 'This sample file has no media data to preview.')
-  if (kind === 'image') return <div className="ql-image"><img src={url} alt={item.name} onLoad={(e) => onImageSize({ width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight })} onError={() => setError('Your browser could not decode this image.')} /></div>
+  if (kind === 'image') return <div className="ql-image"><img src={url} alt={item.name} onLoad={(e) => onImageSize?.({ width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight })} onError={() => setError('Your browser could not decode this image.')} /></div>
   if (kind === 'pdf') return <object className="ql-pdf" data={`${url}#toolbar=0&navpanes=0&view=FitH`} type="application/pdf" aria-label={`PDF preview of ${item.name}`}><div className="ql-pdf-fallback"><p>Your browser cannot display this PDF here.</p><a className="btn" href={url} target="_blank" rel="noopener noreferrer">Open PDF</a></div></object>
   if (kind === 'audio' || kind === 'video') return <QuickLookMedia url={url} name={item.name} size={item.size} video={kind === 'video'} onError={() => setError(`Your browser could not play this ${kind} format.`)} />
   return fallback('No preview available for this file type.')
@@ -139,7 +139,7 @@ export function QuickLook() {
           {kind === 'image' && <button className="ql-icon-button ql-markup" aria-label="Markup in Preview" title="Markup in Preview" onClick={open}><PencilLine size={16} /></button>}
           <button className="ql-open" onClick={open}>{openLabel}</button>
         </header>
-        <div className={`ql-content ql-kind-${kind}`}><PreviewContent key={`${item.source}:${item.path}`} item={item} onImageSize={(value) => setImageSize({ ...value, path: `${item.source}:${item.path}` })} /></div>
+        <div className={`ql-content ql-kind-${kind}`}><QuickLookContent key={`${item.source}:${item.path}`} item={item} onImageSize={(value) => setImageSize({ ...value, path: `${item.source}:${item.path}` })} /></div>
         <span id="ql-hint" className="ql-accessible">Space or Escape to close. Arrow keys to browse files.</span>
         <span className="ql-accessible" aria-live="polite">{session.index + 1} of {session.items.length}</span>
       </section>

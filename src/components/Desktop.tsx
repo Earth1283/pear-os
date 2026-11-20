@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useOS, os, tileRect, onSpace } from '../store'
+import { useOS, os, fullscreenRect, fullscreenSide, spaceOrder, tileRect, onSpace } from '../store'
 import { Wallpaper } from './Wallpaper'
 import { ShaderLayer } from './ShaderLayers'
 import { MenuBar } from './MenuBar'
@@ -17,7 +17,7 @@ import { DiskIcon, FileIcon, FolderIcon, fileThumb } from './icons'
 import { HOME, canRename, listDir, rename, resolve } from '../lib/fs'
 import { RenameField, useEnterToRename } from './RenameField'
 import { openPath } from '../apps/open'
-import { preloadApps } from '../apps/registry'
+import { APPS, preloadApps } from '../apps/registry'
 import { shameToast, useScreenTime } from '../lib/screenTime'
 import { missionLayout } from '../lib/missionControl'
 import { MissionControl } from './MissionControl'
@@ -29,6 +29,8 @@ import { moveQuickLook, openVirtualQuickLook } from '../lib/quickLook'
 import { useQuickLookShortcut } from './useQuickLookShortcut'
 import { mountDesktopGravity, restoreDesktopOrder, setDesktopGravity, useGravity } from '../lib/gravity'
 import { useA11y } from '../lib/a11y'
+import { AppSwitcher } from './AppSwitcher'
+import { closeFinderTab, FINDER_VIEWS, finderCommands, goToFinderFolder, showFileInfo } from '../apps/finderCommands'
 
 const JOKES: { app: Parameters<ReturnType<typeof os>['notify']>[0]['app']; title: string; body: string | (() => string); actions?: string[] }[] = [
   { app: 'intelligence', title: 'Pear Intelligence', body: 'Pear Intelligence is ready. Unfortunately, so are we.' },
@@ -69,6 +71,7 @@ function useShortcuts() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const s = os()
+      if (e.defaultPrevented || e.isComposing) return
       if (s.quickLook) {
         const plain = !e.metaKey && !e.ctrlKey && !e.altKey
         if ((plain && (e.key === 'Escape' || e.code === 'Space')) || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y')) {
@@ -105,6 +108,47 @@ function useShortcuts() {
         cancelShot()
         return
       }
+      const target = e.target as Element
+      if (target?.closest?.('.finder-sheet')) return
+      const command = e.metaKey || (e.ctrlKey && !navigator.platform.startsWith('Mac') && !target?.closest?.('.app-terminal'))
+      if (command && !e.altKey) {
+        const win = s.windows.find((w) => w.id === s.focused)
+        const key = e.shiftKey && e.code !== 'Backquote' ? '' : e.code
+        let action: (() => void) | undefined
+        if (key === 'KeyF' && win && e.ctrlKey && e.metaKey) action = () => s.toggleFullscreen(win.id)
+        if (!e.metaKey || !e.ctrlKey) {
+          if (key === 'KeyW') action = () => { if (win && (win.app !== 'finder' || !closeFinderTab(win.id))) s.closeWindow(win.id) }
+          if (key === 'KeyM' && win) action = () => s.minimize(win.id)
+          if (key === 'KeyQ') action = () => { if (s.activeApp !== 'finder') s.closeApp(s.activeApp) }
+          if (key === 'KeyH') action = () => s.hideApp(s.activeApp)
+          if (key === 'Backquote') action = () => s.cycleWindows(e.shiftKey)
+          if (key === 'KeyN') {
+            const item = APPS[s.activeApp].menus?.flatMap((m) => m.items).find((item) => item !== 'sep' && item.shortcut === '⌘N')
+            action = item && item !== 'sep' && item.action ? () => item.action?.(win ?? null) : () => s.openApp(s.activeApp, { forceNew: true })
+          }
+          if (s.activeApp === 'finder') {
+            const finder = win && finderCommands.get(win.id)
+            if (key === 'KeyI' && finder) action = finder.getInfo
+            if (key === 'KeyT') action = finder ? finder.newTab : () => s.openApp('finder', { forceNew: true })
+            if (e.shiftKey && e.code === 'KeyG') action = () => goToFinderFolder(win?.id)
+            if (e.shiftKey && e.code === 'KeyW' && win && finder?.hasTabs) action = () => s.closeWindow(win.id)
+            const view = e.metaKey && FINDER_VIEWS.find((v) => 'Digit' + v.shortcut.at(-1) === key)
+            if (view && finder) action = () => finder.setView(view.id)
+          }
+        }
+        if (action && !s.overlay.missionControl && !s.overlay.spotlight && !s.overlay.launchpad && !s.quickLook && useShots.getState().mode === 'idle') {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          if (!e.repeat || key === 'Backquote') {
+            action()
+            if (s.focused !== os().focused || key === 'Backquote') requestAnimationFrame(() => {
+              const frame = document.querySelector<HTMLElement>(`.window[data-win="${os().focused}"]`)
+              if (frame && !frame.contains(document.activeElement)) frame.focus({ preventScroll: true })
+            })
+          }
+          return
+        }
+      }
       if (e.key === 'F3' || (e.ctrlKey && !e.altKey && !e.metaKey && e.key === 'ArrowUp')) {
         e.preventDefault()
         e.stopImmediatePropagation()
@@ -112,9 +156,10 @@ function useShortcuts() {
       } else if (e.ctrlKey && !e.altKey && !e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
         e.preventDefault()
         e.stopImmediatePropagation()
-        const next = s.spaces[s.spaces.indexOf(s.activeSpace) + (e.key === 'ArrowLeft' ? -1 : 1)]
+        const spaces = spaceOrder(s)
+        const next = spaces[spaces.indexOf(s.activeSpace) + (e.key === 'ArrowLeft' ? -1 : 1)]
         if (next !== undefined) {
-          const moving = e.shiftKey ? s.focused : null
+          const moving = e.shiftKey && next > 0 ? s.focused : null
           if (moving) s.moveWindowToSpace(moving, next)
           s.switchSpace(next)
           if (moving) s.focus(moving)
@@ -132,7 +177,7 @@ function useShortcuts() {
         e.preventDefault()
         e.stopImmediatePropagation()
         s.closeOverlays()
-      } else if ((e.ctrlKey || e.altKey || e.metaKey) && e.code === 'Space') {
+      } else if (!e.shiftKey && (e.ctrlKey || e.altKey || e.metaKey) && e.code === 'Space') {
         e.preventDefault()
         s.setOverlay({ spotlight: !s.overlay.spotlight, launchpad: false, controlCenter: false, notificationCenter: false, menu: null })
       } else if (e.key === 'Escape') {
@@ -158,7 +203,7 @@ function DesktopIcons() {
   useOS((s) => s.fsVersion)
   const [sel, setSel] = useState<string | null>(null)
   const [renaming, setRenaming] = useState<string | null>(null)
-  const active = useOS((s) => s.focused === null)
+  const active = useOS((s) => s.activeApp === 'finder' && s.focused === null)
   const startRename = (p: string) => canRename(p) && setRenaming(p)
   useEnterToRename(active && renaming === null, sel, startRename)
   const commit = (from: string, to: string) => {
@@ -174,6 +219,18 @@ function DesktopIcons() {
   const items = [{ name: 'Pear HD', path: '/', node: null as null | ReturnType<typeof resolve> }, ...files.map(([name, node]) => ({ name, path: `${HOME}/Desktop/${name}`, node }))]
   const quickLook = (p: string) => openVirtualQuickLook(p, items.map((item) => item.path), (item) => setSel(item.path))
   useQuickLookShortcut(active && renaming === null, sel, quickLook)
+  useEffect(() => {
+    const info = (e: KeyboardEvent) => {
+      const s = os()
+      if (!sel || !active || s.activeApp !== 'finder' || Object.values(s.overlay).some(Boolean) || s.quickLook || renaming || isTextField(e.target as Element)) return
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.code === 'KeyI') {
+        e.preventDefault()
+        showFileInfo(sel)
+      }
+    }
+    window.addEventListener('keydown', info)
+    return () => window.removeEventListener('keydown', info)
+  }, [active, renaming, sel])
   return (
     <div className="desktop-icons" onPointerDown={() => setSel(null)}>
       {items.map((it) => {
@@ -232,21 +289,23 @@ function Windows() {
   const focused = useOS((s) => s.focused)
   const activeSpace = useOS((s) => s.activeSpace)
   const assign = useOS((s) => s.assign)
+  const hiddenApps = useOS((s) => s.hiddenApps)
   const slide = useOS((s) => s.spaceSlide)
   const revealed = useOS((s) => s.desktopRevealed)
   const mcApp = useOS((s) => s.mcApp)
   const overview = useOS((s) => s.overlay.missionControl)
   const [viewport, setViewport] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }))
   useEffect(() => {
-    if (!overview) return
     const resize = () => setViewport({ width: window.innerWidth, height: window.innerHeight })
     resize()
     window.addEventListener('resize', resize)
     return () => window.removeEventListener('resize', resize)
-  }, [overview])
-  const layout = useMemo(() => overview ? missionLayout(windows.filter((w) => onSpace(w, activeSpace, assign) && !w.minimized && (!mcApp || w.app === mcApp)), viewport.width, viewport.height) : new Map(), [windows, activeSpace, assign, overview, mcApp, viewport])
+  }, [])
+  const layout = useMemo(() => overview ? missionLayout(windows.filter((w) => onSpace(w, activeSpace, assign) && !w.minimized && !hiddenApps.includes(w.app) && (!mcApp || w.app === mcApp))
+    .map((w) => w.fullscreen ? { ...w, ...fullscreenRect(fullscreenSide(w, { windows, hiddenApps }), viewport) } : w), viewport.width, viewport.height) : new Map(), [windows, activeSpace, assign, hiddenApps, overview, mcApp, viewport])
   return <>
-    {windows.map((w) => <Window key={w.id} win={w} focused={w.id === focused} inactive={!onSpace(w, activeSpace, assign)} overviewRect={layout.get(w.id)} slide={slide} revealed={revealed} dimmed={overview && !layout.has(w.id)} />)}
+    {windows.map((w) => <Window key={w.id} win={w} focused={w.id === focused} inactive={!onSpace(w, activeSpace, assign)} hidden={hiddenApps.includes(w.app)}
+      displaySide={fullscreenSide(w, { windows, hiddenApps })} viewport={viewport} overviewRect={layout.get(w.id)} slide={slide} revealed={revealed} dimmed={overview && !layout.has(w.id)} />)}
     {overview && <MissionControl layout={layout} viewport={viewport} />}
   </>
 }
@@ -274,10 +333,11 @@ export function Desktop() {
   usePreloadApps()
   useEffect(mountDesktopGravity, [])
   const missionControl = useOS((s) => s.overlay.missionControl)
+  const fullscreen = useOS((s) => s.activeSpace < 0)
 
   return (
     <div
-      className={`desktop ${missionControl ? 'in-mission-control' : ''}`}
+      className={`desktop ${missionControl ? 'in-mission-control' : ''} ${fullscreen ? 'fullscreen-space' : ''}`}
       onPointerDown={() => {
         os().focus(null)
         os().closeOverlays()
@@ -320,6 +380,7 @@ export function Desktop() {
       <WidgetGallery />
       <Spotlight />
       <Launchpad />
+      <AppSwitcher />
       <GlobalContextMenu />
       <QuickLook />
       <ScreenshotUI />

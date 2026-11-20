@@ -112,7 +112,7 @@ function sync() {
     }
     const canRun = shouldRun()
     const s = os()
-    const eligible = s.windows.filter((w) => !w.minimized && !w.tile && onSpace(w, s.activeSpace, s.assign))
+    const eligible = s.windows.filter((w) => !w.minimized && !w.tile && !w.fullscreen && !s.hiddenApps.includes(w.app) && !w.props.infoPath && onSpace(w, s.activeSpace, s.assign))
     const ids = new Set(eligible.map((w) => w.id))
     const removed = [...entries.keys()].some((id) => !ids.has(id))
     if ((running && !canRun) || removed) {

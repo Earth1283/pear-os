@@ -1,4 +1,4 @@
-import { os, useOS } from '../store'
+import { onSpace, os, useOS } from '../store'
 import type { HotAction } from './hotCornerConfig'
 import { logout } from './backend'
 import { useStickies } from './stickies'
@@ -6,7 +6,7 @@ import { useStickies } from './stickies'
 function appWindows() {
   const s = os()
   if (s.overlay.missionControl) return s.closeOverlays()
-  const win = s.windows.find((w) => w.id === s.focused) ?? s.windows.filter((w) => w.space === s.activeSpace && !w.minimized).sort((a, b) => b.z - a.z)[0]
+  const win = s.windows.find((w) => w.app === s.activeApp && onSpace(w, s.activeSpace, s.assign) && !w.minimized && !s.hiddenApps.includes(w.app))
   if (!win) return
   useOS.setState({ mcApp: win.app })
   s.setOverlay({ missionControl: true })

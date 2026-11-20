@@ -1,0 +1,245 @@
+.finder { position: relative; container-type: inline-size; }
+.finder .toolbar-title { flex: 1; }
+.finder-views { flex: none; }
+.finder-tabs {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--line);
+}
+.finder-tabs [role="tablist"] {
+  display: flex;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+  overflow-x: auto;
+}
+.finder-tabs [role="tablist"] > div {
+  display: flex;
+  align-items: center;
+  flex: 1 0 88px;
+  min-width: 0;
+  max-width: 205px;
+  padding-right: 3px;
+  border-radius: 5px;
+}
+.finder-tabs [role="tablist"] > div.active {
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.finder-tabs [role="tab"] {
+  flex: 1;
+  height: 24px;
+  overflow: hidden;
+  padding: 2px 7px;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.finder-tabs > button,
+.finder-tab-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  color: var(--fg2);
+}
+.finder-tabs button:hover { background: var(--line); }
+
+.finder-content.finder-preview-view { display: flex; padding: 0; }
+.drive.drive-preview-view { flex: 1; min-width: 0; }
+.drive-preview-view .drive-status { flex: none; bottom: 0; margin: 0; }
+.finder-columns {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto hidden;
+}
+.finder-column {
+  flex: 1 0 155px;
+  min-width: 155px;
+  max-width: 225px;
+  border-right: 1px solid var(--line);
+  overflow: auto;
+  padding: 0 5px 5px;
+}
+.finder-column-title {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg);
+  padding: 7px 5px 5px;
+  color: var(--fg2);
+  font-size: 11px;
+  font-weight: 600;
+}
+.finder-column-item {
+  width: 100%;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 26px;
+  padding: 3px 5px;
+  border-radius: 5px;
+  font-size: 12px;
+  text-align: left;
+}
+.finder-column-item:hover { background: var(--line); }
+.finder-column-item.sel { color: #fff; background: var(--accent); }
+.finder-column-item > span,
+.finder-column-item > input {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.finder-column-item svg { flex: none; }
+
+.finder-gallery,
+.finder-preview-pane {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+.finder-columns .finder-preview-pane { min-width: 190px; }
+.finder-preview-pane {
+  background: color-mix(in srgb, var(--bg) 87%, var(--fg));
+}
+.finder-preview-content {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: stretch;
+  overflow: hidden;
+}
+.finder-preview-content .ql-image { padding: 14px; }
+.finder-preview-content .ql-info { padding: 12px; }
+.finder-preview-pane > footer {
+  display: flex;
+  align-items: center;
+  gap: 5px 8px;
+  padding: 7px 10px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+  font-size: 11px;
+}
+.finder-preview-pane > footer strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.finder-preview-pane > footer span { color: var(--fg2); }
+.finder-preview-pane > footer button { margin-left: auto; }
+.finder-filmstrip {
+  display: flex;
+  align-items: stretch;
+  gap: 5px;
+  overflow: auto hidden;
+  padding: 6px;
+  border-top: 1px solid var(--line);
+}
+.finder-filmstrip > button {
+  flex: 0 0 83px;
+  width: 83px;
+  min-width: 0;
+  border-radius: 5px;
+  font-size: 11px;
+}
+.finder-filmstrip > button > span {
+  max-width: 76px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.finder-filmstrip > button.sel { background: color-mix(in srgb, var(--accent) 19%, transparent); }
+
+.finder-sheet-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  display: grid;
+  place-items: start center;
+  padding: 50px 10px 10px;
+  background: rgb(0 0 0 / .12);
+}
+.finder-sheet {
+  display: grid;
+  gap: 10px;
+  width: min(370px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  background: var(--glass-strong);
+  box-shadow: var(--shadow-win);
+}
+.finder-sheet label { font-weight: 600; }
+.finder-sheet input {
+  padding: 7px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+}
+.finder-sheet > div { display: flex; justify-content: flex-end; gap: 7px; }
+.finder-sheet small { color: var(--fg2); }
+
+.file-info {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+.file-info header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 36px 13px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.file-info header div { min-width: 0; }
+.file-info header strong { overflow-wrap: anywhere; }
+.file-info header small { display: block; margin-top: 4px; color: var(--fg2); }
+.file-info-body { overflow: auto; }
+.file-info details { padding: 8px 13px; border-bottom: 1px solid var(--line); }
+.file-info summary { cursor: pointer; font-weight: 600; }
+.file-info-body > details > dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: 8px 0 3px;
+  font-size: 12px;
+}
+.file-info dt { color: var(--fg2); }
+.file-info dd { margin: 0; overflow-wrap: anywhere; }
+.file-info-preview { height: 185px; display: grid; overflow: hidden; margin-top: 8px; border: 1px solid var(--line); border-radius: 5px; }
+
+@container (max-width: 680px) {
+  .finder > .sidebar { width: clamp(105px, 28cqw, 165px); padding-inline: 6px; }
+  .finder .sb-item { padding-inline: 5px; }
+  .finder .sb-item svg { flex: none; }
+  .finder .sb-item > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .finder .finder-views button { min-width: 0; padding-inline: 5px; }
+  .finder .search-field { min-width: 0; width: 28%; }
+  .finder-column { min-width: 135px; flex-basis: 135px; }
+}
+
+@container (max-width: 500px) {
+  .finder .toolbar {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    height: auto;
+    gap: 5px 8px;
+    padding: 6px 8px;
+  }
+  .finder .finder-views { grid-column: 1; }
+  .finder .search-field { grid-column: 2; width: 100%; }
+}

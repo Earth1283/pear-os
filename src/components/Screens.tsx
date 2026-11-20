@@ -197,7 +197,7 @@ export function ShutdownScreen() {
   const mode = useOS((s) => s.shutdownMode)
   useEffect(() => {
     const t = setTimeout(() => {
-      useOS.setState({ windows: [], focused: null, toasts: [] })
+      os().resetSession()
       os().setPhase(mode === 'off' ? 'off' : 'booting')
     }, 1600)
     return () => clearTimeout(t)

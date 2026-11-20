@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Accessibility, Bell, Bluetooth, Cpu, Hand, Info, LayoutGrid, Lock, Monitor, Moon, Palette, RefreshCw, Search, Sparkles, Wifi, Image, Battery, ZoomIn, ZoomOut, Gauge, Blend, Hourglass } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
-import { useOS, os, type Win, type Wallpaper } from '../store'
+import { useOS, os, type AppSwitchShortcut, type Win, type Wallpaper } from '../store'
 import { kernelTaskCpu, entropy, renderMandelbrot, DEFAULT_VIEW, type FractalView, kernelVersion } from '../kernel'
 import { GPU_MIN_SCALE, MandelbrotGL, gpuInfo } from '../lib/gpu'
 import { APPS } from './registry'
@@ -60,7 +60,7 @@ export function About() {
   )
 }
 
-type Proc = { name: string; icon?: keyof typeof APPS; cpu: number; mem: number; threads: number; pid: number; user: string; winId?: string; nr?: boolean; real?: boolean; mine?: boolean }
+type Proc = { name: string; icon?: keyof typeof APPS; cpu: number; mem: number; threads: number; pid: number; user: string; app?: keyof typeof APPS; nr?: boolean; real?: boolean; mine?: boolean }
 
 const STATIC_PROCS: Omit<Proc, 'cpu'>[] = [
   { name: 'WindowServer', mem: 812, threads: 24, pid: 151, user: '_windowserver' },
@@ -80,6 +80,7 @@ const STATIC_PROCS: Omit<Proc, 'cpu'>[] = [
 
 export function ActivityMonitor() {
   const windows = useOS((s) => s.windows)
+  const running = useOS((s) => s.runningApps)
   const [tick, setTick] = useState(0)
   const [sel, setSel] = useState<number | null>(null)
   const [tab, setTab] = useState('CPU')
@@ -107,23 +108,19 @@ export function ActivityMonitor() {
     const t = tick * 1.2
     const kt: Proc = { name: 'kernel_task', cpu: kernelTaskCpu(t), mem: 2048, threads: 512, pid: 0, user: 'root' }
     const statics = STATIC_PROCS.map((p) => ({ ...p, cpu: p.nr ? 0 : p.name === 'mds_stores' ? 80 + entropy() * 40 : entropy() * (p.name.includes('Helper') ? 30 : 6) }))
-    const apps = Object.values(
-      windows.reduce<Record<string, Proc>>((acc, w) => {
-        const name = APPS[w.app].name
-        acc[name] ??= { name, icon: w.app, cpu: 0, mem: 0, threads: 0, pid: 1000 + (w.id.charCodeAt(0) % 900), user: 'pear', winId: w.id }
-        acc[name].cpu += 0.5 + entropy() * 8
-        acc[name].mem += 120 + (w.id.charCodeAt(1) % 300)
-        acc[name].threads += 6
-        return acc
-      }, {}),
-    )
+    const apps = running.map((app): Proc => {
+      const frames = windows.filter((w) => w.app === app)
+      return { name: APPS[app].name, app, icon: app, cpu: entropy() * (frames.length ? frames.length * 8 : 0.5),
+        mem: 120 + frames.reduce((mem, w) => mem + (w.id.charCodeAt(1) % 300), 0),
+        threads: 6 * Math.max(1, frames.length), pid: 1000 + Object.keys(APPS).indexOf(app), user: 'pear' }
+    })
     if (real) {
       const host: Proc[] = real.map((p) => ({ name: p.name, cpu: p.cpu, mem: p.mem / 1048576, threads: p.threads, pid: p.pid, user: p.mine ? 'you' : 'other', real: true, mine: p.mine }))
       const jokes = statics.filter((p) => p.nr)
       return [{ ...kt, pid: -1 }, ...apps.map((a) => ({ ...a, pid: -1000 - a.pid })), ...jokes.map((j) => ({ ...j, pid: -j.pid })), ...host].sort((a, b) => b.cpu - a.cpu)
     }
     return [kt, ...apps, ...statics].sort((a, b) => b.cpu - a.cpu)
-  }, [tick, windows, real])
+  }, [tick, windows, running, real])
 
   const forceQuit = (p: Proc, gentle = false) => {
     if (p.real) {
@@ -134,7 +131,7 @@ export function ActivityMonitor() {
         .catch((e) => os().notify({ app: 'activity', title: 'Activity Monitor', body: `Couldn't quit “${p.name}”: ${e.message}` }))
       return setSel(null)
     }
-    if (p.winId) os().closeApp(windows.find((w) => w.id === p.winId)!.app)
+    if (p.app) os().closeApp(p.app)
     else if (p.name === 'kernel_task') os().panic(`${gentle ? 'Quit' : 'Force quit'} kernel_task (bold move)`)
     else if (p.nr && gentle) os().notify({ app: 'activity', title: 'Activity Monitor', body: `"${p.name}" is not responding to your request to stop not responding.` })
     else os().notify({ app: 'activity', title: 'Activity Monitor', body: `"${p.name}" respawned immediately. It always does.` })
@@ -789,6 +786,7 @@ export function Settings({ win }: { win: Win }) {
       dockIndicators: st.dockIndicators,
       dockBounce: st.dockBounce,
       spaceFollowApp: st.spaceFollowApp,
+      appSwitchShortcut: st.appSwitchShortcut,
       hotCorners: st.hotCorners,
       liveWallpaper: st.liveWallpaper,
       theme: st.theme,
@@ -897,6 +895,16 @@ export function Settings({ win }: { win: Win }) {
             </Row>
             <Row label="Hot Corners" sub={CORNERS.some((c) => s.hotCorners[c].action !== 'none') ? undefined : 'No corners are doing anything yet.'}>
               <button className="btn small" onClick={() => setHotSheet(true)}>Hot Corners…</button>
+            </Row>
+          </div>
+          <h4 className="set-head">Keyboard</h4>
+          <div className="set-card">
+            <Row label="App Switcher shortcut">
+              <select aria-label="App Switcher shortcut" value={s.appSwitchShortcut} onChange={(e) => os().set('appSwitchShortcut', e.target.value as AppSwitchShortcut)}>
+                <option value="ctrl-shift-space">Control + Shift + Space</option>
+                <option value="alt-backquote">Option / Alt + `</option>
+                <option value="alt-tab">Option / Alt + Tab</option>
+              </select>
             </Row>
           </div>
           <h4 className="set-head">Windows</h4>
