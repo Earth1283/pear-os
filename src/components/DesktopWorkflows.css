@@ -48,7 +48,8 @@
   color: var(--fg);
 }
 .fullscreen-menubar:hover,
-.fullscreen-menubar:focus-within { transform: translateY(0); }
+.fullscreen-menubar:focus-within,
+.fullscreen-menubar.mb-panel-open { transform: translateY(0); }
 .fullscreen-space .desktop-icons,
 .fullscreen-space .gravity-controls { visibility: hidden; }
 .window.fullscreen-window,

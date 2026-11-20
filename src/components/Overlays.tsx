@@ -1,14 +1,12 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Airplay, Bluetooth, Calculator as CalcIcon, Globe, LayoutGrid, Moon, Pause, Play, Radio, Search, SkipBack, SkipForward, Sun, Volume2, Wifi, X, Contrast, MonitorSmartphone } from 'lucide-react'
-import { useShallow } from 'zustand/react/shallow'
+import { Calculator as CalcIcon, Globe, LayoutGrid, Search, X } from 'lucide-react'
 import { useOS, os } from '../store'
 import { APPS, LAUNCHPAD_APPS } from '../apps/registry'
 import type { AppId } from '../apps/ids'
 import { AppIcon } from './icons'
 import { calc, formatNumber } from '../kernel'
-import { STATION_TRACKS, useCurrent, usePlayer } from '../lib/player'
-import { useSpoken } from '../lib/captions'
-import { Art, Eq } from './MusicBits'
+import { STATION_TRACKS, usePlayer } from '../lib/player'
+import { Art } from './MusicBits'
 import { indexVirtualFiles, searchVirtualFiles } from '../lib/fileSearch'
 import { formatBytes, HOME, parentOf } from '../lib/fs'
 import { openVirtualQuickLook, virtualLookItem, type QuickLookItem } from '../lib/quickLook'
@@ -106,7 +104,7 @@ function SpotlightPanel() {
     return () => {
       requestAnimationFrame(() => {
         const s = os()
-        if (!s.overlay.spotlight && !s.quickLook && s.focused === focused && previous?.isConnected && document.activeElement === document.body) {
+        if (!Object.values(s.overlay).some(Boolean) && !s.quickLook && s.focused === focused && previous?.isConnected && document.activeElement === document.body) {
           previous.focus({ preventScroll: true })
         }
       })
@@ -236,111 +234,6 @@ export function Launchpad() {
       <div className="lp-dots">
         <span className="on" />
         <span />
-      </div>
-    </div>
-  )
-}
-
-function Tile({ on, icon, label, sub, onClick }: { on: boolean; icon: React.ReactNode; label: string; sub: string; onClick: () => void }) {
-  return (
-    <button className="cc-row" onClick={onClick}>
-      <span className={`cc-circle ${on ? 'on' : ''}`}>{icon}</span>
-      <span className="cc-text">
-        <b>{label}</b>
-        <small>{sub}</small>
-      </span>
-    </button>
-  )
-}
-
-function NowPlayingCard() {
-  const cur = useCurrent()
-  const spoken = useSpoken()
-  const playing = usePlayer((s) => s.playing)
-  const p = usePlayer.getState()
-  return (
-    <div className="cc-card cc-music">
-      <button className="cc-music-main" onClick={() => os().openApp('music', { props: { view: 'now' } })} title="Open Music">
-        <Art track={cur} size={44} radius={7} />
-        <span className="cc-text">
-          <b>{cur?.title ?? 'Not Playing'}</b>
-          <small>{cur?.source === 'station' && spoken ? spoken : cur ? cur.artist : 'Music'}</small>
-        </span>
-        {cur && playing && <Eq playing />}
-      </button>
-      <div className="cc-music-ctl">
-        <button title="Previous" onClick={() => p.prev()} disabled={!cur}>
-          <SkipBack size={15} fill="currentColor" />
-        </button>
-        <button title={playing ? 'Pause' : 'Play'} onClick={() => p.toggle()}>
-          {playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}
-        </button>
-        <button title="Next" onClick={() => p.next()} disabled={!cur}>
-          <SkipForward size={15} fill="currentColor" />
-        </button>
-      </div>
-    </div>
-  )
-}
-
-export function ControlCenter() {
-  const open = useOS((s) => s.overlay.controlCenter)
-  const [airdrop, setAirdrop] = useState(true)
-  return open ? <ControlCenterPanel airdrop={airdrop} setAirdrop={setAirdrop} /> : null
-}
-
-function ControlCenterPanel({ airdrop, setAirdrop }: { airdrop: boolean; setAirdrop: (v: boolean) => void }) {
-  const { wifi, bluetooth, brightness, volume, theme, dnd } = useOS(useShallow((s) => ({ wifi: s.wifi, bluetooth: s.bluetooth, brightness: s.brightness, volume: s.volume, theme: s.theme, dnd: s.dnd })))
-  return (
-    <div className="overlay-catch" onPointerDown={() => os().setOverlay({ controlCenter: false })}>
-      <div className="control-center glass" onPointerDown={(e) => e.stopPropagation()}>
-        <div className="cc-grid">
-          <div className="cc-card cc-net">
-            <Tile on={wifi} icon={<Wifi size={15} />} label="Wi-Fi" sub={wifi ? 'PearNet' : 'Off'} onClick={() => os().set('wifi', !wifi)} />
-            <Tile on={bluetooth} icon={<Bluetooth size={15} />} label="Bluetooth" sub={bluetooth ? 'On, connected to nothing' : 'Off'} onClick={() => os().set('bluetooth', !bluetooth)} />
-            <Tile on={airdrop} icon={<Radio size={15} />} label="AirDrop" sub={airdrop ? 'Everyone for 10 Minutes' : 'Receiving Off'} onClick={() => setAirdrop(!airdrop)} />
-          </div>
-          <div className="cc-col">
-            <button className="cc-card cc-small" onClick={() => os().set('dnd', !dnd)} aria-pressed={dnd}>
-              <span className={`cc-circle ${dnd ? 'on purple' : ''}`}>
-                <Moon size={15} />
-              </span>
-              <b>{dnd ? 'Do Not Disturb' : 'Focus'}</b>
-            </button>
-            <div className="cc-split">
-              <button className="cc-card cc-tiny" onClick={() => os().set('theme', theme === 'dark' ? 'light' : 'dark')}>
-                <Contrast size={18} />
-                <small>{theme === 'dark' ? 'Dark' : 'Light'} Mode</small>
-              </button>
-              <button
-                className="cc-card cc-tiny"
-                onClick={() => os().notify({ app: 'mirroring', title: 'Screen Mirroring', body: 'Looking for displays… Found: the one you are looking at.' })}
-              >
-                <Airplay size={18} />
-                <small>Mirroring</small>
-              </button>
-            </div>
-          </div>
-        </div>
-        <div className="cc-card cc-slider">
-          <b>Display</b>
-          <label>
-            <Sun size={14} />
-            <input type="range" min={0.25} max={1} step={0.01} value={brightness} onChange={(e) => os().set('brightness', +e.target.value)} />
-          </label>
-        </div>
-        <div className="cc-card cc-slider">
-          <b>Sound</b>
-          <label>
-            <Volume2 size={14} />
-            <input type="range" min={0} max={1} step={0.01} value={volume} onChange={(e) => os().set('volume', +e.target.value)} />
-          </label>
-        </div>
-        <NowPlayingCard />
-        <button className="cc-card cc-wide" onClick={() => os().openApp('mirroring')}>
-          <MonitorSmartphone size={16} />
-          <span>pPhone Mirroring</span>
-        </button>
       </div>
     </div>
   )

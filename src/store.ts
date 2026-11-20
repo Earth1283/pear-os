@@ -4,6 +4,7 @@ import type { MenuEntry } from './lib/menu'
 import type { QuickLookSession } from './lib/quickLook'
 import { defaultCorners, parseCorners, type HotCorners } from './lib/hotCornerConfig.ts'
 import { DEFAULT_DOCK } from './apps/dockDefaults.ts'
+import { MENU_BAR_DEFAULTS, parseMenuBarPrefs, type StatusMenu } from './lib/menuBarConfig.ts'
 
 export type Phase = 'off' | 'booting' | 'bootpicker' | 'windows' | 'login' | 'desktop' | 'sleep' | 'panic' | 'shuttingdown'
 export type Tile = 'left' | 'right' | 'fill' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | null
@@ -61,9 +62,10 @@ export interface Overlay {
   notificationCenter: boolean
   widgetGallery: boolean
   menu: string | null
+  statusMenu: StatusMenu | null
 }
 
-export const CLOSED: Overlay = { missionControl: false, spotlight: false, launchpad: false, controlCenter: false, notificationCenter: false, widgetGallery: false, menu: null }
+export const CLOSED: Overlay = { missionControl: false, spotlight: false, launchpad: false, controlCenter: false, notificationCenter: false, widgetGallery: false, menu: null, statusMenu: null }
 
 export type WidgetKind = 'clock' | 'calendar' | 'weather' | 'system' | 'music' | 'notes'
 export type WidgetSize = 'small' | 'medium' | 'large'
@@ -115,6 +117,8 @@ interface State {
   volume: number
   wifi: boolean
   bluetooth: boolean
+  menuBar: typeof MENU_BAR_DEFAULTS
+  cameraInUse: boolean
   dockMagnify: boolean
   dockSize: number
   dockZoom: number
@@ -189,6 +193,7 @@ export interface AppSpec {
   minH?: number
   singleton?: boolean
   resizable?: boolean
+  systemPanel?: boolean
 }
 
 let specs: Partial<Record<AppId, AppSpec>> = {}
@@ -232,10 +237,19 @@ const desktopFor = (s: Pick<State, 'windows' | 'activeSpace' | 'spaces' | 'focus
 const frontWindow = (s: Pick<State, 'windows' | 'assign' | 'hiddenApps'>, space: number, app?: AppId) => s.windows
   .filter((w) => !w.minimized && !s.hiddenApps.includes(w.app) && onSpace(w, space, s.assign) && (!app || w.app === app))
   .reduce<Win | undefined>((top, w) => !top || w.z > top.z ? w : top, undefined)
-const appFocus = (s: Pick<State, 'runningApps'>, app: AppId) => ({
+
+function appForWindow(s: Pick<State, 'windows' | 'assign' | 'hiddenApps'>, space: number, win?: Win) {
+  if (!win || !specs[win.app]?.systemPanel) return win?.app
+  return frontWindow({ ...s, windows: s.windows.filter((w) => !specs[w.app]?.systemPanel) }, space)?.app
+}
+
+const appFocus = (s: Pick<State, 'activeApp' | 'runningApps'>, app: AppId) => specs[app]?.systemPanel ? {
+  activeApp: s.activeApp,
+  runningApps: s.runningApps,
+} : {
   activeApp: app,
   runningApps: s.runningApps[0] === app ? s.runningApps : [app, ...s.runningApps.filter((a) => a !== app)],
-})
+}
 const initialSession = () => ({ windows: [], focused: null, activeApp: 'finder' as const, runningApps: ['finder' as const], hiddenApps: [], launching: [], desktopRevealed: false, mcApp: null })
 
 function slideTo(s: Pick<State, 'spaces' | 'windows' | 'activeSpace' | 'spaceSlide'>, to: number): State['spaceSlide'] {
@@ -367,7 +381,7 @@ function freeSpot(existing: WidgetInst[], size: WidgetSize): { x: number; y: num
 
 const PREFS_KEY = 'pearos.prefs.v1'
 const WALLPAPERS: Wallpaper[] = ['grove', 'grove-dark', 'orchard', 'graphite', 'fractal', 'lake']
-const PREF_KEYS = ['theme', 'wallpaper', 'liveWallpaper', 'fractalWallpaper', 'brightness', 'volume', 'wifi', 'bluetooth', 'dnd', 'dockMagnify', 'dockSize', 'dockAutohide', 'dockZoom', 'dockApps', 'dockMinimize', 'dockIndicators', 'dockBounce', 'hotCorners', 'spaceFollowApp', 'appSwitchShortcut'] as const
+const PREF_KEYS = ['theme', 'wallpaper', 'liveWallpaper', 'fractalWallpaper', 'brightness', 'volume', 'wifi', 'bluetooth', 'menuBar', 'dnd', 'dockMagnify', 'dockSize', 'dockAutohide', 'dockZoom', 'dockApps', 'dockMinimize', 'dockIndicators', 'dockBounce', 'hotCorners', 'spaceFollowApp', 'appSwitchShortcut'] as const
 type Prefs = Pick<State, (typeof PREF_KEYS)[number]>
 
 function loadPrefs(): Partial<Prefs> {
@@ -385,6 +399,7 @@ function loadPrefs(): Partial<Prefs> {
     if (WALLPAPERS.includes(wallpaper) && (wallpaper !== 'fractal' || out.fractalWallpaper)) out.wallpaper = wallpaper
     out.brightness = num(raw.brightness, 0.25, 1)
     out.volume = num(raw.volume, 0, 1)
+    out.menuBar = parseMenuBarPrefs(raw.menuBar)
     out.dockSize = num(raw.dockSize, 36, 72)
     out.dockZoom = num(raw.dockZoom, 0.2, 1)
     if (raw.dockMinimize === 'genie' || raw.dockMinimize === 'scale') out.dockMinimize = raw.dockMinimize
@@ -424,6 +439,8 @@ export const useOS = create<State>((set, get) => ({
   volume: 0.6,
   wifi: true,
   bluetooth: true,
+  menuBar: MENU_BAR_DEFAULTS,
+  cameraInUse: false,
   dockMagnify: true,
   dockSize: 52,
   dockZoom: 0.75,
@@ -469,7 +486,7 @@ export const useOS = create<State>((set, get) => ({
       import('./lib/screenshot').then((m) => m.openToolbar())
       return ''
     }
-    const seen = { ...s.appSeen, [app]: Date.now() }
+    const seen = spec.systemPanel ? s.appSeen : { ...s.appSeen, [app]: Date.now() }
     const activation = { ...appFocus(s, app), hiddenApps: s.hiddenApps.filter((a) => a !== app) }
     const home = homeSpace(s.assign, s.spaces, app)
     if (!opts.forceNew && !opts.props) {
@@ -521,7 +538,7 @@ export const useOS = create<State>((set, get) => ({
       restore: null,
       props: opts.props ?? {},
     }
-    const launching = s.launching.includes(app) || s.runningApps.includes(app) ? s.launching : [...s.launching, app]
+    const launching = spec.systemPanel || s.launching.includes(app) || s.runningApps.includes(app) ? s.launching : [...s.launching, app]
     set({ ...activation, windows: [...s.windows, win], focused: id, zTop: z, launching, activeSpace: space, desktopRevealed: false, appSeen: seen, spaceSlide: space === s.activeSpace ? s.spaceSlide : slideTo(s, space) })
     if (launching !== s.launching) setTimeout(() => set({ launching: get().launching.filter((a) => a !== app) }), 1100)
     return id
@@ -547,10 +564,12 @@ export const useOS = create<State>((set, get) => ({
     const activeSpace = spaceOrder({ ...s, windows }).includes(s.activeSpace) ? s.activeSpace : desktopFor(s)
     const hiddenApps = s.hiddenApps.filter((a) => a !== app)
     const runningApps = s.runningApps.filter((a) => a !== app || a === 'finder')
-    const next = frontWindow({ ...s, windows, hiddenApps }, activeSpace)
+    const visible = { ...s, windows, hiddenApps }
+    const next = frontWindow(visible, activeSpace)
+    const nextApp = appForWindow(visible, activeSpace, next) ?? runningApps.find((a) => !hiddenApps.includes(a)) ?? 'finder'
     set({
       windows, hiddenApps, runningApps, activeSpace, launching: s.launching.filter((a) => a !== app),
-      ...(s.activeApp === app ? { ...appFocus({ runningApps }, next?.app ?? runningApps.find((a) => !hiddenApps.includes(a)) ?? 'finder'), focused: next?.id ?? null } : {}),
+      ...(s.activeApp === app ? { ...appFocus({ ...s, runningApps }, nextApp), focused: next?.id ?? null } : {}),
       spaceSlide: activeSpace === s.activeSpace ? s.spaceSlide : slideTo(s, activeSpace),
     })
   },
@@ -578,9 +597,10 @@ export const useOS = create<State>((set, get) => ({
     const visible = { ...s, hiddenApps }
     const activeSpace = s.activeSpace < 0 && !frontWindow(visible, s.activeSpace) ? desktopFor(s) : s.activeSpace
     const next = frontWindow(visible, activeSpace)
+    const nextApp = appForWindow(visible, activeSpace, next) ?? 'finder'
     set({
       hiddenApps, activeSpace,
-      ...(s.activeApp === app ? { ...appFocus(s, next?.app ?? 'finder'), focused: next?.id ?? null } : {}),
+      ...(s.activeApp === app ? { ...appFocus(s, nextApp), focused: next?.id ?? null } : {}),
       spaceSlide: activeSpace === s.activeSpace ? s.spaceSlide : slideTo(s, activeSpace),
     })
   },
@@ -600,13 +620,13 @@ export const useOS = create<State>((set, get) => ({
     const target = s.windows.find((w) => w.id === id)
     if (!target) return
     const space = onSpace(target, s.activeSpace, s.assign) ? s.activeSpace : windowSpace(target)
-    if (s.focused === id && s.activeApp === target.app && target.z === s.zTop && !s.desktopRevealed && space === s.activeSpace && !target.minimized && !s.hiddenApps.includes(target.app)) return
+    if (s.focused === id && (s.activeApp === target.app || specs[target.app]?.systemPanel) && target.z === s.zTop && !s.desktopRevealed && space === s.activeSpace && !target.minimized && !s.hiddenApps.includes(target.app)) return
     set(raiseWindow(s, target))
   },
 
   minimize(id) {
     const s = get()
-    if (!s.windows.some((w) => w.id === id && !w.fullscreen)) return
+    if (!s.windows.some((w) => w.id === id && !w.fullscreen && !specs[w.app]?.systemPanel)) return
     const windows = s.windows.map((w) => (w.id === id ? { ...w, minimized: true } : w))
     const next = frontWindow({ ...s, windows }, s.activeSpace, s.activeApp)
     if (s.focused === id && next) return set(raiseWindow(s, next, windows))
@@ -619,7 +639,7 @@ export const useOS = create<State>((set, get) => ({
     const next = frontWindow(s, id)
     const hidden = id < 0 && !next ? s.windows.find((w) => windowSpace(w) === id) : undefined
     if (hidden) return s.focus(hidden.id)
-    set({ ...appFocus(s, next?.app ?? 'finder'), activeSpace: id, focused: next?.id ?? null, contextMenu: null, tilePreview: null, desktopRevealed: false, spaceSlide: slideTo(s, id) })
+    set({ ...appFocus(s, appForWindow(s, id, next) ?? 'finder'), activeSpace: id, focused: next?.id ?? null, contextMenu: null, tilePreview: null, desktopRevealed: false, spaceSlide: slideTo(s, id) })
   },
 
   addSpace() {
@@ -639,8 +659,9 @@ export const useOS = create<State>((set, get) => ({
     const windows = s.windows.map((w) => w.space === id ? { ...w, space: destination } : w)
     const assign = Object.fromEntries(Object.entries(s.assign).map(([app, v]) => [app, v === id ? destination : v])) as Assignments
     const activeSpace = s.activeSpace === id ? destination : s.activeSpace
-    const next = frontWindow({ ...s, windows, assign }, activeSpace)
-    set({ spaces, windows, assign, activeSpace, ...(s.activeSpace === id ? { ...appFocus(s, next?.app ?? 'finder'), focused: next?.id ?? null } : {}) })
+    const destinationState = { ...s, windows, assign }
+    const next = frontWindow(destinationState, activeSpace)
+    set({ spaces, windows, assign, activeSpace, ...(s.activeSpace === id ? { ...appFocus(s, appForWindow(destinationState, activeSpace, next) ?? 'finder'), focused: next?.id ?? null } : {}) })
   },
 
   moveWindowToSpace(id, space) {
@@ -653,9 +674,10 @@ export const useOS = create<State>((set, get) => ({
     }))
     const activeSpace = spaceOrder({ ...s, windows }).includes(s.activeSpace) ? s.activeSpace : space
     const focused = windows.find((w) => w.id === s.focused)
-    const next = focused && onSpace(focused, activeSpace, s.assign) ? focused : frontWindow({ ...s, windows }, activeSpace)
+    const destinationState = { ...s, windows }
+    const next = focused && onSpace(focused, activeSpace, s.assign) ? focused : frontWindow(destinationState, activeSpace)
     set({
-      ...appFocus(s, next?.app ?? 'finder'), windows, activeSpace, focused: next?.id ?? null,
+      ...appFocus(s, appForWindow(destinationState, activeSpace, next) ?? 'finder'), windows, activeSpace, focused: next?.id ?? null,
       spaceSlide: activeSpace === s.activeSpace ? s.spaceSlide : slideTo(s, activeSpace),
     })
   },
@@ -673,7 +695,7 @@ export const useOS = create<State>((set, get) => ({
     const s = get()
     if (s.activeSpace < 0) return s.switchSpace(desktopFor(s))
     const next = s.desktopRevealed ? frontWindow(s, s.activeSpace) : undefined
-    set({ ...appFocus(s, next?.app ?? 'finder'), desktopRevealed: !s.desktopRevealed, focused: next?.id ?? null })
+    set({ ...appFocus(s, appForWindow(s, s.activeSpace, next) ?? 'finder'), desktopRevealed: !s.desktopRevealed, focused: next?.id ?? null })
   },
 
   setRect(id, r) {
@@ -726,7 +748,15 @@ export const useOS = create<State>((set, get) => ({
     if (w && w.title !== title) set({ windows: get().windows.map((x) => (x.id === id ? { ...x, title } : x)) })
   },
 
-  setOverlay: (o) => set({ overlay: o.missionControl ? { ...CLOSED, ...o } : { ...get().overlay, ...(Object.values(o).some(Boolean) ? { missionControl: false } : {}), ...o }, contextMenu: null, ...(o.missionControl ? { desktopRevealed: false } : { mcApp: null }), ...(Object.values(o).some(Boolean) ? { quickLook: null } : {}) }),
+  setOverlay: (o) => {
+    const opening = Object.values(o).some(Boolean)
+    set({
+      overlay: { ...(opening ? CLOSED : get().overlay), ...o },
+      contextMenu: null,
+      ...(o.missionControl ? { desktopRevealed: false } : { mcApp: null }),
+      ...(opening ? { quickLook: null } : {}),
+    })
+  },
   closeOverlays: () => {
     const o = get().overlay
     if (Object.values(o).some(Boolean)) set({ overlay: CLOSED, mcApp: null })

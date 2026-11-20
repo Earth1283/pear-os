@@ -3,9 +3,10 @@ import { useOS, os, fullscreenRect, fullscreenSide, spaceOrder, tileRect, onSpac
 import { Wallpaper } from './Wallpaper'
 import { ShaderLayer } from './ShaderLayers'
 import { MenuBar } from './MenuBar'
+import { ControlCenter, StatusMenuPopover } from './MenuBarStatus'
 import { Dock } from './Dock'
 import { Window } from './Window'
-import { ControlCenter, Launchpad, Notifications, Spotlight } from './Overlays'
+import { Launchpad, Notifications, Spotlight } from './Overlays'
 import { NotificationCenter } from './Center'
 import { DesktopWidgets, WidgetGallery } from './Widgets'
 import { Stickies } from './Stickies'
@@ -345,7 +346,7 @@ export function Desktop() {
       onContextMenu={(e) => {
         e.preventDefault()
         const t = e.target as HTMLElement
-        if (t.closest('.menubar, .toasts, .control-center, .notif-center, .wg, .spotlight, .launchpad, .dropdown, .dock-wrap')) return
+        if (t.closest('.menubar, .toasts, .control-center, .status-popover, .notif-center, .wg, .spotlight, .launchpad, .dropdown, .dock-wrap')) return
         const open = (items: Parameters<typeof openContextMenu>[2]) => openContextMenu(e.clientX, e.clientY, items)
         const field = t.closest('input, textarea')
         if (isTextField(field)) return open(textMenu(field))
@@ -375,6 +376,7 @@ export function Desktop() {
       <MenuBar />
       <Dock />
       <Notifications />
+      <StatusMenuPopover />
       <ControlCenter />
       <NotificationCenter />
       <WidgetGallery />

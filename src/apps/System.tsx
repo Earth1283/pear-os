@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Accessibility, Bell, Bluetooth, Cpu, Hand, Info, LayoutGrid, Lock, Monitor, Moon, Palette, RefreshCw, Search, Sparkles, Wifi, Image, Battery, ZoomIn, ZoomOut, Gauge, Blend, Hourglass } from 'lucide-react'
+import { Accessibility, Bell, Bluetooth, Cpu, Hand, Info, LayoutGrid, Lock, Monitor, Moon, Palette, RefreshCw, Search, Sparkles, Wifi, Image, Battery, ZoomIn, ZoomOut, Gauge, Blend, Hourglass, SlidersHorizontal, Volume2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useOS, os, type AppSwitchShortcut, type Win, type Wallpaper } from '../store'
 import { kernelTaskCpu, entropy, renderMandelbrot, DEFAULT_VIEW, type FractalView, kernelVersion } from '../kernel'
@@ -397,11 +397,13 @@ const PANES = [
   { id: 'accessibility', label: 'Accessibility', icon: Accessibility, color: '#0a84ff' },
   { id: 'intelligence', label: 'Pear Intelligence & Siri', icon: Sparkles, color: '#bf5af2' },
   { id: 'desktop', label: 'Desktop & Dock', icon: LayoutGrid, color: '#1c1c1e' },
+  { id: 'controlcenter', label: 'Control Center', icon: SlidersHorizontal, color: '#8e8e93' },
   { id: 'displays', label: 'Displays', icon: Monitor, color: '#0a84ff' },
   { id: 'wallpaper', label: 'Wallpaper', icon: Image, color: '#30b0c7' },
   { id: 'shaders', label: 'Shaders', icon: Blend, color: '#bf5af2' },
   { id: 'sep3' },
   { id: 'notifications', label: 'Notifications', icon: Bell, color: '#ff3b30' },
+  { id: 'sound', label: 'Sound', icon: Volume2, color: '#ff2d55' },
   { id: 'focus', label: 'Focus', icon: Moon, color: '#5e5ce6' },
   { id: 'screentime', label: 'Screen Time', icon: Hourglass, color: '#5e5ce6' },
   { id: 'sep4' },
@@ -428,6 +430,32 @@ function Row({ label, children, sub }: { label: string; children?: React.ReactNo
 
 function Toggle({ on, onChange, label, disabled }: { on: boolean; onChange: (v: boolean) => void; label?: string; disabled?: boolean }) {
   return <button className={`toggle ${on ? 'on' : ''}`} onClick={() => onChange(!on)} role="switch" aria-checked={on} aria-label={label} disabled={disabled} />
+}
+
+function ControlCenterSettings() {
+  const prefs = useOS((s) => s.menuBar)
+  const option = (key: keyof typeof prefs, label: string, disabled?: boolean) => (
+    <Row label={label} key={key}>
+      <Toggle label={label} on={prefs[key]} disabled={disabled} onChange={(value) => os().set('menuBar', { ...os().menuBar, [key]: value })} />
+    </Row>
+  )
+  return <>
+    <h4 className="set-head">Show in Menu Bar</h4>
+    <div className="set-card">
+      {option('wifi', 'Wi-Fi')}
+      {option('bluetooth', 'Bluetooth')}
+      {option('sound', 'Sound')}
+      {option('battery', 'Battery')}
+      {option('batteryPercentage', 'Show Battery Percentage', !prefs.battery)}
+      {option('spotlight', 'Spotlight')}
+    </div>
+    <h4 className="set-head">Clock Options</h4>
+    <div className="set-card">
+      {option('date', 'Show Date')}
+      {option('clock24Hour', 'Use 24-Hour Time')}
+      {option('clockSeconds', 'Show Seconds')}
+    </div>
+  </>
 }
 
 const WALLPAPERS: { id: Wallpaper; name: string; cls: string }[] = [
@@ -778,6 +806,8 @@ export function Settings({ win }: { win: Win }) {
     useShallow((st) => ({
       bluetooth: st.bluetooth,
       brightness: st.brightness,
+      volume: st.volume,
+      dnd: st.dnd,
       dockMagnify: st.dockMagnify,
       dockSize: st.dockSize,
       dockZoom: st.dockZoom,
@@ -797,7 +827,7 @@ export function Settings({ win }: { win: Win }) {
   const [misc, setMisc] = useState<Record<string, boolean>>({ intel: false, siri: true, notif: true, filevault: true, ff: false })
   useEffect(() => {
     if (win.props.pane) setPane(win.props.pane as PaneId)
-  }, [win.props.pane])
+  }, [win.props])
   const current = PANES.find((p) => p.id === pane)!
   useEffect(() => os().setTitle(win.id, 'label' in current ? current.label : 'System Settings'), [pane])
 
@@ -1030,6 +1060,27 @@ export function Settings({ win }: { win: Win }) {
         </div>
       )
       break
+    case 'controlcenter':
+      body = <ControlCenterSettings />
+      break
+    case 'focus':
+      body = (
+        <div className="set-card">
+          <Row label="Do Not Disturb" sub="Silence notification banners. Notifications still appear in Notification Center.">
+            <Toggle label="Do Not Disturb" on={s.dnd} onChange={(value) => os().set('dnd', value)} />
+          </Row>
+        </div>
+      )
+      break
+    case 'sound':
+      body = (
+        <div className="set-card">
+          <Row label="Output volume">
+            <input type="range" aria-label="Output volume" min={0} max={1} step={0.01} value={s.volume} onChange={(e) => os().set('volume', +e.target.value)} />
+          </Row>
+        </div>
+      )
+      break
     case 'privacy':
       body = (
         <div className="set-card">
@@ -1064,7 +1115,7 @@ export function Settings({ win }: { win: Win }) {
       body = (
         <div className="set-card">
           <Row label="Wi-Fi">
-            <Toggle on={s.wifi} onChange={(v) => os().set('wifi', v)} />
+            <Toggle label="Wi-Fi" on={s.wifi} onChange={(v) => os().set('wifi', v)} />
           </Row>
           {s.wifi && (
             <>
@@ -1086,7 +1137,7 @@ export function Settings({ win }: { win: Win }) {
       body = (
         <div className="set-card">
           <Row label="Bluetooth">
-            <Toggle on={s.bluetooth} onChange={(v) => os().set('bluetooth', v)} />
+            <Toggle label="Bluetooth" on={s.bluetooth} onChange={(v) => os().set('bluetooth', v)} />
           </Row>
           <Row label="Pear's AirPears Pro" sub="Connected to your pPhone instead, as usual">
             <button className="btn small">Connect</button>

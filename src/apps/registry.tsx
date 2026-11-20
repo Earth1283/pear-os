@@ -129,7 +129,7 @@ export const APPS: Record<AppId, AppDef> = {
   diskutility: { name: 'Disk Utility', component: DiskUtility, w: 860, h: 560, minW: 640, minH: 420, singleton: true, chrome: 'overlay' },
   softwareupdate: { name: 'Software Update', component: SoftwareUpdate, w: 580, h: 460, minW: 480, minH: 380, singleton: true },
   screenshot: { name: 'Screenshot', component: Nothing, w: 0, h: 0, resizable: false, hidden: true },
-  about: { name: 'About This Pear', component: About, w: 300, h: 580, singleton: true, resizable: false, chrome: 'overlay' },
+  about: { name: 'About This Pear', component: About, w: 300, h: 580, singleton: true, resizable: false, chrome: 'overlay', systemPanel: true, hidden: true },
   trash: { name: 'Trash', component: Nothing, w: 0, h: 0, hidden: true },
 }
 

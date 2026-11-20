@@ -437,7 +437,7 @@ export function windowChromeMenu(win: Win): MenuEntry[] {
   const t = os().tileWindow
   const resizable = APPS[win.app].resizable !== false && !win.props.infoPath
   return [
-    { label: 'Minimize', shortcut: '⌘M', disabled: !!win.fullscreen, run: () => os().minimize(win.id) },
+    { label: 'Minimize', shortcut: '⌘M', disabled: !!win.fullscreen || APPS[win.app].systemPanel, run: () => os().minimize(win.id) },
     { label: win.fullscreen ? 'Exit Full Screen' : 'Enter Full Screen', shortcut: '⌃⌘F', disabled: !resizable, run: () => os().toggleFullscreen(win.id) },
     { label: 'Zoom', disabled: !resizable || !!win.fullscreen, run: () => t(win.id, win.tile === 'fill' ? null : 'fill') },
     'sep',

@@ -89,7 +89,7 @@ function TrafficLights({ win }: { win: Win }) {
       <button className="tl tl-close" aria-label="Close" onClick={() => closeWindow(win.id)}>
         <svg viewBox="0 0 10 10"><path d="M3 3l4 4M7 3l-4 4" /></svg>
       </button>
-      <button className="tl tl-min" aria-label="Minimize" disabled={!!win.fullscreen} onClick={() => minimize(win.id)}>
+      <button className="tl tl-min" aria-label="Minimize" disabled={!!win.fullscreen || APPS[win.app].systemPanel} onClick={() => minimize(win.id)}>
         <svg viewBox="0 0 10 10"><path d="M2.5 5h5" /></svg>
       </button>
       <span

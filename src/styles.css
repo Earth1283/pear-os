@@ -513,11 +513,6 @@ textarea {
 .mb-item.icon {
   padding: 0 7px;
 }
-.battery .pct {
-  font-size: 12px;
-  font-weight: 500;
-  opacity: 0.95;
-}
 .clock {
   padding-right: 4px;
   font-variant-numeric: tabular-nums;
@@ -1285,7 +1280,7 @@ html.lit .window.blurred {
   position: absolute;
   top: 32px;
   right: 8px;
-  width: 322px;
+  width: min(322px, calc(100vw - 16px));
   padding: 10px;
   border-radius: 18px;
   display: flex;
@@ -3355,10 +3350,6 @@ input[type='range']::-moz-range-progress {
 
 @media (max-width: 700px) {
   .mb-left .mb-menu:nth-child(n + 4) {
-    display: none;
-  }
-  .battery .pct,
-  .clock {
     display: none;
   }
 }

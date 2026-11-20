@@ -34,7 +34,7 @@ export function NotificationCenter() {
 
   if (!open) return null
   return (
-    <div className="overlay-catch" onPointerDown={() => os().setOverlay({ notificationCenter: false })}>
+    <div className="overlay-catch menu-bar-catch" onPointerDown={(e) => { e.stopPropagation(); os().setOverlay({ notificationCenter: false }) }}>
       <aside className="notif-center glass" onPointerDown={(e) => e.stopPropagation()} onContextMenu={(e) => e.stopPropagation()} aria-label="Notification Center">
         <div className="nc-scroll">
           <section>

@@ -1,0 +1,229 @@
+.mb-right {
+  flex: none;
+}
+.mb-right .mb-item:hover {
+  background: rgba(255, 255, 255, 0.13);
+}
+.mb-right .mb-item.active {
+  background: rgba(255, 255, 255, 0.22);
+}
+.mb-battery .pct {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.mb-control-icon {
+  display: grid;
+  justify-items: center;
+}
+.mb-control-icon svg {
+  height: 8px;
+  width: 15px;
+  transform: scale(1.6);
+  stroke-width: 2.6;
+}
+.mb-right .mb-privacy {
+  padding: 0 4px;
+}
+.mb-privacy-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 100%;
+  background: #30d158;
+}
+.mb-privacy-dot[data-active='false'] {
+  background: currentColor;
+  opacity: 0.4;
+}
+.mb-right .clock {
+  gap: 8px;
+}
+
+.overlay-catch.menu-bar-catch {
+  top: 26px;
+}
+.menu-bar-catch > .notif-center,
+.menu-bar-catch > .control-center,
+.status-popover {
+  top: 6px;
+}
+.status-popover,
+.control-center {
+  outline: none;
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+}
+.status-popover {
+  position: absolute;
+  right: clamp(8px, var(--status-offset, 8px), max(8px, 100vw - 282px));
+  width: min(274px, calc(100vw - 16px));
+  padding: 9px;
+  border-radius: 14px;
+  background: var(--glass-strong);
+  color: var(--fg);
+  animation: menu-in 0.14s ease-out;
+}
+.status-popover h2,
+.cc-detail-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+.status-popover h2 {
+  padding: 4px 8px 7px;
+}
+.status-option,
+.status-link {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 32px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  text-align: left;
+  font-size: 13px;
+}
+.status-option {
+  justify-content: space-between;
+  gap: 12px;
+}
+.status-option:hover,
+.status-link:hover,
+.cc-detail-title button:hover {
+  background: var(--sel);
+}
+.status-link {
+  position: relative;
+  margin-top: 5px;
+  padding-top: 8px;
+}
+.status-link::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  inset-inline: 8px;
+  border-top: 1px solid var(--line);
+}
+.status-device,
+.status-note,
+.status-reading,
+.status-range {
+  margin: 0;
+  padding: 7px 8px;
+  font-size: 12px;
+}
+.status-device {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.status-device strong {
+  flex: 1;
+  font-weight: 600;
+}
+.status-device span,
+.status-reading span,
+.status-note {
+  color: var(--fg2);
+}
+.status-device svg {
+  color: var(--accent);
+}
+.status-reading {
+  display: grid;
+  gap: 4px;
+}
+.status-reading b {
+  font-size: 19px;
+  font-variant-numeric: tabular-nums;
+}
+.status-slider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.status-slider input {
+  flex: 1;
+  min-width: 0;
+}
+.cc-tile-detail {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: 8px;
+  border-radius: 7px;
+}
+.cc-quick-toggle {
+  flex: none;
+  border-radius: 50%;
+}
+.control-center :is(.cc-tile-detail, .cc-tiny):hover {
+  background: var(--sel);
+}
+.cc-quick-toggle:hover .cc-circle {
+  filter: brightness(0.94);
+}
+.cc-chevron {
+  flex: none;
+  margin-left: auto;
+  color: var(--fg2);
+}
+.cc-detail-title {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.cc-detail-title button {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border-radius: 7px;
+}
+.cc-detail {
+  padding: 5px;
+}
+.cc-privacy svg {
+  color: #30a650;
+}
+
+@media (max-width: 700px) {
+  .mb-clock-date,
+  .mb-battery .pct {
+    display: none;
+  }
+  .mb-right .mb-item.icon {
+    padding-inline: 4px;
+  }
+}
+@media (max-width: 520px) {
+  .menubar [data-menu='app'] > button {
+    display: block;
+    max-width: 74px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+@media (max-width: 395px) {
+  .menubar .mb-left [data-menu='File'],
+  .menubar .mb-left [data-menu='Edit'],
+  .mb-right .mb-intelligence {
+    display: none;
+  }
+  .menubar [data-menu='app'] > button {
+    max-width: 60px;
+  }
+  .menubar [data-menu='Go'] > button,
+  .menubar .mb-item.pear {
+    padding-inline: 6px;
+  }
+  .mb-right .clock {
+    padding-inline: 4px;
+  }
+}
+@media (max-width: 355px) {
+  .mb-right .mb-item.icon {
+    padding-inline: 2px;
+  }
+}

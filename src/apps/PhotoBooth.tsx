@@ -277,8 +277,10 @@ export function PhotoBooth({ win }: { win: Win }) {
 
   const failCaptures = (why: string) => pending.current.splice(0).forEach((p) => p.fail(new Error(why)))
   const stopCamera = () => {
-    streamRef.current?.getTracks().forEach((t) => t.stop())
+    if (!streamRef.current) return
+    streamRef.current.getTracks().forEach((t) => t.stop())
     streamRef.current = null
+    os().set('cameraInUse', false)
   }
 
   useEffect(() => {
@@ -306,7 +308,10 @@ export function PhotoBooth({ win }: { win: Win }) {
       .then(async (s) => {
         if (dead) return s.getTracks().forEach((t) => t.stop())
         streamRef.current = s
+        os().set('cameraInUse', true)
         s.getVideoTracks()[0]?.addEventListener('ended', () => {
+          if (streamRef.current !== s) return
+          stopCamera()
           failCaptures('The camera stopped')
           setErrorText('The camera was disconnected or another app took it.')
           setStatus('error')
@@ -314,7 +319,7 @@ export function PhotoBooth({ win }: { win: Win }) {
         const v = videoRef.current!
         v.srcObject = s
         await v.play().catch(() => undefined)
-        setStatus('live')
+        if (!dead && streamRef.current === s) setStatus('live')
       })
       .catch((e: DOMException) => {
         if (dead) return

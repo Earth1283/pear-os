@@ -8,7 +8,10 @@ Object.defineProperty(globalThis, 'localStorage', { value: { getItem: (key) => s
 const { os, useOS, registerSpecs, onQuit, onSpace, spaceOrder, fullscreenRect, fullscreenSide } = await import('../src/store.ts')
 const { indexVirtualFiles, searchVirtualFiles } = await import('../src/lib/fileSearch.ts')
 const { HOME, moveToTrash, rename, writeFile } = await import('../src/lib/fs.ts')
-registerSpecs({ calculator: { name: 'Calculator', w: 236, h: 392, resizable: false } })
+registerSpecs({
+  calculator: { name: 'Calculator', w: 236, h: 392, resizable: false },
+  about: { name: 'About This Pear', w: 300, h: 580, singleton: true, resizable: false, systemPanel: true },
+})
 
 beforeEach(() => {
   os().resetSession()
@@ -35,6 +38,40 @@ test('an app with zero windows stays active and stays running until quit', () =>
   assert.equal(os().activeApp, 'finder')
   assert.deepEqual(os().runningApps, ['finder'])
   onQuit('notes', () => {})
+})
+
+test('About opens a single system panel without activating or launching an app', () => {
+  const terminal = os().openApp('terminal')
+  const about = os().openApp('about')
+  assert.equal(os().focused, about)
+  assert.equal(os().activeApp, 'terminal')
+  assert.deepEqual(os().runningApps, ['terminal', 'finder'])
+  assert.ok(!os().launching.includes('about'))
+  os().minimize(about)
+  assert.equal(os().windows.find((w) => w.id === about).minimized, false)
+  assert.equal(os().openApp('about'), about)
+  os().addSpace()
+  os().openApp('notes')
+  os().switchSpace(1)
+  assert.equal(os().focused, about)
+  assert.equal(os().activeApp, 'terminal')
+  os().closeWindow(about)
+  assert.equal(os().focused, terminal)
+  assert.equal(os().activeApp, 'terminal')
+})
+
+test('status popovers switch directly to other menu bar panels', () => {
+  os().setOverlay({ menu: 'pear' })
+  os().setOverlay({ statusMenu: 'wifi' })
+  assert.equal(os().overlay.menu, null)
+  os().setOverlay({ controlCenter: true })
+  assert.equal(os().overlay.statusMenu, null)
+  os().setOverlay({ notificationCenter: true })
+  assert.equal(os().overlay.controlCenter, false)
+  os().setOverlay({ spotlight: true })
+  assert.equal(os().overlay.notificationCenter, false)
+  os().closeOverlays()
+  assert.equal(os().overlay.spotlight, false)
 })
 
 test('hiding and returning to an app preserves minimized and visible windows', () => {

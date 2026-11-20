@@ -1,5 +1,3 @@
-import { useEffect, useState } from 'react'
-import { AudioLines, LayoutGrid, Moon, Search, SlidersHorizontal, Wifi, WifiOff } from 'lucide-react'
 import { useOS, os, type Win } from '../store'
 import { MenuList } from './ContextMenu'
 import type { MenuEntry } from '../lib/menu'
@@ -7,54 +5,10 @@ import { openPath } from '../apps/open'
 import { logout } from '../lib/backend'
 import { APPS, useAppModules } from '../apps/registry'
 import type { MenuDef, MenuItem } from '../apps/types'
-import { PearLogo, IntelOrb } from './icons'
-import { useCurrent, usePlayer } from '../lib/player'
-import { stopRecording, useShots } from '../lib/screenshot'
+import { PearLogo } from './icons'
+import { MenuBarStatus } from './MenuBarStatus'
+import { usePlayer } from '../lib/player'
 import { closeFinderTab, FINDER_VIEWS, finderCommands, goToFinderFolder } from '../apps/finderCommands'
-
-function Battery() {
-  const [pct, setPct] = useState(100)
-  useEffect(() => {
-    const t = setInterval(() => setPct((p) => (p <= 3 ? 100 : p - 1)), 45_000)
-    return () => clearInterval(t)
-  }, [])
-  return (
-    <span className="mb-item battery" title={`Battery: ${pct}%. Condition: Service Recommended`}>
-      <span className="pct">{pct}%</span>
-      <svg width="25" height="12" viewBox="0 0 25 12">
-        <rect x=".5" y=".5" width="21" height="11" rx="3" fill="none" stroke="currentColor" opacity=".45" />
-        <rect x="2" y="2" width={(18 * pct) / 100} height="8" rx="1.6" fill="currentColor" />
-        <path d="M23 4v4c.8-.3 1.3-1 1.3-2s-.5-1.7-1.3-2z" fill="currentColor" opacity=".45" />
-      </svg>
-    </span>
-  )
-}
-
-function Clock() {
-  const [now, setNow] = useState(() => new Date())
-  useEffect(() => {
-    let t = 0
-    const tick = () => {
-      setNow(new Date())
-      t = window.setTimeout(tick, 60_000 - (Date.now() % 60_000) + 20)
-    }
-    tick()
-    return () => clearTimeout(t)
-  }, [])
-  const date = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-  const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-  const open = useOS((s) => s.overlay.notificationCenter)
-  return (
-    <button
-      className={`mb-item clock ${open ? 'active' : ''}`}
-      title="Notification Center"
-      onPointerDown={(e) => e.stopPropagation()}
-      onClick={() => os().setOverlay({ notificationCenter: !open, controlCenter: false, spotlight: false, menu: null })}
-    >
-      {date.replace(',', '')}&nbsp;&nbsp;{time}
-    </button>
-  )
-}
 
 function toEntries(items: MenuItem[], win: Win | null): MenuEntry[] {
   return items.map((it) =>
@@ -65,7 +19,7 @@ function toEntries(items: MenuItem[], win: Win | null): MenuEntry[] {
 }
 
 function Dropdown({ items, close }: { items: MenuItem[]; close: () => void }) {
-  const focusedWin = useOS((s) => s.windows.find((w) => w.id === s.focused) ?? null)
+  const focusedWin = useOS((s) => s.windows.find((w) => w.id === s.focused && !APPS[w.app].systemPanel) ?? null)
   return <MenuList items={toEntries(items, focusedWin)} onDone={close} />
 }
 
@@ -184,15 +138,10 @@ export function defaultMenus(appName: string): MenuDef[] {
 
 export function MenuBar() {
   const focusedApp = useOS((s) => s.activeApp)
-  const focusedWin = useOS((s) => s.windows.find((w) => w.id === s.focused))
+  const focusedWin = useOS((s) => s.windows.find((w) => w.id === s.focused && !APPS[w.app].systemPanel))
   const fullscreenSpace = useOS((s) => s.activeSpace < 0 && !s.overlay.missionControl)
   const openMenu = useOS((s) => s.overlay.menu)
-  const wifi = useOS((s) => s.wifi)
-  const dnd = useOS((s) => s.dnd)
-  const recording = useShots((s) => s.recording !== null)
-  const countdown = useShots((s) => s.countdown)
-  const cur = useCurrent()
-  const playing = usePlayer((s) => s.playing)
+  const statusOpen = useOS((s) => s.overlay.statusMenu !== null || s.overlay.controlCenter || s.overlay.notificationCenter)
   useAppModules((s) => s.loaded)
   const { setOverlay } = useOS.getState()
   const app = APPS[focusedApp]
@@ -242,14 +191,15 @@ export function MenuBar() {
   }
   const visibleMenus = menus.filter((m) => m.items.length)
 
-  const toggle = (k: string) => setOverlay({ menu: openMenu === k ? null : k, controlCenter: false, notificationCenter: false, spotlight: false })
+  const toggle = (k: string) => setOverlay({ menu: openMenu === k ? null : k })
 
   return (
-    <div className={`menubar ${fullscreenSpace ? 'fullscreen-menubar' : ''}`} onPointerDown={(e) => e.stopPropagation()}>
+    <div className={`menubar ${fullscreenSpace ? 'fullscreen-menubar' : ''} ${statusOpen ? 'mb-panel-open' : ''}`} onPointerDown={(e) => e.stopPropagation()}>
       <div className="mb-left">
         {visibleMenus.map((m) => (
           <div key={m.key} className="mb-menu" data-menu={m.key}>
             <button
+              aria-label={m.key === 'pear' ? 'Pear menu' : undefined}
               className={`mb-item ${m.bold ? 'bold' : ''} ${openMenu === m.key ? 'active' : ''} ${m.key === 'pear' ? 'pear' : ''}`}
               onPointerDown={() => toggle(m.key)}
               onClick={(e) => { if (e.detail === 0) toggle(m.key) }}
@@ -261,48 +211,7 @@ export function MenuBar() {
           </div>
         ))}
       </div>
-      <div className="mb-right">
-        {countdown !== null && (
-          <span className="mb-item icon mb-countdown" title="Screenshot timer" aria-live="polite">
-            {countdown}
-          </span>
-        )}
-        {recording && (
-          <button className="mb-item icon mb-rec" title="Stop Recording" aria-label="Stop Recording" onClick={() => stopRecording()}>
-            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-              <circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" strokeWidth="1.6" />
-              <rect x="5.4" y="5.4" width="5.2" height="5.2" rx="1" fill="currentColor" />
-            </svg>
-          </button>
-        )}
-        {dnd && (
-          <span className="mb-item icon" title="Do Not Disturb is on">
-            <Moon size={13} strokeWidth={2.4} fill="currentColor" />
-          </span>
-        )}
-        {cur && (
-          <button className="mb-item icon" title={`${playing ? 'Playing' : 'Paused'}: ${cur.title}`} onClick={() => setOverlay({ controlCenter: !os().overlay.controlCenter, notificationCenter: false, menu: null })}>
-            <AudioLines size={14} strokeWidth={2.4} className={playing ? 'mb-playing' : ''} />
-          </button>
-        )}
-        <Battery />
-        <button className="mb-item icon" title="Mission Control (Ctrl+↑ or F3)" aria-label="Mission Control" onClick={() => setOverlay({ missionControl: true })}>
-          <LayoutGrid size={14} strokeWidth={2.2} />
-        </button>
-        <button className="mb-item icon" title={wifi ? 'Wi-Fi: PearNet (5 bars of nothing)' : 'Wi-Fi: Off'} onClick={() => os().set('wifi', !wifi)}>
-          {wifi ? <Wifi size={15} strokeWidth={2.2} /> : <WifiOff size={15} strokeWidth={2.2} />}
-        </button>
-        <button className="mb-item icon" title="Spotlight" onClick={() => setOverlay({ spotlight: true, menu: null, controlCenter: false, notificationCenter: false })}>
-          <Search size={14} strokeWidth={2.4} />
-        </button>
-        <button className="mb-item icon" title="Control Center" onClick={() => setOverlay({ controlCenter: !os().overlay.controlCenter, notificationCenter: false, menu: null })}>
-          <SlidersHorizontal size={14} strokeWidth={2.4} />
-        </button>
-        <button className="mb-item icon" title="Pear Intelligence" onClick={() => os().openApp('intelligence')}>
-          <IntelOrb size={16} />
-        </button>
-        <Clock />
-      </div>
+      <MenuBarStatus />
     </div>
   )
 }
