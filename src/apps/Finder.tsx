@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { AppWindow, ChevronLeft, ChevronRight, Clock, Cloud, Download, FileText, HardDrive, LayoutGrid, List, Monitor, Radio, Search, Trash2, House, Columns3, GalleryHorizontal, Plus, X, Server } from 'lucide-react'
 import { useOS, os, type Win } from '../store'
-import { HOME, canRename, formatBytes, listDir, normalise, parentOf, rename, resolve, sizeOf, type FsNode } from '../lib/fs'
+import { HOME, canRename, formatBytes, listDir, moveNode, moveToTrash, normalise, parentOf, rename, resolve, sizeOf, type FsNode } from '../lib/fs'
+import { playTrashMove } from '../lib/sounds'
 import { RenameField, useEnterToRename } from '../components/RenameField'
 import { FileIcon, FolderIcon, AppIcon, fileThumb } from '../components/icons'
 import { TAG_COLORS } from '../components/ContextMenu'
@@ -187,6 +188,9 @@ function FinderBrowser({ win }: { win: Win }) {
   const authed = useBackend((s) => s.authed)
   const host = useBackend((s) => s.sys?.hostname)
   const focused = useOS((s) => s.focused === win.id)
+  const showPathBar = useOS((s) => s.finderPathBar)
+  const showStatusBar = useOS((s) => s.finderStatusBar)
+  const [dropTarget, setDropTarget] = useState<string | null>(null)
   const isDrive = path.startsWith('drive:')
   const driveRel = isDrive ? path.slice(6) || '/' : ''
   const special = !path.startsWith('/') && path !== 'recents' && !isDrive
@@ -356,6 +360,54 @@ function FinderBrowser({ win }: { win: Win }) {
     ? <RenameField name={parentOf(p).name} dir={node.type === 'dir'} onDone={(to) => commit(p, to)} onCancel={() => setRenaming(null)} />
     : <span>{parentOf(p).name}{(node.tags ?? []).map((t) => <i key={t} className="tag-dot" style={{ background: TAG_COLORS[t] }} />)}</span>
   const open = (p: string, node: FsNode) => node.type === 'dir' ? go(p, null, inColumns) : openPath(p)
+  const dropOnDir = (fromPath: string, targetDir: string) => {
+    if (!fromPath || !targetDir.startsWith('/')) return
+    if (targetDir === HOME + '/.Trash') {
+      if (moveToTrash(fromPath)) {
+        playTrashMove()
+        setSel(null)
+        os().bumpFs()
+      }
+      return
+    }
+    const moved = moveNode(fromPath, targetDir)
+    if (moved) {
+      setSel(null)
+      os().bumpFs()
+    }
+  }
+  const dragProps = (p: string, isDir: boolean) => ({
+    draggable: canRename(p),
+    onDragStart: (e: React.DragEvent) => {
+      e.dataTransfer.setData('application/x-pearos-path', p)
+      e.dataTransfer.effectAllowed = 'move'
+    },
+    ...(isDir ? {
+      onDragOver: (e: React.DragEvent) => {
+        if (!e.dataTransfer.types.includes('application/x-pearos-path')) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        setDropTarget(p)
+      },
+      onDragLeave: () => setDropTarget((cur) => (cur === p ? null : cur)),
+      onDrop: (e: React.DragEvent) => {
+        e.preventDefault()
+        setDropTarget(null)
+        const from = e.dataTransfer.getData('application/x-pearos-path')
+        if (from && from !== p) dropOnDir(from, p)
+      },
+    } : {}),
+  })
+  const pathCrumbs = path.startsWith('/') ? (() => {
+    const parts = path.split('/').filter(Boolean)
+    const list = [{ label: 'Pear HD', path: '/' }]
+    let acc = ''
+    for (const part of parts) {
+      acc += '/' + part
+      list.push({ label: part === '.Trash' ? 'Trash' : part, path: acc })
+    }
+    return list
+  })() : []
   const itemMenu = (e: MouseEvent, p: string) => {
     setSel(p)
     menu(fileMenu(p, { rename: () => startRename(p), quickLook: () => quickLook(p) }))(e)
@@ -404,11 +456,31 @@ function FinderBrowser({ win }: { win: Win }) {
         {groups.map((g) => (
           <div key={g.head} className="sb-group">
             <div className="sb-head">{g.head}</div>
-            {g.items.map((it) => (
-              <button key={it.path} className={`sb-item ${path === it.path ? 'active' : ''}`} onClick={() => it.path === 'airdrop' ? os().openApp('airpear') : go(it.path)}>
-                <it.icon size={15} strokeWidth={2} /><span>{it.label}</span>
-              </button>
-            ))}
+            {g.items.map((it) => {
+              const canDrop = it.path.startsWith('/') && (it.path.startsWith(HOME) || it.path === '/')
+              return (
+                <button
+                  key={it.path}
+                  className={`sb-item ${path === it.path ? 'active' : ''} ${dropTarget === it.path ? 'drop-target' : ''}`}
+                  onClick={() => it.path === 'airdrop' ? os().openApp('airpear') : go(it.path)}
+                  onDragOver={canDrop ? (e) => {
+                    if (!e.dataTransfer.types.includes('application/x-pearos-path')) return
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = 'move'
+                    setDropTarget(it.path)
+                  } : undefined}
+                  onDragLeave={canDrop ? () => setDropTarget((cur) => (cur === it.path ? null : cur)) : undefined}
+                  onDrop={canDrop ? (e) => {
+                    e.preventDefault()
+                    setDropTarget(null)
+                    const from = e.dataTransfer.getData('application/x-pearos-path')
+                    if (from) dropOnDir(from, it.path)
+                  } : undefined}
+                >
+                  <it.icon size={15} strokeWidth={2} /><span>{it.label}</span>
+                </button>
+              )
+            })}
           </div>
         ))}
         <div className="sb-group">
@@ -476,13 +548,13 @@ function FinderBrowser({ win }: { win: Win }) {
               ))}</div>
             </div>
             : view === 'grid' ? <div className="icon-grid">{entries.map(([p, node]) => (
-              <button key={p} className={`grid-item ${sel === p ? 'sel' : ''}`} onClick={() => setSel(p)} onDoubleClick={() => open(p, node)} onContextMenu={(e) => itemMenu(e, p)}>
+              <button key={p} {...dragProps(p, node.type === 'dir')} className={`grid-item ${sel === p ? 'sel' : ''} ${dropTarget === p ? 'drop-target' : ''}`} onClick={() => setSel(p)} onDoubleClick={() => open(p, node)} onContextMenu={(e) => itemMenu(e, p)}>
                 {icon(p, node, 56)}{fileName(p, node)}
               </button>
             ))}</div> : <table className="list-view">
               <thead><tr><th>Name</th><th>Date Modified</th><th>Size</th><th>Kind</th></tr></thead>
               <tbody>{entries.map(([p, node]) => (
-                <tr key={p} tabIndex={0} className={sel === p ? 'sel' : ''} onClick={() => setSel(p)} onDoubleClick={() => open(p, node)} onContextMenu={(e) => itemMenu(e, p)}>
+                <tr key={p} tabIndex={0} {...dragProps(p, node.type === 'dir')} className={`${sel === p ? 'sel' : ''} ${dropTarget === p ? 'drop-target' : ''}`} onClick={() => setSel(p)} onDoubleClick={() => open(p, node)} onContextMenu={(e) => itemMenu(e, p)}>
                   <td><span className="lv-name">{icon(p, node, 18)}{fileName(p, node)}</span></td>
                   <td>{new Date(node.modified).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
                   <td>{node.type === 'dir' ? '--' : formatBytes(sizeOf(node))}</td>
@@ -491,10 +563,26 @@ function FinderBrowser({ win }: { win: Win }) {
               ))}</tbody>
             </table>}
         </div>
-        <div className="statusbar" hidden={isDrive}>
-          {entries.length} items, 0.1 GB available (of 8 GB, which is like 16 GB)
-          {path === HOME + '/.Trash' && entries.length > 0 && <button className="btn small" onClick={() =>
-            os().notify({ app: 'trash', title: 'Empty Trash', body: 'Are you sure? Items in the Trash have feelings. (One of them literally is feelings.txt.)' })}>Empty</button>}
+        {showPathBar && !isDrive && pathCrumbs.length > 0 && (
+          <nav className="finder-pathbar" aria-label="Path">
+            {pathCrumbs.map((c, idx) => (
+              <span key={c.path} className="finder-crumb-wrap">
+                {idx > 0 && <ChevronRight size={11} className="finder-crumb-sep" aria-hidden />}
+                <button
+                  type="button"
+                  className={`finder-crumb ${c.path === path ? 'current' : ''}`}
+                  onClick={() => go(c.path)}
+                >
+                  {idx === 0 ? <HardDrive size={12} /> : <FolderIcon size={13} />}
+                  <span>{c.label}</span>
+                </button>
+              </span>
+            ))}
+          </nav>
+        )}
+        <div className="statusbar" hidden={isDrive || !showStatusBar}>
+          {entries.length} {entries.length === 1 ? 'item' : 'items'}, 0.1 GB available (of 8 GB, which is like 16 GB)
+          {path === HOME + '/.Trash' && entries.length > 0 && <button className="btn small" onClick={() => os().openDialog({ kind: 'empty-trash' })}>Empty</button>}
         </div>
       </section>
       {goFolder && <div className="finder-sheet-wrap" data-nodrag onPointerDown={(e) => { if (e.target === e.currentTarget) closeGo() }}>

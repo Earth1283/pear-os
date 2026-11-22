@@ -12,9 +12,15 @@ const Windows98 = lazy(() => import('./win98/Windows98').then((m) => ({ default:
 export default function App() {
   const phase = useOS((s) => s.phase)
   const theme = useOS((s) => s.theme)
+  const accent = useOS((s) => s.accent)
+  const scrollbars = useOS((s) => s.scrollbars)
+  const wallpaper = useOS((s) => s.wallpaper)
   useEffect(() => {
     document.documentElement.dataset.theme = theme
-  }, [theme])
+    document.documentElement.dataset.accent = accent
+    document.documentElement.dataset.scrollbars = scrollbars
+    document.documentElement.dataset.menubarTone = theme === 'light' && wallpaper === 'orchard' ? 'light' : 'dark'
+  }, [theme, accent, scrollbars, wallpaper])
   useEffect(() => {
     const block = (e: MouseEvent) => e.preventDefault()
     document.addEventListener('contextmenu', block)

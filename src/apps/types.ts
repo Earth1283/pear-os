@@ -7,7 +7,7 @@ export type MenuItem =
       label: string
       shortcut?: string
       disabled?: boolean
-      checked?: boolean
+      checked?: boolean | 'diamond'
       action?: (win: Win | null) => void
       submenu?: MenuItem[]
     }

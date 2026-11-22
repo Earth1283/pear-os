@@ -91,3 +91,99 @@
 
 .file-thumb { display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .file-thumb img { max-width: 92%; max-height: 80%; border-radius: 2px; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.32), 0 2px 7px rgba(0, 0, 0, 0.3); }
+
+.dock-item.drop-target .dock-icon {
+  filter: drop-shadow(0 0 10px var(--accent));
+  transform: scale(1.16) !important;
+}
+
+.dock-stack-catch {
+  position: fixed;
+  inset: 0;
+  z-index: 47000;
+}
+
+.dock-stack {
+  position: fixed;
+  right: 20px;
+  bottom: 92px;
+  width: min(390px, calc(100vw - 32px));
+  max-height: min(380px, calc(100vh - 150px));
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  background: var(--glass-strong);
+  color: var(--fg);
+  overflow: hidden;
+  animation: stack-in 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+}
+
+@keyframes stack-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.92);
+  }
+}
+
+.dock-stack-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  border-bottom: 0.5px solid var(--line);
+}
+
+.dock-stack-head small {
+  font-weight: 400;
+  color: var(--fg2);
+}
+
+.dock-stack-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px;
+  overflow: auto;
+}
+
+.dock-stack-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 6px;
+  border-radius: 9px;
+  text-align: center;
+}
+
+.dock-stack-item:hover {
+  background: var(--sel);
+}
+
+.dock-stack-item span {
+  max-width: 100%;
+  font-size: 11px;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.dock-stack-empty {
+  grid-column: 1 / -1;
+  padding: 24px 0;
+  text-align: center;
+  color: var(--fg2);
+  font-size: 12px;
+}
+
+.dock-stack-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 12px 10px;
+  border-top: 0.5px solid var(--line);
+}

@@ -7,7 +7,7 @@ Object.defineProperty(globalThis, 'localStorage', { value: { getItem: (key) => s
 
 const { os, useOS, registerSpecs, onQuit, onSpace, spaceOrder, fullscreenRect, fullscreenSide } = await import('../src/store.ts')
 const { indexVirtualFiles, searchVirtualFiles } = await import('../src/lib/fileSearch.ts')
-const { HOME, moveToTrash, rename, writeFile } = await import('../src/lib/fs.ts')
+const { HOME, emptyTrash, moveNode, moveToTrash, rename, resolve, trashCount, writeFile } = await import('../src/lib/fs.ts')
 registerSpecs({
   calculator: { name: 'Calculator', w: 236, h: 392, resizable: false },
   about: { name: 'About This Pear', w: 300, h: 580, singleton: true, resizable: false, systemPanel: true },
@@ -174,4 +174,43 @@ test('Spotlight ranks matching names, indexes text, and tracks rename and trash'
   assert.equal(searchVirtualFiles(indexVirtualFiles(), 'cobalt teaspoon')[0], renamed)
   moveToTrash(renamed)
   assert.deepEqual(searchVirtualFiles(indexVirtualFiles(), 'cobalt teaspoon'), [])
+})
+
+test('bringAllToFront, closeAllWindows, hideOtherApps, and system dialogs manage app state cleanly', () => {
+  const t1 = os().openApp('terminal')
+  const t2 = os().openApp('terminal', { forceNew: true })
+  const n1 = os().openApp('notes')
+  os().focus(t1)
+  os().bringAllToFront('terminal')
+  const wins = os().windows
+  const zNotes = wins.find((w) => w.id === n1).z
+  assert.ok(wins.find((w) => w.id === t1).z > zNotes)
+  assert.ok(wins.find((w) => w.id === t2).z > zNotes)
+
+  os().hideOtherApps('terminal')
+  assert.ok(os().hiddenApps.includes('notes'))
+  assert.ok(!os().hiddenApps.includes('terminal'))
+
+  os().openDialog({ kind: 'force-quit' })
+  assert.deepEqual(os().systemDialog, { kind: 'force-quit' })
+  os().closeDialog()
+  assert.equal(os().systemDialog, null)
+
+  os().closeAllWindows('terminal')
+  assert.equal(os().windows.filter((w) => w.app === 'terminal').length, 0)
+})
+
+test('moveNode relocates files between directories and emptyTrash clears the Trash', () => {
+  const src = `${HOME}/Desktop/drag-test.txt`
+  assert.equal(writeFile(src, 'hello'), true)
+  const moved = moveNode(src, `${HOME}/Documents`)
+  assert.equal(moved, `${HOME}/Documents/drag-test.txt`)
+  assert.equal(resolve(src), null)
+  assert.ok(resolve(moved))
+
+  assert.equal(moveToTrash(moved), true)
+  assert.ok(trashCount() >= 1)
+  const erased = emptyTrash()
+  assert.ok(erased >= 1)
+  assert.equal(trashCount(), 0)
 })

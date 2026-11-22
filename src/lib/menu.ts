@@ -9,7 +9,7 @@ export type MenuEntry =
       label: string
       run?: () => void
       disabled?: boolean
-      checked?: boolean
+      checked?: boolean | 'diamond'
       shortcut?: string
       submenu?: MenuEntry[]
     }

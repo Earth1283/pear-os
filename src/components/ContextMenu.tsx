@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronRight } from 'lucide-react'
 import { useOS } from '../store'
@@ -31,9 +31,35 @@ function place(el: HTMLElement, x: number, y: number, anchor?: DOMRect) {
   el.style.visibility = 'visible'
 }
 
-export function MenuList({ items, x, y, anchor, onDone, className = '' }: { items: MenuEntry[]; x?: number; y?: number; anchor?: DOMRect; onDone: () => void; className?: string }) {
+function isSelectable(it: MenuEntry): it is Exclude<MenuEntry, 'sep' | { header: string } | { tags: string[]; onPick: (tag: string) => void }> {
+  return typeof it === 'object' && 'label' in it && !it.disabled
+}
+
+export function MenuList({
+  items,
+  x,
+  y,
+  anchor,
+  onDone,
+  onStepMenu,
+  onCloseSub,
+  headerSlot,
+  className = '',
+}: {
+  items: MenuEntry[]
+  x?: number
+  y?: number
+  anchor?: DOMRect
+  onDone: () => void
+  onStepMenu?: (dir: -1 | 1) => void
+  onCloseSub?: () => void
+  headerSlot?: React.ReactNode
+  className?: string
+}) {
   const ref = useRef<HTMLDivElement>(null)
+  const itemRefs = useRef<Record<number, HTMLButtonElement | null>>({})
   const [open, setOpen] = useState<{ i: number; rect: DOMRect } | null>(null)
+  const [active, setActive] = useState<number>(-1)
   const timer = useRef<number | undefined>(undefined)
   const floating = x !== undefined || anchor !== undefined
 
@@ -41,7 +67,95 @@ export function MenuList({ items, x, y, anchor, onDone, className = '' }: { item
     if (floating && ref.current) place(ref.current, x ?? 0, y ?? 0, anchor)
   }, [x, y, anchor, floating])
 
+  useEffect(() => () => clearTimeout(timer.current), [])
+
+  useEffect(() => {
+    if (open) return
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      if (target?.tagName === 'INPUT' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Escape' && e.key !== 'Enter') return
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        if (onCloseSub) onCloseSub()
+        else onDone()
+        return
+      }
+      const selectable = items.map((it, idx) => (isSelectable(it) ? idx : -1)).filter((idx) => idx >= 0)
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        if (!selectable.length) return
+        e.preventDefault()
+        e.stopPropagation()
+        const pos = selectable.indexOf(active)
+        const next = pos < 0 ? (e.key === 'ArrowDown' ? selectable[0] : selectable[selectable.length - 1]) : selectable[(pos + (e.key === 'ArrowDown' ? 1 : -1) + selectable.length) % selectable.length]
+        setActive(next)
+        return
+      }
+      if (e.key === 'ArrowRight') {
+        const cur = active >= 0 ? items[active] : undefined
+        if (cur && isSelectable(cur) && cur.submenu?.length) {
+          const btn = itemRefs.current[active]
+          if (btn) {
+            e.preventDefault()
+            e.stopPropagation()
+            setOpen({ i: active, rect: btn.getBoundingClientRect() })
+            return
+          }
+        }
+        if (onStepMenu) {
+          e.preventDefault()
+          e.stopPropagation()
+          onStepMenu(1)
+        }
+        return
+      }
+      if (e.key === 'ArrowLeft') {
+        if (onCloseSub) {
+          e.preventDefault()
+          e.stopPropagation()
+          onCloseSub()
+          return
+        }
+        if (onStepMenu) {
+          e.preventDefault()
+          e.stopPropagation()
+          onStepMenu(-1)
+        }
+        return
+      }
+      if (e.key === 'Enter' && active >= 0) {
+        const cur = items[active]
+        if (cur && isSelectable(cur)) {
+          e.preventDefault()
+          e.stopPropagation()
+          if (cur.submenu?.length) {
+            const btn = itemRefs.current[active]
+            if (btn) setOpen({ i: active, rect: btn.getBoundingClientRect() })
+          } else {
+            onDone()
+            cur.run?.()
+          }
+        }
+        return
+      }
+      if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey && target?.tagName !== 'INPUT') {
+        const ch = e.key.toLowerCase()
+        const match = selectable.find((idx) => {
+          const it = items[idx]
+          return isSelectable(it) && it.label.toLowerCase().startsWith(ch)
+        })
+        if (match !== undefined) {
+          e.preventDefault()
+          setActive(match)
+        }
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [items, active, open, onDone, onStepMenu, onCloseSub])
+
   const hoverItem = (i: number, el: HTMLElement, hasSub: boolean) => {
+    setActive(i)
     clearTimeout(timer.current)
     if (hasSub) {
       const rect = el.getBoundingClientRect()
@@ -58,6 +172,7 @@ export function MenuList({ items, x, y, anchor, onDone, className = '' }: { item
       onContextMenu={(e) => e.preventDefault()}
       role="menu"
     >
+      {headerSlot}
       {items.map((it, i) => {
         if (it === 'sep') return <div key={i} className="dd-sep" />
         if ('header' in it)
@@ -87,8 +202,9 @@ export function MenuList({ items, x, y, anchor, onDone, className = '' }: { item
         return (
           <button
             key={i}
+            ref={(el) => { itemRefs.current[i] = el }}
             role="menuitem"
-            className={`dd-item ${open?.i === i ? 'sub-open' : ''}`}
+            className={`dd-item ${open?.i === i ? 'sub-open' : ''} ${active === i ? 'kbd-active' : ''}`}
             disabled={it.disabled}
             onPointerEnter={(e) => !it.disabled && hoverItem(i, e.currentTarget, hasSub)}
             onClick={(e) => {
@@ -97,7 +213,7 @@ export function MenuList({ items, x, y, anchor, onDone, className = '' }: { item
               it.run?.()
             }}
           >
-            <span className="dd-check">{it.checked ? '✓' : ''}</span>
+            <span className="dd-check">{it.checked === 'diamond' ? '♦' : it.checked ? '✓' : ''}</span>
             <span className="dd-label">{it.label}</span>
             {it.shortcut && <span className="dd-sc">{it.shortcut}</span>}
             {hasSub && <ChevronRight className="dd-arrow" size={12} strokeWidth={2.6} />}
@@ -106,7 +222,9 @@ export function MenuList({ items, x, y, anchor, onDone, className = '' }: { item
       })}
       {open && (() => {
         const it = items[open.i]
-        return typeof it === 'object' && 'submenu' in it && it.submenu ? createPortal(<MenuList items={it.submenu} anchor={open.rect} onDone={onDone} className="sub" />, document.body) : null
+        return typeof it === 'object' && 'submenu' in it && it.submenu
+          ? createPortal(<MenuList items={it.submenu} anchor={open.rect} onDone={onDone} onCloseSub={() => setOpen(null)} className="sub" />, document.body)
+          : null
       })()}
     </div>
   )

@@ -176,6 +176,35 @@ export function moveToTrash(path: string): boolean {
   return remove(abs)
 }
 
+export function moveNode(fromPath: string, toDirPath: string): string | null {
+  const from = normalise(fromPath)
+  const toDir = normalise(toDirPath)
+  if (from === toDir || toDir.startsWith(from + '/')) return null
+  const node = resolve(from)
+  const dest = resolve(toDir)
+  if (!node || !dest || dest.type !== 'dir') return null
+  const { dir, name } = parentOf(from)
+  if (dir === toDir || !name) return null
+  const added = addNode(toDir, name, node)
+  if (!added) return null
+  remove(from)
+  return `${toDir === '/' ? '' : toDir}/${added}`
+}
+
+export function trashCount(): number {
+  const trash = resolve(HOME + '/.Trash')
+  return trash?.type === 'dir' ? Object.keys(trash.children).length : 0
+}
+
+export function emptyTrash(): number {
+  const trash = resolve(HOME + '/.Trash')
+  if (!trash || trash.type !== 'dir') return 0
+  const n = Object.keys(trash.children).length
+  trash.children = {}
+  trash.modified = Date.now()
+  return n
+}
+
 export function canRename(path: string) {
   const abs = normalise(path)
   return abs.startsWith(HOME + '/') && abs !== HOME + '/.Trash' && !!resolve(abs)

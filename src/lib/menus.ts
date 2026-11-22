@@ -5,7 +5,8 @@ import type { AppId } from '../apps/ids'
 import { TOOLS } from './writingTools'
 import { openPath } from '../apps/open'
 import { FINDER_VIEWS, showFileInfo, type FinderView } from '../apps/finderCommands'
-import { HOME, addNode, canRename, cloneNode, mkdir, moveToTrash, parentOf, remove, resolve, sizeOf, toggleTag } from './fs'
+import { HOME, addNode, canRename, cloneNode, mkdir, moveToTrash, parentOf, remove, resolve, sizeOf, toggleTag, trashCount } from './fs'
+import { playTrashMove } from './sounds'
 import { replaceInField, type Field, type MenuEntry } from './menu'
 import { lastContextPoint, useStickies } from './stickies'
 import { shareWithAirPear } from './airpearShare'
@@ -190,8 +191,10 @@ export function fileMenu(path: string, opts: { rename?: () => void; quickLook?: 
             shortcut: '⌘⌫',
             disabled: locked,
             run: () => {
-              moveToTrash(path)
-              done()
+              if (moveToTrash(path)) {
+                playTrashMove()
+                done()
+              }
             },
           },
         ]),
@@ -345,19 +348,14 @@ export function dockMenu(app: AppId): MenuEntry[] {
   const running = s.runningApps.includes(app)
   const name = APPS[app].name
   if (app === 'trash') {
-    const trash = resolve(HOME + '/.Trash')
-    const n = trash?.type === 'dir' ? Object.keys(trash.children).length : 0
+    const n = trashCount()
     return [
       { label: 'Open', run: () => os().openApp('finder', { props: { path: HOME + '/.Trash' }, forceNew: true }) },
       'sep',
       {
-        label: 'Empty Trash',
+        label: 'Empty Trash…',
         disabled: n === 0,
-        run: () => {
-          if (trash?.type === 'dir') trash.children = {}
-          os().bumpFs()
-          toast('Trash', `${n} item${n === 1 ? '' : 's'} permanently deleted, including your feelings.`, 'trash')
-        },
+        run: () => os().openDialog({ kind: 'empty-trash' }),
       },
     ]
   }

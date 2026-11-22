@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useOS, os, fullscreenRect, fullscreenSide, spaceOrder, tileRect, onSpace } from '../store'
 import { Wallpaper } from './Wallpaper'
 import { ShaderLayer } from './ShaderLayers'
@@ -15,10 +15,11 @@ import { isTextField, menu, openContextMenu } from '../lib/menu'
 import { desktopMenu, fileMenu, selectionMenu, textMenu, windowChromeMenu, windowFallbackMenu } from '../lib/menus'
 import { TAG_COLORS } from './ContextMenu'
 import { DiskIcon, FileIcon, FolderIcon, fileThumb } from './icons'
-import { HOME, canRename, listDir, rename, resolve } from '../lib/fs'
+import { HOME, canRename, listDir, moveNode, moveToTrash, rename, resolve } from '../lib/fs'
 import { RenameField, useEnterToRename } from './RenameField'
 import { openPath } from '../apps/open'
 import { APPS, preloadApps } from '../apps/registry'
+import type { AppId } from '../apps/ids'
 import { shameToast, useScreenTime } from '../lib/screenTime'
 import { missionLayout } from '../lib/missionControl'
 import { MissionControl } from './MissionControl'
@@ -31,6 +32,8 @@ import { useQuickLookShortcut } from './useQuickLookShortcut'
 import { mountDesktopGravity, restoreDesktopOrder, setDesktopGravity, useGravity } from '../lib/gravity'
 import { useA11y } from '../lib/a11y'
 import { AppSwitcher } from './AppSwitcher'
+import { SystemDialogs } from './SystemDialogs'
+import { playTrashMove } from '../lib/sounds'
 import { closeFinderTab, FINDER_VIEWS, finderCommands, goToFinderFolder, showFileInfo } from '../apps/finderCommands'
 
 const JOKES: { app: Parameters<ReturnType<typeof os>['notify']>[0]['app']; title: string; body: string | (() => string); actions?: string[] }[] = [
@@ -73,6 +76,7 @@ function useShortcuts() {
     const onKey = (e: KeyboardEvent) => {
       const s = os()
       if (e.defaultPrevented || e.isComposing) return
+      if (s.systemDialog) return
       if (s.quickLook) {
         const plain = !e.metaKey && !e.ctrlKey && !e.altKey
         if ((plain && (e.key === 'Escape' || e.code === 'Space')) || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y')) {
@@ -93,6 +97,13 @@ function useShortcuts() {
           return
         }
       }
+      if (e.altKey && (e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'Escape') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        s.flashMenu('pear')
+        s.openDialog({ kind: 'force-quit' })
+        return
+      }
       if (e.shiftKey && (e.metaKey || e.ctrlKey) && !e.altKey && /^Digit[345]$/.test(e.code)) {
         e.preventDefault()
         e.stopImmediatePropagation()
@@ -112,35 +123,62 @@ function useShortcuts() {
       const target = e.target as Element
       if (target?.closest?.('.finder-sheet')) return
       const command = e.metaKey || (e.ctrlKey && !navigator.platform.startsWith('Mac') && !target?.closest?.('.app-terminal'))
+      if (command && e.altKey && !e.shiftKey && s.activeApp === 'finder' && e.code === 'KeyP') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        s.flashMenu('View')
+        s.set('finderPathBar', !s.finderPathBar)
+        return
+      }
       if (command && !e.altKey) {
         const win = s.windows.find((w) => w.id === s.focused)
         const key = e.shiftKey && e.code !== 'Backquote' ? '' : e.code
         let action: (() => void) | undefined
-        if (key === 'KeyF' && win && e.ctrlKey && e.metaKey) action = () => s.toggleFullscreen(win.id)
+        let flash: string | undefined
+        if (key === 'KeyF' && win && e.ctrlKey && e.metaKey) {
+          action = () => s.toggleFullscreen(win.id)
+          flash = 'View'
+        }
         if (!e.metaKey || !e.ctrlKey) {
-          if (key === 'KeyW') action = () => { if (win && (win.app !== 'finder' || !closeFinderTab(win.id))) s.closeWindow(win.id) }
-          if (key === 'KeyM' && win) action = () => s.minimize(win.id)
-          if (key === 'KeyQ') action = () => { if (s.activeApp !== 'finder') s.closeApp(s.activeApp) }
-          if (key === 'KeyH') action = () => s.hideApp(s.activeApp)
+          if (key === 'KeyW') {
+            action = () => { if (win && (win.app !== 'finder' || !closeFinderTab(win.id))) s.closeWindow(win.id) }
+            flash = 'File'
+          }
+          if (key === 'KeyM' && win) {
+            action = () => s.minimize(win.id)
+            flash = 'Window'
+          }
+          if (key === 'KeyQ') {
+            action = () => { if (s.activeApp !== 'finder') s.closeApp(s.activeApp) }
+            flash = 'app'
+          }
+          if (key === 'KeyH') {
+            action = () => s.hideApp(s.activeApp)
+            flash = 'app'
+          }
           if (key === 'Backquote') action = () => s.cycleWindows(e.shiftKey)
           if (key === 'KeyN') {
             const item = APPS[s.activeApp].menus?.flatMap((m) => m.items).find((item) => item !== 'sep' && item.shortcut === '⌘N')
             action = item && item !== 'sep' && item.action ? () => item.action?.(win ?? null) : () => s.openApp(s.activeApp, { forceNew: true })
+            flash = 'File'
           }
           if (s.activeApp === 'finder') {
             const finder = win && finderCommands.get(win.id)
-            if (key === 'KeyI' && finder) action = finder.getInfo
-            if (key === 'KeyT') action = finder ? finder.newTab : () => s.openApp('finder', { forceNew: true })
-            if (e.shiftKey && e.code === 'KeyG') action = () => goToFinderFolder(win?.id)
-            if (e.shiftKey && e.code === 'KeyW' && win && finder?.hasTabs) action = () => s.closeWindow(win.id)
+            if (key === 'KeyI' && finder) { action = finder.getInfo; flash = 'File' }
+            if (key === 'KeyT') { action = finder ? finder.newTab : () => s.openApp('finder', { forceNew: true }); flash = 'File' }
+            if (e.shiftKey && e.code === 'KeyG') { action = () => goToFinderFolder(win?.id); flash = 'Go' }
+            if (e.shiftKey && e.code === 'KeyW' && win && finder?.hasTabs) { action = () => s.closeWindow(win.id); flash = 'File' }
+            if (e.shiftKey && e.code === 'Backspace') { action = () => s.openDialog({ kind: 'empty-trash' }); flash = 'app' }
+            if (key === 'Slash') { action = () => s.set('finderStatusBar', !s.finderStatusBar); flash = 'View' }
             const view = e.metaKey && FINDER_VIEWS.find((v) => 'Digit' + v.shortcut.at(-1) === key)
-            if (view && finder) action = () => finder.setView(view.id)
+            if (view && finder) { action = () => finder.setView(view.id); flash = 'View' }
           }
         }
         if (action && !s.overlay.missionControl && !s.overlay.spotlight && !s.overlay.launchpad && !s.quickLook && useShots.getState().mode === 'idle') {
           e.preventDefault()
           e.stopImmediatePropagation()
           if (!e.repeat || key === 'Backquote') {
+            if (flash) s.flashMenu(flash)
             action()
             if (s.focused !== os().focused || key === 'Backquote') requestAnimationFrame(() => {
               const frame = document.querySelector<HTMLElement>(`.window[data-win="${os().focused}"]`)
@@ -200,55 +238,212 @@ function useShortcuts() {
   }, [])
 }
 
-function DesktopIcons() {
+interface Marquee {
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+}
+
+function DesktopIcons({
+  sel,
+  setSel,
+  iconRefs,
+}: {
+  sel: string[]
+  setSel: React.Dispatch<React.SetStateAction<string[]>>
+  iconRefs: React.MutableRefObject<Record<string, HTMLButtonElement | null>>
+}) {
   useOS((s) => s.fsVersion)
-  const [sel, setSel] = useState<string | null>(null)
   const [renaming, setRenaming] = useState<string | null>(null)
+  const [offsets, setOffsets] = useState<Record<string, { dx: number; dy: number }>>({})
+  const [draggingPaths, setDraggingPaths] = useState<string[]>([])
+  const [dragDelta, setDragDelta] = useState<{ dx: number; dy: number }>({ dx: 0, dy: 0 })
   const active = useOS((s) => s.activeApp === 'finder' && s.focused === null)
+  const primarySel = sel.length === 1 ? sel[0] : null
   const startRename = (p: string) => canRename(p) && setRenaming(p)
-  useEnterToRename(active && renaming === null, sel, startRename)
+  useEnterToRename(active && renaming === null, primarySel, startRename)
   const commit = (from: string, to: string) => {
     setRenaming(null)
     const res = rename(from, to)
     if (!res) return
     if ('error' in res) return os().notify({ app: 'finder', title: 'Finder', body: res.error })
-    setSel(res.path)
+    setSel([res.path])
+    setOffsets((prev) => {
+      if (!prev[from]) return prev
+      const next = { ...prev, [res.path]: prev[from] }
+      delete next[from]
+      return next
+    })
     os().bumpFs()
   }
   const desk = resolve(HOME + '/Desktop')
   const files = desk && desk.type === 'dir' ? listDir(desk) : []
   const items = [{ name: 'Pear HD', path: '/', node: null as null | ReturnType<typeof resolve> }, ...files.map(([name, node]) => ({ name, path: `${HOME}/Desktop/${name}`, node }))]
-  const quickLook = (p: string) => openVirtualQuickLook(p, items.map((item) => item.path), (item) => setSel(item.path))
-  useQuickLookShortcut(active && renaming === null, sel, quickLook)
+  const quickLook = (p: string) => openVirtualQuickLook(p, items.map((item) => item.path), (item) => setSel([item.path]))
+  useQuickLookShortcut(active && renaming === null, primarySel, quickLook)
   useEffect(() => {
-    const info = (e: KeyboardEvent) => {
+    const onKey = (e: KeyboardEvent) => {
       const s = os()
-      if (!sel || !active || s.activeApp !== 'finder' || Object.values(s.overlay).some(Boolean) || s.quickLook || renaming || isTextField(e.target as Element)) return
+      if (!sel.length || !active || s.activeApp !== 'finder' || Object.values(s.overlay).some(Boolean) || s.quickLook || s.systemDialog || renaming || isTextField(e.target as Element)) return
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.code === 'KeyI') {
         e.preventDefault()
-        showFileInfo(sel)
+        showFileInfo(sel[0])
+      } else if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.code === 'Backspace') {
+        const deletable = sel.filter((p) => p !== '/' && canRename(p))
+        if (!deletable.length) return
+        e.preventDefault()
+        let moved = false
+        for (const p of deletable) if (moveToTrash(p)) moved = true
+        if (moved) {
+          playTrashMove()
+          setSel([])
+          os().bumpFs()
+        }
       }
     }
-    window.addEventListener('keydown', info)
-    return () => window.removeEventListener('keydown', info)
-  }, [active, renaming, sel])
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [active, renaming, sel, setSel])
+
+  const beginIconDrag = (path: string, e: React.PointerEvent) => {
+    if (e.button !== 0 || renaming) return
+    e.stopPropagation()
+    os().focus(null)
+    let nextSel = sel
+    if (e.metaKey || e.ctrlKey) {
+      nextSel = sel.includes(path) ? sel.filter((p) => p !== path) : [...sel, path]
+      setSel(nextSel)
+    } else if (e.shiftKey) {
+      nextSel = sel.includes(path) ? sel : [...sel, path]
+      setSel(nextSel)
+    } else if (!sel.includes(path)) {
+      nextSel = [path]
+      setSel(nextSel)
+    }
+    const sx = e.clientX
+    const sy = e.clientY
+    const group = nextSel.includes(path) ? nextSel : [path]
+    let started = false
+    let highlightedDock: Element | null = null
+    let highlightedFolder: Element | null = null
+
+    const clearHighlights = () => {
+      highlightedDock?.classList.remove('drop-target')
+      highlightedDock = null
+      highlightedFolder?.classList.remove('drop-target')
+      highlightedFolder = null
+    }
+
+    const hitTarget = (cx: number, cy: number) => {
+      const stack = document.elementsFromPoint(cx, cy)
+      const dockBtn = stack.find((el) => el.matches('[data-dock-app]'))
+      const folderBtn = stack.find((el) => {
+        const p = (el as HTMLElement).dataset?.deskFolder
+        return !!p && !group.includes(p)
+      })
+      return { dockBtn, folderBtn }
+    }
+
+    const move = (ev: PointerEvent) => {
+      const dx = ev.clientX - sx
+      const dy = ev.clientY - sy
+      if (!started) {
+        if (Math.hypot(dx, dy) < 5) return
+        started = true
+        setDraggingPaths(group)
+      }
+      setDragDelta({ dx, dy })
+      clearHighlights()
+      const { dockBtn, folderBtn } = hitTarget(ev.clientX, ev.clientY)
+      if (dockBtn) {
+        dockBtn.classList.add('drop-target')
+        highlightedDock = dockBtn
+      } else if (folderBtn) {
+        folderBtn.classList.add('drop-target')
+        highlightedFolder = folderBtn
+      }
+    }
+
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', up)
+      clearHighlights()
+      if (!started) return
+      const dx = ev.clientX - sx
+      const dy = ev.clientY - sy
+      setDraggingPaths([])
+      setDragDelta({ dx: 0, dy: 0 })
+
+      const { dockBtn, folderBtn } = hitTarget(ev.clientX, ev.clientY)
+      const dockApp = (dockBtn as HTMLElement | undefined)?.dataset.dockApp as AppId | undefined
+      if (dockApp === 'trash') {
+        let trashed = false
+        for (const p of group) if (p !== '/' && moveToTrash(p)) trashed = true
+        if (trashed) {
+          playTrashMove()
+          setSel([])
+          os().bumpFs()
+        }
+        return
+      }
+      if (dockApp && dockApp !== 'launchpad') {
+        const first = group.find((p) => p !== '/')
+        if (first) {
+          if (dockApp === 'textedit' || dockApp === 'preview' || dockApp === 'finder') openPath(first)
+          else os().openApp(dockApp)
+        }
+        return
+      }
+      const folderPath = (folderBtn as HTMLElement | undefined)?.dataset.deskFolder
+      if (folderPath) {
+        let movedAny = false
+        for (const p of group) {
+          if (p !== '/' && moveNode(p, folderPath)) movedAny = true
+        }
+        if (movedAny) {
+          setSel([])
+          os().bumpFs()
+        }
+        return
+      }
+      setOffsets((prev) => {
+        const next = { ...prev }
+        for (const p of group) {
+          const cur = prev[p] ?? { dx: 0, dy: 0 }
+          next[p] = { dx: cur.dx + dx, dy: cur.dy + dy }
+        }
+        return next
+      })
+    }
+
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', up)
+  }
+
   return (
-    <div className="desktop-icons" onPointerDown={() => setSel(null)}>
+    <div className="desktop-icons" onPointerDown={() => setSel([])}>
       {items.map((it) => {
         const ext = it.name.includes('.') ? it.name.split('.').pop()! : ''
+        const isDragging = draggingPaths.includes(it.path)
+        const base = offsets[it.path] ?? { dx: 0, dy: 0 }
+        const tx = base.dx + (isDragging ? dragDelta.dx : 0)
+        const ty = base.dy + (isDragging ? dragDelta.dy : 0)
         return (
           <button
             key={it.path}
-            className={`desk-icon ${sel === it.path ? 'sel' : ''}`}
+            ref={(el) => { iconRefs.current[it.path] = el }}
+            data-desk-path={it.path}
+            data-desk-folder={it.node?.type === 'dir' ? it.path : undefined}
+            className={`desk-icon ${sel.includes(it.path) ? 'sel' : ''} ${isDragging ? 'dragging' : ''}`}
+            style={tx || ty ? { transform: `translate(${tx}px, ${ty}px)` } : undefined}
             data-heavy={it.node === null ? '' : undefined}
-            onPointerDown={(e) => {
-              e.stopPropagation()
-              os().focus(null)
-              setSel(it.path)
-            }}
+            onPointerDown={(e) => beginIconDrag(it.path, e)}
             onDoubleClick={() => openPath(it.path)}
             onContextMenu={(e) => {
-              setSel(it.path)
+              if (!sel.includes(it.path)) setSel([it.path])
               menu(fileMenu(it.path, { rename: () => startRename(it.path), quickLook: () => quickLook(it.path) }))(e)
             }}
           >
@@ -335,18 +530,56 @@ export function Desktop() {
   useEffect(mountDesktopGravity, [])
   const missionControl = useOS((s) => s.overlay.missionControl)
   const fullscreen = useOS((s) => s.activeSpace < 0)
+  const [deskSel, setDeskSel] = useState<string[]>([])
+  const [marquee, setMarquee] = useState<Marquee | null>(null)
+  const iconRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+
+  const startMarquee = (e: React.PointerEvent) => {
+    os().focus(null)
+    os().closeOverlays()
+    if (e.button !== 0) return
+    const t = e.target as HTMLElement
+    if (t.closest('.window, .desk-icon, .wg, .sticky, .menubar, .dock-wrap, .toasts, .gravity-controls')) return
+    setDeskSel([])
+    const x0 = e.clientX
+    const y0 = e.clientY
+    let active = false
+    const move = (ev: PointerEvent) => {
+      if (!active && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 4) return
+      active = true
+      const box = { x0, y0, x1: ev.clientX, y1: ev.clientY }
+      setMarquee(box)
+      const left = Math.min(box.x0, box.x1)
+      const right = Math.max(box.x0, box.x1)
+      const top = Math.min(box.y0, box.y1)
+      const bottom = Math.max(box.y0, box.y1)
+      const hit: string[] = []
+      for (const [p, el] of Object.entries(iconRefs.current)) {
+        if (!el) continue
+        const r = el.getBoundingClientRect()
+        if (r.right >= left && r.left <= right && r.bottom >= top && r.top <= bottom) hit.push(p)
+      }
+      setDeskSel(hit)
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', up)
+      setMarquee(null)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', up)
+  }
 
   return (
     <div
       className={`desktop ${missionControl ? 'in-mission-control' : ''} ${fullscreen ? 'fullscreen-space' : ''}`}
-      onPointerDown={() => {
-        os().focus(null)
-        os().closeOverlays()
-      }}
+      onPointerDown={startMarquee}
       onContextMenu={(e) => {
         e.preventDefault()
         const t = e.target as HTMLElement
-        if (t.closest('.menubar, .toasts, .control-center, .status-popover, .notif-center, .wg, .spotlight, .launchpad, .dropdown, .dock-wrap')) return
+        if (t.closest('.menubar, .toasts, .control-center, .status-popover, .notif-center, .wg, .spotlight, .launchpad, .dropdown, .dock-wrap, .sys-dialog-backdrop, .dock-stack-catch')) return
         const open = (items: Parameters<typeof openContextMenu>[2]) => openContextMenu(e.clientX, e.clientY, items)
         const field = t.closest('input, textarea')
         if (isTextField(field)) return open(textMenu(field))
@@ -366,7 +599,18 @@ export function Desktop() {
       <Wallpaper />
       <ShaderLayer target="desktop" />
       <ShaderLayer target="sky" />
-      <DesktopIcons />
+      <DesktopIcons sel={deskSel} setSel={setDeskSel} iconRefs={iconRefs} />
+      {marquee && (
+        <div
+          className="desktop-marquee"
+          style={{
+            left: Math.min(marquee.x0, marquee.x1),
+            top: Math.min(marquee.y0, marquee.y1),
+            width: Math.abs(marquee.x1 - marquee.x0),
+            height: Math.abs(marquee.y1 - marquee.y0),
+          }}
+        />
+      )}
       <DesktopWidgets />
       <Stickies />
       <ShaderLayer target="shadow" />
@@ -383,6 +627,7 @@ export function Desktop() {
       <Spotlight />
       <Launchpad />
       <AppSwitcher />
+      <SystemDialogs />
       <GlobalContextMenu />
       <QuickLook />
       <ScreenshotUI />

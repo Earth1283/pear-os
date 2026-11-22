@@ -81,11 +81,38 @@ function TileMenu({ win, onClose }: { win: Win; onClose: () => void }) {
 function TrafficLights({ win }: { win: Win }) {
   const { closeWindow, minimize, tileWindow, toggleFullscreen } = useOS.getState()
   const [menu, setMenu] = useState(false)
+  const [altHover, setAltHover] = useState(false)
+  const [hovering, setHovering] = useState(false)
   const hover = useRef<number | undefined>(undefined)
   const resizable = APPS[win.app].resizable !== false && !win.props.infoPath
   useEffect(() => () => clearTimeout(hover.current), [])
+  useEffect(() => {
+    if (!hovering) {
+      setAltHover(false)
+      return
+    }
+    const down = (e: KeyboardEvent) => { if (e.key === 'Alt') setAltHover(true) }
+    const up = (e: KeyboardEvent) => { if (e.key === 'Alt') setAltHover(false) }
+    const blur = () => setAltHover(false)
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    window.addEventListener('blur', blur)
+    return () => {
+      window.removeEventListener('keydown', down)
+      window.removeEventListener('keyup', up)
+      window.removeEventListener('blur', blur)
+    }
+  }, [hovering])
+  const showPlus = altHover && !win.fullscreen && resizable
   return (
-    <div className="traffic" data-nodrag onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+    <div
+      className="traffic"
+      data-nodrag
+      onPointerEnter={(e) => { setHovering(true); setAltHover(e.altKey) }}
+      onPointerLeave={() => { setHovering(false); setAltHover(false) }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+    >
       <button className="tl tl-close" aria-label="Close" onClick={() => closeWindow(win.id)}>
         <svg viewBox="0 0 10 10"><path d="M3 3l4 4M7 3l-4 4" /></svg>
       </button>
@@ -110,8 +137,8 @@ function TrafficLights({ win }: { win: Win }) {
         }}
       >
         <button
-          className="tl tl-max"
-          aria-label={win.fullscreen ? 'Exit Full Screen' : 'Enter Full Screen'}
+          className={`tl tl-max ${showPlus ? 'tl-zoom' : ''}`}
+          aria-label={showPlus ? 'Zoom' : win.fullscreen ? 'Exit Full Screen' : 'Enter Full Screen'}
           aria-expanded={menu}
           disabled={!resizable}
           onClick={(e) => {
@@ -123,7 +150,9 @@ function TrafficLights({ win }: { win: Win }) {
             if (e.key === 'ArrowDown') { e.preventDefault(); setMenu(true) }
           }}
         >
-          <svg viewBox="0 0 10 10"><path d="M3 3.2h3.8v3.8zM7 6.8H3.2V3z" /></svg>
+          {showPlus
+            ? <svg viewBox="0 0 10 10" className="tl-plus"><path d="M5 2.4v5.2M2.4 5h5.2" /></svg>
+            : <svg viewBox="0 0 10 10"><path d="M3 3.2h3.8v3.8zM7 6.8H3.2V3z" /></svg>}
         </button>
         {menu && <TileMenu win={win} onClose={() => setMenu(false)} />}
       </span>

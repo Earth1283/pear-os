@@ -36,7 +36,7 @@ function Squircle({ fill, stroke }: { fill: string; stroke?: string }) {
   return <rect x="7" y="7" width="86" height="86" rx="20" fill={fill} stroke={stroke ?? 'rgba(0,0,0,.08)'} strokeWidth=".6" />
 }
 
-export const AppIcon = memo(function AppIcon({ app, size = 52 }: { app: AppId; size?: number }) {
+export const AppIcon = memo(function AppIcon({ app, size = 52, full }: { app: AppId; size?: number; full?: boolean }) {
   const uid = useId().replace(/:/g, '')
   const g = (n: string) => `${uid}${n}`
   const u = (n: string) => `url(#${g(n)})`
@@ -436,8 +436,18 @@ export const AppIcon = memo(function AppIcon({ app, size = 52 }: { app: AppId; s
               <stop offset="1" stopColor="#b9bec7" stopOpacity=".9" />
             </linearGradient>
           </defs>
-          <path d="M24 26h52l-5 64c0 2-2 4-4 4H33c-2 0-4-2-4-4z" fill={u('b')} stroke="#9aa1ab" strokeWidth="1" />
-          <ellipse cx="50" cy="26" rx="27" ry="5" fill="#dfe3e8" stroke="#9aa1ab" />
+          <ellipse cx="50" cy="26" rx="27" ry="5" fill="#cfd5dd" stroke="#9aa1ab" />
+          {full && (
+            <g>
+              <path d="M31 28c1-9 8-14 14-10 4-6 13-5 15 2 6 0 9 5 8 10z" fill="#f7f7f2" stroke="#c8cdd4" strokeWidth="1" />
+              <path d="M39 24l6 4 7-5 6 4" fill="none" stroke="#d5dae2" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="43" cy="22" r="5" fill="#fffdf6" stroke="#d0d5dc" strokeWidth=".8" />
+              <circle cx="58" cy="23" r="4.5" fill="#f2f5f9" stroke="#cbd1da" strokeWidth=".8" />
+            </g>
+          )}
+          <path d="M24 26h52l-5 64c0 2-2 4-4 4H33c-2 0-4-2-4-4z" fill={u('b')} fillOpacity={full ? '.86' : '1'} stroke="#9aa1ab" strokeWidth="1" />
+          {!full && <ellipse cx="50" cy="26" rx="27" ry="5" fill="#dfe3e8" stroke="#9aa1ab" />}
+          {full && <path d="M23 26a27 5 0 0 0 54 0" fill="none" stroke="#9aa1ab" strokeWidth="1.1" />}
           {[35, 42.5, 50, 57.5, 65].map((x) => (
             <line key={x} x1={x} y1="34" x2={x + (x - 50) * -0.05} y2="88" stroke="#a5acb6" strokeWidth="1.4" />
           ))}

@@ -6,6 +6,7 @@ import type { StatusMenu } from '../lib/menuBarConfig'
 import { useCurrent, usePlayer } from '../lib/player'
 import { useSpoken } from '../lib/captions'
 import { stopRecording, useShots } from '../lib/screenshot'
+import { playPop } from '../lib/sounds'
 import { Art, Eq } from './MusicBits'
 import { IntelOrb } from './icons'
 import './MenuBarStatus.css'
@@ -146,7 +147,10 @@ function Slider({ kind }: { kind: 'brightness' | 'volume' }) {
     <label className="status-slider">
       <Icon size={15} aria-hidden="true" />
       <input type="range" aria-label={kind === 'brightness' ? 'Brightness' : 'Output volume'} min={kind === 'brightness' ? 0.25 : 0}
-        max={1} step={0.01} value={value} onChange={(e) => os().set(kind, +e.target.value)} />
+        max={1} step={0.01} value={value} onChange={(e) => {
+          os().set(kind, +e.target.value)
+          if (kind === 'volume') playPop()
+        }} />
     </label>
   )
 }

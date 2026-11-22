@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Accessibility, Bell, Bluetooth, Cpu, Hand, Info, LayoutGrid, Lock, Monitor, Moon, Palette, RefreshCw, Search, Sparkles, Wifi, Image, Battery, ZoomIn, ZoomOut, Gauge, Blend, Hourglass, SlidersHorizontal, Volume2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
-import { useOS, os, type AppSwitchShortcut, type Win, type Wallpaper } from '../store'
+import { useOS, os, type AccentColor, type AppSwitchShortcut, type ScrollbarMode, type Win, type Wallpaper } from '../store'
+import { playPop } from '../lib/sounds'
 import { kernelTaskCpu, entropy, renderMandelbrot, DEFAULT_VIEW, type FractalView, kernelVersion } from '../kernel'
 import { GPU_MIN_SCALE, MandelbrotGL, gpuInfo } from '../lib/gpu'
 import { APPS } from './registry'
@@ -820,6 +821,9 @@ export function Settings({ win }: { win: Win }) {
       hotCorners: st.hotCorners,
       liveWallpaper: st.liveWallpaper,
       theme: st.theme,
+      accent: st.accent,
+      scrollbars: st.scrollbars,
+      soundEffects: st.soundEffects,
       wallpaper: st.wallpaper,
       wifi: st.wifi,
     })),
@@ -849,13 +853,36 @@ export function Settings({ win }: { win: Win }) {
                 ))}
               </div>
             </Row>
-            <Row label="Accent colour" sub="Any colour you like, as long as it's this one">
-              <span className="accent-dot" />
+            <Row label="Accent colour">
+              <div className="accent-swatches" role="radiogroup" aria-label="Accent colour">
+                {([
+                  ['blue', 'Blue', '#0a84ff'],
+                  ['purple', 'Purple', '#bf5af2'],
+                  ['pink', 'Pink', '#ff375f'],
+                  ['red', 'Red', '#ff453a'],
+                  ['orange', 'Orange', '#ff9f0a'],
+                  ['yellow', 'Yellow', '#ffd60a'],
+                  ['green', 'Green', '#30d158'],
+                  ['graphite', 'Graphite', '#8e8e93'],
+                ] as [AccentColor, string, string][]).map(([id, label, color]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="radio"
+                    aria-checked={s.accent === id}
+                    aria-label={label}
+                    title={label}
+                    className={`accent-swatch ${s.accent === id ? 'on' : ''}`}
+                    style={{ background: color }}
+                    onClick={() => os().set('accent', id)}
+                  />
+                ))}
+              </div>
             </Row>
             <Row label="Show scroll bars">
-              <select defaultValue="auto">
+              <select value={s.scrollbars} onChange={(e) => os().set('scrollbars', e.target.value as ScrollbarMode)}>
                 <option value="auto">Automatically based on mouse or trackpad</option>
-                <option>Never (you'll find them)</option>
+                <option value="always">Always</option>
               </select>
             </Row>
           </div>
@@ -1076,7 +1103,21 @@ export function Settings({ win }: { win: Win }) {
       body = (
         <div className="set-card">
           <Row label="Output volume">
-            <input type="range" aria-label="Output volume" min={0} max={1} step={0.01} value={s.volume} onChange={(e) => os().set('volume', +e.target.value)} />
+            <input
+              type="range"
+              aria-label="Output volume"
+              min={0}
+              max={1}
+              step={0.01}
+              value={s.volume}
+              onChange={(e) => {
+                os().set('volume', +e.target.value)
+                playPop()
+              }}
+            />
+          </Row>
+          <Row label="Play user interface sound effects" sub="Volume pops, Trash swoosh, Dock poof, and alert bonks.">
+            <Toggle label="Play user interface sound effects" on={s.soundEffects} onChange={(v) => os().set('soundEffects', v)} />
           </Row>
         </div>
       )

@@ -9,6 +9,12 @@ import { MENU_BAR_DEFAULTS, parseMenuBarPrefs, type StatusMenu } from './lib/men
 export type Phase = 'off' | 'booting' | 'bootpicker' | 'windows' | 'login' | 'desktop' | 'sleep' | 'panic' | 'shuttingdown'
 export type Tile = 'left' | 'right' | 'fill' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | null
 export type Wallpaper = 'grove' | 'grove-dark' | 'orchard' | 'graphite' | 'fractal' | 'lake'
+export type AccentColor = 'blue' | 'purple' | 'pink' | 'red' | 'orange' | 'yellow' | 'green' | 'graphite'
+export type ScrollbarMode = 'auto' | 'always'
+export type SystemDialog =
+  | { kind: 'force-quit' }
+  | { kind: 'power'; mode: 'restart' | 'shutdown' | 'logout' }
+  | { kind: 'empty-trash' }
 
 export interface Rect {
   x: number
@@ -112,6 +118,13 @@ interface State {
   zTop: number
   tilePreview: Tile
   theme: 'light' | 'dark'
+  accent: AccentColor
+  scrollbars: ScrollbarMode
+  soundEffects: boolean
+  finderPathBar: boolean
+  finderStatusBar: boolean
+  systemDialog: SystemDialog | null
+  menuFlash: string | null
   wallpaper: Wallpaper
   brightness: number
   volume: number
@@ -151,10 +164,16 @@ interface State {
   panic(reason: string): void
   openApp(app: AppId, opts?: { props?: Record<string, unknown>; forceNew?: boolean }): string
   closeWindow(id: string): void
+  closeAllWindows(app: AppId): void
   closeApp(app: AppId): void
   activateApp(app: AppId): void
   hideApp(app: AppId): void
+  hideOtherApps(app: AppId): void
+  bringAllToFront(app?: AppId): void
   cycleWindows(backward: boolean): void
+  flashMenu(key: string): void
+  openDialog(dialog: SystemDialog): void
+  closeDialog(): void
   resetSession(): void
   focus(id: string | null): void
   minimize(id: string): void
@@ -381,7 +400,8 @@ function freeSpot(existing: WidgetInst[], size: WidgetSize): { x: number; y: num
 
 const PREFS_KEY = 'pearos.prefs.v1'
 const WALLPAPERS: Wallpaper[] = ['grove', 'grove-dark', 'orchard', 'graphite', 'fractal', 'lake']
-const PREF_KEYS = ['theme', 'wallpaper', 'liveWallpaper', 'fractalWallpaper', 'brightness', 'volume', 'wifi', 'bluetooth', 'menuBar', 'dnd', 'dockMagnify', 'dockSize', 'dockAutohide', 'dockZoom', 'dockApps', 'dockMinimize', 'dockIndicators', 'dockBounce', 'hotCorners', 'spaceFollowApp', 'appSwitchShortcut'] as const
+const ACCENTS: AccentColor[] = ['blue', 'purple', 'pink', 'red', 'orange', 'yellow', 'green', 'graphite']
+const PREF_KEYS = ['theme', 'accent', 'scrollbars', 'soundEffects', 'finderPathBar', 'finderStatusBar', 'wallpaper', 'liveWallpaper', 'fractalWallpaper', 'brightness', 'volume', 'wifi', 'bluetooth', 'menuBar', 'dnd', 'dockMagnify', 'dockSize', 'dockAutohide', 'dockZoom', 'dockApps', 'dockMinimize', 'dockIndicators', 'dockBounce', 'hotCorners', 'spaceFollowApp', 'appSwitchShortcut'] as const
 type Prefs = Pick<State, (typeof PREF_KEYS)[number]>
 
 function loadPrefs(): Partial<Prefs> {
@@ -391,6 +411,8 @@ function loadPrefs(): Partial<Prefs> {
     const out: Partial<Prefs> = {}
     const num = (v: unknown, lo: number, hi: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : undefined)
     if (raw.theme === 'light' || raw.theme === 'dark') out.theme = raw.theme
+    if (ACCENTS.includes(raw.accent)) out.accent = raw.accent
+    if (raw.scrollbars === 'auto' || raw.scrollbars === 'always') out.scrollbars = raw.scrollbars
     const f = raw.fractalWallpaper
     if (f && [f.cx, f.cy, f.scale, f.iter].every(Number.isFinite) && f.scale > 0 && [0, 1, 2].includes(f.scheme))
       out.fractalWallpaper = { cx: f.cx, cy: f.cy, scale: f.scale, iter: Math.min(4000, Math.max(1, Math.round(f.iter))), scheme: f.scheme }
@@ -407,7 +429,7 @@ function loadPrefs(): Partial<Prefs> {
     if (Array.isArray(raw.dockApps) && raw.dockApps.length <= 40 && raw.dockApps.every((a: unknown) => typeof a === 'string')) out.dockApps = [...new Set<string>(raw.dockApps)] as AppId[]
     const corners = parseCorners(raw.hotCorners)
     if (corners) out.hotCorners = corners
-    for (const k of ['liveWallpaper', 'wifi', 'bluetooth', 'dnd', 'dockMagnify', 'dockAutohide', 'dockIndicators', 'dockBounce', 'spaceFollowApp'] as const) if (typeof raw[k] === 'boolean') out[k] = raw[k]
+    for (const k of ['liveWallpaper', 'wifi', 'bluetooth', 'dnd', 'dockMagnify', 'dockAutohide', 'dockIndicators', 'dockBounce', 'spaceFollowApp', 'soundEffects', 'finderPathBar', 'finderStatusBar'] as const) if (typeof raw[k] === 'boolean') out[k] = raw[k]
     for (const k of Object.keys(out) as (keyof Prefs)[]) if (out[k] === undefined) delete out[k]
     return out
   } catch {
@@ -434,6 +456,13 @@ export const useOS = create<State>((set, get) => ({
   zTop: 10,
   tilePreview: null,
   theme: window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
+  accent: 'blue',
+  scrollbars: 'auto',
+  soundEffects: true,
+  finderPathBar: true,
+  finderStatusBar: true,
+  systemDialog: null,
+  menuFlash: null,
   wallpaper: 'grove',
   brightness: 1,
   volume: 0.6,
@@ -467,11 +496,11 @@ export const useOS = create<State>((set, get) => ({
   liveWallpaper: true,
   ...loadPrefs(),
 
-  setPhase: (phase) => set({ phase, overlay: CLOSED, quickLook: null }),
+  setPhase: (phase) => set({ phase, overlay: CLOSED, quickLook: null, systemDialog: null }),
   resetSession() {
     const s = get()
     for (const app of s.runningApps) quitHooks[app]?.()
-    set({ ...initialSession(), activeSpace: desktopFor(s), toasts: [], overlay: CLOSED, contextMenu: null, quickLook: null })
+    set({ ...initialSession(), activeSpace: desktopFor(s), toasts: [], overlay: CLOSED, contextMenu: null, quickLook: null, systemDialog: null })
   },
   panic(reason) {
     get().resetSession()
@@ -557,6 +586,20 @@ export const useOS = create<State>((set, get) => ({
     })
   },
 
+  closeAllWindows(app) {
+    const s = get()
+    const windows = normalizeSplit(s.windows.filter((w) => w.app !== app))
+    const activeSpace = spaceOrder({ ...s, windows }).includes(s.activeSpace) ? s.activeSpace : desktopFor(s)
+    const next = frontWindow({ ...s, windows }, activeSpace)
+    set({
+      windows,
+      activeSpace,
+      focused: next?.id ?? null,
+      ...(next ? appFocus(s, next.app) : {}),
+      spaceSlide: activeSpace === s.activeSpace ? s.spaceSlide : slideTo(s, activeSpace),
+    })
+  },
+
   closeApp(app) {
     const s = get()
     quitHooks[app]?.()
@@ -604,6 +647,45 @@ export const useOS = create<State>((set, get) => ({
       spaceSlide: activeSpace === s.activeSpace ? s.spaceSlide : slideTo(s, activeSpace),
     })
   },
+
+  hideOtherApps(app) {
+    const s = get()
+    const hiddenApps = s.runningApps.filter((a) => a !== app && (a !== 'finder' || s.windows.some((w) => w.app === 'finder')))
+    const next = frontWindow({ ...s, hiddenApps }, s.activeSpace, app)
+    set({ hiddenApps, focused: next?.id ?? s.focused })
+  },
+
+  bringAllToFront(app) {
+    const s = get()
+    const targetApp = app ?? s.activeApp
+    const wins = s.windows
+      .filter((w) => w.app === targetApp && !w.minimized && onSpace(w, s.activeSpace, s.assign))
+      .sort((a, b) => a.z - b.z)
+    if (!wins.length) return
+    let zTop = s.zTop
+    const order = new Map<string, number>()
+    for (const w of wins) order.set(w.id, ++zTop)
+    const top = wins[wins.length - 1]
+    set({
+      windows: s.windows.map((w) => {
+        const z = order.get(w.id)
+        return z === undefined ? w : { ...w, z }
+      }),
+      focused: top.id,
+      zTop,
+      ...appFocus(s, targetApp),
+    })
+  },
+
+  flashMenu(key) {
+    set({ menuFlash: key })
+    window.setTimeout(() => {
+      if (get().menuFlash === key) set({ menuFlash: null })
+    }, 170)
+  },
+
+  openDialog: (systemDialog) => set({ systemDialog, overlay: CLOSED, contextMenu: null, quickLook: null }),
+  closeDialog: () => set({ systemDialog: null }),
 
   cycleWindows(backward) {
     const s = get()

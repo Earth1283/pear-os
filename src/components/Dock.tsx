@@ -3,13 +3,15 @@ import { useOS, os } from '../store'
 import { APPS } from '../apps/registry'
 import { DOCK_PINNED } from '../apps/dockDefaults'
 import type { AppId } from '../apps/ids'
-import { AppIcon } from './icons'
-import { HOME } from '../lib/fs'
+import { AppIcon, FileIcon, FolderIcon, fileThumb } from './icons'
+import { HOME, listDir, resolve, trashCount } from '../lib/fs'
 import { menu } from '../lib/menu'
 import { dockMenu, dockSeparatorMenu, miniWindowMenu } from '../lib/menus'
 import { dropIndex, insertAt, normaliseDock } from '../lib/dockOrder'
 import { rememberDockRect } from '../lib/genie'
 import { useFlights } from '../lib/flights'
+import { openPath } from '../apps/open'
+import { playPoof } from '../lib/sounds'
 import './Dock.css'
 
 function activate(app: AppId) {
@@ -34,7 +36,66 @@ function MiniWindow({ app, w, h }: { app: AppId; w: number; h: number }) {
   )
 }
 
+function DownloadsStack({ onClose }: { onClose: () => void }) {
+  useOS((s) => s.fsVersion)
+  const dir = resolve(HOME + '/Downloads')
+  const entries = dir && dir.type === 'dir' ? listDir(dir) : []
+  return (
+    <div className="dock-stack-catch" onPointerDown={onClose}>
+      <div className="dock-stack glass" role="dialog" aria-label="Downloads" onPointerDown={(e) => e.stopPropagation()}>
+        <div className="dock-stack-head">
+          <span>Downloads</span>
+          <small>{entries.length} items</small>
+        </div>
+        <div className="dock-stack-grid">
+          {entries.length === 0 ? (
+            <div className="dock-stack-empty">Downloads is empty</div>
+          ) : (
+            entries.map(([name, node]) => {
+              const p = `${HOME}/Downloads/${name}`
+              const ext = name.includes('.') ? name.split('.').pop()! : ''
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  className="dock-stack-item"
+                  onClick={() => {
+                    onClose()
+                    openPath(p)
+                  }}
+                >
+                  {node.type === 'dir' ? (
+                    <FolderIcon size={46} />
+                  ) : node.app ? (
+                    <AppIcon app={node.app} size={46} />
+                  ) : (
+                    <FileIcon size={46} kind={node.kind} ext={ext} thumb={fileThumb(node)} />
+                  )}
+                  <span>{name}</span>
+                </button>
+              )
+            })
+          )}
+        </div>
+        <div className="dock-stack-foot">
+          <button
+            type="button"
+            className="btn small"
+            onClick={() => {
+              onClose()
+              os().openApp('finder', { props: { path: HOME + '/Downloads' }, forceNew: true })
+            }}
+          >
+            Open in Finder
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function Dock() {
+  useOS((s) => s.fsVersion)
   const size = useOS((s) => s.dockSize)
   const magnify = useOS((s) => s.dockMagnify)
   const zoom = useOS((s) => s.dockZoom)
@@ -50,6 +111,7 @@ export function Dock() {
   const menuOpen = useOS((s) => s.contextMenu !== null)
   const flying = useFlights((s) => s.ids)
   const [peek, setPeek] = useState(false)
+  const [stackOpen, setStackOpen] = useState(false)
   const leave = useRef<number | undefined>(undefined)
   const dragRef = useRef<Drag | null>(null)
   const show = () => {
@@ -93,6 +155,7 @@ export function Dock() {
     const [id, app, title, ratio] = row.split('\t')
     return { id, app: app as AppId, title, ratio: Math.min(1.7, Math.max(1, +ratio)) }
   }) : []
+  const trashFull = trashCount() > 0
 
   const [drag, setDrag] = useState<Drag | null>(null)
   const [poof, setPoof] = useState<{ x: number; y: number; k: number } | null>(null)
@@ -174,6 +237,7 @@ export function Dock() {
       if (d.out) {
         if (!extra && id !== 'launchpad') {
           os().set('dockApps', apps.filter((a) => a !== id))
+          playPoof()
           setPoof({ x: d.x, y: d.y, k: Date.now() })
           setTimeout(() => setPoof(null), 700)
         }
@@ -207,7 +271,7 @@ export function Dock() {
       >
         <span className="dock-label glass">{APPS[id].name}</span>
         <span className="dock-icon" style={{ transform: `scale(${s})` }}>
-          <AppIcon app={id} size={size} />
+          <AppIcon app={id} size={size} full={id === 'trash' ? trashFull : undefined} />
           {n > 0 && <span className="dock-badge">{n > 99 ? '99+' : n}</span>}
         </span>
         {indicators && runningSet.has(id) && <span className="dock-dot" />}
@@ -246,11 +310,35 @@ export function Dock() {
     )
   }
 
+  const dlScale = scaleFor('stack:downloads')
+  const downloadsItem = (
+    <button
+      key="stack:downloads"
+      ref={(el) => {
+        refs.current['stack:downloads'] = el
+      }}
+      data-dock-stack="downloads"
+      className={`dock-item ${stackOpen ? 'stack-active' : ''}`}
+      style={{ width: size * dlScale, height: size }}
+      onClick={() => setStackOpen((v) => !v)}
+      onContextMenu={menu([
+        { label: 'Open “Downloads”', run: () => os().openApp('finder', { props: { path: HOME + '/Downloads' }, forceNew: true }) },
+      ])}
+      aria-label="Downloads"
+      aria-expanded={stackOpen}
+    >
+      <span className="dock-label glass">Downloads</span>
+      <span className="dock-icon" style={{ transform: `scale(${dlScale})` }}>
+        <FolderIcon size={size} />
+      </span>
+    </button>
+  )
+
   return (
     <>
       {autohide && <div className="dock-trigger" onPointerEnter={show} onPointerLeave={hide} />}
       <div
-        className={`dock-wrap ${autohide && !peek && !menuOpen ? 'hidden' : ''}`}
+        className={`dock-wrap ${autohide && !peek && !menuOpen && !stackOpen ? 'hidden' : ''}`}
         onPointerDown={(e) => e.stopPropagation()}
         onPointerEnter={show}
         onPointerLeave={hide}
@@ -261,9 +349,11 @@ export function Dock() {
           {extras.map((id) => item(id, true))}
           <div className="dock-sep" onContextMenu={menu(dockSeparatorMenu)} />
           {minis.map(miniItem)}
+          {downloadsItem}
           {item('trash')}
         </div>
       </div>
+      {stackOpen && <DownloadsStack onClose={() => setStackOpen(false)} />}
       {drag && (
         <div className="dock-drag" style={{ left: drag.x - size / 2, top: drag.y - size / 2, width: size, height: size }}>
           <AppIcon app={drag.id} size={size} />

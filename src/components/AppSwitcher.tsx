@@ -18,6 +18,7 @@ function matches(e: KeyboardEvent, shortcut: AppSwitchShortcut) {
 
 export function AppSwitcher() {
   const shortcut = useOS((s) => s.appSwitchShortcut)
+  const hiddenApps = useOS((s) => s.hiddenApps)
   const [selection, setSelection] = useState<Selection | null>(null)
   const current = useRef<Selection | null>(null)
   const strip = useRef<HTMLDivElement>(null)
@@ -53,6 +54,19 @@ export function AppSwitcher() {
       if (selection) {
         if (e.key === 'Escape') return finish()
         if (e.key === 'Enter') return finish(selection.apps[selection.index])
+        const targetApp = selection.apps[selection.index]
+        if (e.code === 'KeyQ' && targetApp && targetApp !== 'finder') {
+          os().closeApp(targetApp)
+          const remaining = selection.apps.filter((a) => a !== targetApp)
+          if (remaining.length === 0) return finish()
+          update({ apps: remaining, index: Math.min(selection.index, remaining.length - 1) })
+          return
+        }
+        if (e.code === 'KeyH' && targetApp) {
+          if (os().hiddenApps.includes(targetApp)) os().activateApp(targetApp)
+          else os().hideApp(targetApp)
+          return
+        }
         const backward = e.key === 'ArrowLeft' || (e.shiftKey && shortcut !== 'ctrl-shift-space' && cycling)
         if (cycling || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
           const index = (selection.index + (backward ? -1 : 1) + selection.apps.length) % selection.apps.length
@@ -98,7 +112,7 @@ export function AppSwitcher() {
       <div className="app-switcher glass" ref={strip} role="dialog" aria-modal="true" aria-label="App Switcher">
         <div className="app-switch-items">
           {selection.apps.map((app, index) => (
-            <button key={app} type="button" aria-current={index === selection.index} aria-label={APPS[app].name} onClick={() => finish(app)}>
+            <button key={app} type="button" className={hiddenApps.includes(app) ? 'hidden-app' : ''} aria-current={index === selection.index} aria-label={APPS[app].name} onClick={() => finish(app)}>
               <AppIcon app={app} size={52} />
               <span>{APPS[app].name}</span>
             </button>
